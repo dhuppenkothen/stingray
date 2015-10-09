@@ -34,5 +34,3 @@ All content © 2015 the authors. The code is distributed under the MIT license.
 
 Pull requests are welcome! If you are interested in the further development of 
 stingray, please `get in touch via the issues <https://github.com/dhuppenkothen/stingray/issues>`_!
-
-Project started at ![Astro Hack Week](https://img.shields.io/badge/Astro-Hack%20Week-green.svg?style=flat-square)
