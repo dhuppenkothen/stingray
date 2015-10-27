@@ -62,6 +62,7 @@ class Lightcurve(object):
 
     @staticmethod
     def make_lightcurve(toa, dt, tseg=None, tstart=None):
+
         """
         Make a light curve out of photon arrival times.
 

@@ -7,7 +7,7 @@ def rebin_data(x, y, dx_new, method='sum'):
     the data points in the new bins or average them.
 
     Parameters
-    -----------
+    ----------
     x: iterable
         The dependent variable with some resolution dx_old = x[1]-x[0]
 
@@ -23,7 +23,7 @@ def rebin_data(x, y, dx_new, method='sum'):
 
 
     Returns
-    --------
+    -------
     xbin: numpy.ndarray
         The midpoints of the new bins in x
 
@@ -35,7 +35,6 @@ def rebin_data(x, y, dx_new, method='sum'):
 
     assert dx_new >= dx_old, "New frequency resolution must be larger than " \
                              "old frequency resolution."
-
 
     step_size = np.float(dx_new)/np.float(dx_old)
 
