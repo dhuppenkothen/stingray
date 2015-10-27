@@ -1,204 +1,161 @@
-#!/usr/bin/env python
-#####################
-#
-# Class definition for the light curve class. 
-# Used to create light curves out of photon counting data
-# or to save existing light curves in a class that's easy to use.
-#
-#
+"""
+Definition of :class:`Lightcurve`.
 
-#import matplotlib.pyplot as plt
+:class:`Lightcurve` is used to create light curves out of photon counting data
+or to save existing light curves in a class that's easy to use.
+"""
 
-import numpy
-#import math
+__all__ = ["Lightcurve"]
+
 import numpy as np
-
-#import scipy.optimize
-
-
-##dayseconds = 60.*60.*24.
+import stingray.utils as utils
 
 class Lightcurve(object):
-    def __init__(self, time, counts = None, timestep=None, tseg=None, tstart = None):
+    def __init__(self, time, counts):
         """
-        Make a light curve object, either from an array of time stamps and an array of counts,
-        or from a list of photon arrival times.
+        Make a light curve object from an array of time stamps and an
+        array of counts.
 
         Parameters
-        -----------
+        ----------
         time: iterable
-            Either a list or an array of photon arrival times (if counts is None) or a list of
-            time stamps for a light curve (if counts is not None)
+            A list or array of time stamps for a light curve
 
         counts: iterable, optional, default None
-            if `time` contains a list of time stamps and not a list of photn arrival times, this
-            list or array should contain the corresponding counts in each bin (note:
-            **not** the count rate, i.e. counts/second, but the counts/timestep).
-
-        timestep: float, optional, default None
-            If `time` is a list of photon arrival times, `timestep` needs to be set to the time
-            resolution of the light curve. If `counts` is set (the input is a light curve and not
-            a set of photon arrival times), this keyword will be ignored.
-
-        tseg: float, optional, default None
-            If not None, and the input is a list of photon arrival times, this will be the total duration
-            of the light curve, either starting from the first photon (if tstart == None) or from tstart.
-            Otherwise the duration will be the difference between the arrival times of the last and the first
-            photon.
-
-        tstart: float, optional, default None
-            if not None, and the input is a list of photon arrival times, this will be the start time
-            of the light curve. Otherwise the start time of the light curve coincides with the arrival
-            time of the first photon.
+            A list or array of the counts in each bin corresponding to the
+            bins defined in `time` (note: **not** the count rate, i.e.
+            counts/second, but the counts/bin).
 
 
         Attributes
         ----------
+        time: numpy.ndarray
+            The array of midpoints of time bins
+
+        counts: numpy.ndarray
+            The counts per bin corresponding to the bins in `time`.
+
+        countrate: numpy.ndarray
+            The counts per second in each of the bins defined in `time`.
+
+        ncounts: int
+            The number of data points in the light curve.
+
+        dt: float
+            The time resolution of the light curve.
+
+        tseg: float
+            The total duration of the light curve.
+
+        tstart: float
+            The start time of the light curve.
 
         """
 
-        if counts is None:
-            ### TOA has a list of photon times of arrival
-            self.ncounts = np.asarray(time).shape[0]
-            self.tstart = tstart
-            self.makeLightcurve(time, timestep, tseg=tseg)
-            
-        else:
-            self.time = np.asarray(time)
-            self.counts = np.asarray(counts)
-            self.res = time[1] - time[0]
-            self.countrate = self.counts/self.res
-            self.tseg = self.time[-1] - self.time[0] + self.res
+        self.time = np.asarray(time)
+        self.counts = np.asarray(counts)
+        self.ncounts = self.counts.shape[0]
+        self.dt = time[1] - time[0]
+        self.countrate = self.counts/self.dt
+        self.tseg = self.time[-1] - self.time[0] + self.dt
+        self.tstart = self.time[0]-0.5*self.dt
 
-    def makeLightcurve(self, time, timestep):
+    @staticmethod
+    def make_lightcurve(toa, dt, tseg=None, tstart=None):
         """
         Make a light curve out of photon arrival times.
 
         Parameters
-        -----------
-        time: iterable
+        ----------
+        toa: iterable
             list of photon arrival times
 
-        timestep: float
+        dt: float
             time resolution of the light curve (the bin width)
 
+        tseg: float, optional, default None
+            The total duration of the light curve.
+            If this is `None`, then the total duration of the light curve will
+            be the interval between the arrival between the first and the last
+            photon in `toa`.
 
-        Attributes
-        -----------
-        self.time: numpy.ndarray
-            list with mid-bin time stamps
+                **Note**: If tseg is not divisible by dt (i.e. if tseg/dt is not
+                an integer number), then the last fractional bin will be
+                dropped!
 
-        self.counts: numpy.ndarray
-            The number of photons per time bin
+        tstart: float, optional, default None
+            The start time of the light curve.
+            If this is None, the arrival time of the first photon will be used
+            as the start time of the light curve.
 
-        self.countrate: numpy.ndarray
-            the same as self.counts expressed in counts/second
+        Returns
+        -------
+        lc: :class:`Lightcurve` object
+            A light curve object with the binned light curve
+
         """
 
-        ## tstart is an optional parameter to set a starting time for the light curve
-        ## in case this does not coincide with the first photon
-        if self.tstart is None:
+        ## tstart is an optional parameter to set a starting time for
+        ## the light curve in case this does not coincide with the first photon
+        if tstart is None:
             ## if tstart is not set, assume light curve starts with first photon
-            tstart = time[0]
-        else:
-            tstart = self.tstart
-        ### number of bins in light curve
+            tstart = toa[0]
 
         ## compute the number of bins in the light curve
-        ## for cases where tseg/timestep are not integer, computer one
+        ## for cases where tseg/dt are not integer, computer one
         ## last time bin more that we have to subtract in the end
-        if not self.tseg:
-            tseg = time[-1] - time[0]
+        if tseg is None:
+            tseg = toa[-1] - toa[0]
 
-        timebin = np.ceil(tseg/timestep)
-        frac = (tseg/timestep) - int(timebin - 1)
+        print("tseg: " + str(tseg))
 
-        tend = tstart + timebin*timestep
+        timebin = np.int(tseg/dt)
+        print("timebin:  " + str(timebin))
 
-        counts, histbins = np.histogram(time, bins=timebin, range = [tstart, tend])
-        self.res = histbins[1] - histbins[0]
+        tend = tstart + timebin*dt
 
-        self.time = np.array([histbins[0] + 0.5*self.res + n*self.res for n in range(int(timebin))])
-        self.countrate = self.counts/self.res
+        counts, histbins = np.histogram(toa, bins=timebin, range=[tstart, tend])
 
-        #print("len timebins: " + str(len(timebins)))
-        if frac > 0.0:
-            self.counts = np.asarray(counts[:-1])
-            self.time = np.array(self.time[:-1])
+        dt = histbins[1]-histbins[0]
 
-        else:
-            self.counts = np.asarray(counts)
-            self.time = self.time
+        time = histbins[:-1]+0.5*dt
 
-    def rebinLightcurve(self, newres, method='sum'):
-        ### calculate number of bins in new light curve
-        nbins = np.floor(self.tseg/newres)+1
-        self.binres = self.tseg/nbins
-        print "New time resolution is: " + str(self.binres)
+        counts = np.asarray(counts)
 
-        #print("I am here")
-        bintime, bincounts, _ = self._rebin_new(self.time, self.counts, newres, method)
-        return Lightcurve(bintime, bincounts)
-
-    def _rebin_new(self, time, counts, dtnew, method='sum'):
-
-        try:
-            step_size = float(dtnew)/float(self.res)
-        except AttributeError:
-            step_size = float(dtnew)/float(self.df)
-
-        output = []
-        for i in numpy.arange(0, len(counts), step_size):
-            total = 0
-            #print "Bin is " + str(i)
-
-            prev_frac = int(i+1) - i
-            prev_bin = int(i)
-            #print "Fractional part of bin %d is %f"  %(prev_bin, prev_frac)
-            total += prev_frac * counts[prev_bin]
-
-            if i + step_size < len(time):
-                # Fractional part of next bin:
-                next_frac = i+step_size - int(i+step_size)
-                next_bin = int(i+step_size)
-                #print "Fractional part of bin %d is %f"  %(next_bin, next_frac)
-                total += next_frac * counts[next_bin]
-
-            #print "Fully included bins: %d to %d" % (int(i+1), int(i+step_size)-1)
-            total += sum(counts[int(i+1):int(i+step_size)])
-            output.append(total)
-
-        tnew = np.arange(len(output))*dtnew + time[0]
-        if method in ['mean', 'avg', 'average', 'arithmetic mean']:
-            cbinnew = output
-            cbin = np.array(cbinnew)/float(step_size)
-        elif method not in ['sum']:
-            raise Exception("Method for summing or averaging not recognized. Please enter either 'sum' or 'mean'.")
-        else:
-            cbin = output
-
-        return tnew, cbin, dtnew
+        return Lightcurve(time, counts)
 
 
-### chop up light curve in pieces and save each piece in
-### a separate light curve object
-## len [float]: length of segment (in seconds)
-## overlap [float, < 1.0]: overlap between segments, in seconds
-def moving_bins(time, timestep=1.0, duration=10.0, startdiff=1.0, tstart=None):
+    def rebin_lightcurve(self, dt_new, method='sum'):
+        """
+        Rebin the light curve to a new time resolution. While the new
+        resolution need not be an integer multiple of the previous time
+        resolution, be aware that if it is not, the last bin will be cut
+        off by the fraction left over by the integer division.
 
-    lcs = []
-    if tstart is None:
-        tstart = time[0]
+        Parameters
+        ----------
+        dt_new: float
+            The new time resolution of the light curve. Must be larger than
+            the time resolution of the old light curve!
+
+        method: {"sum" | "mean" | "average"}, optional, default "sum"
+            This keyword argument sets whether the counts in the new bins
+            should be summed or averaged.
 
 
-    tend = tstart + duration
+        Returns
+        -------
+        lc_new: :class:`Lightcurve` object
+            The :class:`Lightcurve` object with the new, binned light curve.
+        """
+        assert dt_new >= self.dt, "New time resolution must be larger than " \
+                                  "old time resolution!"
 
-    while tend <= time[-1] :
-        stind = time.searchsorted(tstart)
-        eind = time.searchsorted(tend)
-        tnew = time[stind:eind]
-        lcs.append(Lightcurve(tnew, timestep=timestep, tseg=duration, tstart=tstart))
-        tstart += startdiff
-        tend += startdiff
+        bin_time, bin_counts, _ = utils.rebin_data(self.time,
+                                                   self.counts,
+                                                   dt_new, method)
 
-    return lcs
+        lc_new = Lightcurve(bin_time, bin_counts)
+        return lc_new
+
+
