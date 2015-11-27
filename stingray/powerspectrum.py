@@ -12,7 +12,7 @@ import stingray.utils as utils
 
 class Powerspectrum(object):
 
-    def __init__(self, lc=None, norm='rms'):
+    def __init__(self, lc=None, norm='frac'):
         """
         Make a Periodogram (power spectrum) from a (binned) light curve.
         Periodograms can be Leahy normalized or fractional rms normalized.
@@ -25,14 +25,14 @@ class Powerspectrum(object):
         lc: lightcurve.Lightcurve object, optional, default None
             The light curve data to be Fourier-transformed.
 
-        norm: {"leahy" | "rms"}, optional, default "rms"
+        norm: {"leahy" | "frac"}, optional, default "frac"
             The normaliation of the periodogram to be used. Options are
-            "leahy" or "rms", default is "rms".
+            "leahy" or "frac", default is "frac".
 
 
         Attributes
         ----------
-        norm: {"leahy" | "rms"}
+        norm: {"leahy" | "frac"}
             the normalization of the periodogram
 
         freq: numpy.ndarray
@@ -58,8 +58,8 @@ class Powerspectrum(object):
         """
         assert isinstance(norm, str), "norm is not a string!"
 
-        assert norm.lower() in ["rms", "leahy"], \
-                "norm must be either 'rms' or 'leahy'!"
+        assert norm.lower() in ["frac", "leahy"], \
+                "norm must be either 'frac' or 'leahy'!"
 
         self.norm = norm.lower()
 
@@ -102,7 +102,7 @@ class Powerspectrum(object):
         ## make the actual Fourier transform
         self.unnorm_powers = self._fourier_transform(lc)
 
-        ## normalize to either Leahy or rms normalization
+        ## normalize to either Leahy or fractional rms normalization
         self.ps = self._normalize_periodogram(self.unnorm_powers, lc)
 
         ## make a list of frequencies to go with the powers
@@ -137,7 +137,7 @@ class Powerspectrum(object):
         the power spectrum in which the powers are distributed as Chi^2 with
         two degrees of freedom (with a mean of 2 and a variance of 4).
 
-        In rms normalization, the periodogram will be normalized such that
+        In fractional rms normalization, the periodogram will be normalized such that
         the integral of the periodogram will equal the total variance in the
         light curve divided by the mean of the light curve squared.
 
@@ -159,7 +159,7 @@ class Powerspectrum(object):
             p = unnorm_powers
             ps =  2.*p/self.nphots
 
-        elif self.norm.lower() == 'rms':
+        elif self.norm.lower() == 'frac':
             p = unnorm_powers/np.float(self.n**2.)
             ps = p*2.*lc.tseg/(np.mean(lc.counts)**2.0)
 
@@ -330,7 +330,7 @@ class Powerspectrum(object):
 
 class AveragedPowerspectrum(Powerspectrum):
 
-    def __init__(self, lc, segment_size, norm="rms"):
+    def __init__(self, lc, segment_size, norm="frac"):
         """
         Make an averaged periodogram from a light curve by segmenting the light
         curve, Fourier-transforming each segment and then averaging the
@@ -347,14 +347,14 @@ class AveragedPowerspectrum(Powerspectrum):
             segment_size, then any fraction left-over at the end of the
             time series will be lost.
 
-        norm: {"leahy" | "rms"}, optional, default "rms"
+        norm: {"leahy" | "frac"}, optional, default "frac"
             The normaliation of the periodogram to be used. Options are
-            "leahy" or "rms", default is "rms".
+            "leahy" or "frac", default is "frac".
 
 
         Attributes
         ----------
-        norm: {"leahy" | "rms"}
+        norm: {"leahy" | "frac"}
             the normalization of the periodogram
 
         freq: numpy.ndarray
