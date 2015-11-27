@@ -33,14 +33,14 @@ class Powerspectrum(object):
         Attributes
         ----------
         norm: {"leahy" | "frac" | "abs"}
-            the normalization of the periodogram
+            The normalization of the periodogram.
 
         freq: numpy.ndarray
-            The array of mid-bin frequencies that the Fourier transform samples
+            The array of mid-bin frequencies that the Fourier transform samples.
 
         ps: numpy.ndarray
             The array of normalized squared absolute values of Fourier
-            amplitudes
+            amplitudes.
 
         df: float
             The frequency resolution
@@ -102,8 +102,8 @@ class Powerspectrum(object):
         ## make the actual Fourier transform
         self.unnorm_powers = self._fourier_transform(lc)
 
-        ## normalize to either Leahy or fractional rms normalization
-        self.ps = self._normalize_periodogram(self.unnorm_powers, lc)
+        ## normalize to Leahy, absolute rms, or fractional rms normalization
+        # self.ps = self._normalize_periodogram(self.unnorm_powers, lc)
 
         ## make a list of frequencies to go with the powers
         self.freq = np.arange(self.ps.shape[0])*self.df + self.df/2.
@@ -125,57 +125,10 @@ class Powerspectrum(object):
             The squared absolute value of the Fourier amplitudes
 
         """
-        fourier= scipy.fftpack.fft(lc.counts) ### do Fourier transform
+        fourier = scipy.fftpack.fft(lc.counts) ### do Fourier transform
         fr = np.abs(fourier[:self.n/2+1])**2.
         return fr
 
-    def _normalize_periodogram(self, unnorm_powers, lc):
-        """
-        Normalize the periodogram to Leahy, fractional rms, or absolute rms
-        normalization.
-        In Leahy normalization, the periodogram is normalized in such a way
-        that a flat light curve of Poissonian data will make a realization of
-        the power spectrum in which the powers are distributed as Chi^2 with
-        two degrees of freedom (with a mean of 2 and a variance of 4).
-
-        In fractional rms normalization, the periodogram will be normalized such
-        that the integral of the periodogram will equal the total variance in
-        the light curve divided by the mean count rate of the light curve
-        squared.
-
-        In absolute rms normalization, the periodogram is normalized such that
-        the integral of the periodogram equals the total variance in the light
-        curve.
-
-        Parameters
-        ----------
-        unnorm_powers: numpy.ndarray
-            The squared absolute value of the Fourier amplitudes
-
-        lc: lightcurve.Lightcurve object
-            The input light curve
-
-
-        Returns
-        -------
-        ps: numpy.nd.array
-            The normalized periodogram
-        """
-        if self.norm.lower() == 'leahy':
-            p = unnorm_powers
-            ps = 2. * p / self.nphots
-
-        elif self.norm.lower() == 'frac':
-            p = unnorm_powers / np.float(self.n**2.)
-            ps = p * 2. * lc.tseg / (np.mean(lc.counts)**2.0)
-
-        elif self.norm.lower() == 'abs':
-            p = unnorm_powers / np.float(self.n**2.)
-            ps = p * 2. * lc.tseg
-        else:
-            raise Exception("Normalization not recognized!")
-
-        return ps
 
     def rebin(self, df, method="mean"):
         """
@@ -272,7 +225,7 @@ class Powerspectrum(object):
 
     def compute_rms(self, min_freq, max_freq):
         """
-        Compute the rms amplitude in the periodogram between two frequencies.
+        Compute the rms amplitude of the periodogram between two frequencies.
 
         Parameters
         ----------
@@ -358,7 +311,7 @@ class AveragedPowerspectrum(Powerspectrum):
 
         norm: {"leahy" | "frac" | "abs"}, optional, default "frac"
             The normaliation of the periodogram to be used. Options are
-            "leahy", "frac" or "abs", default is "frac".
+            "leahy", "frac", or "abs", default is "frac".
 
 
         Attributes
@@ -455,3 +408,55 @@ class AveragedPowerspectrum(Powerspectrum):
         self.df = ps_all[0].df
         self.n = ps_all[0].n
         self.nphots = nphots
+
+        ps_avg_norm = self._normalize_periodogram(self.ps, lc)
+
+
+    def _normalize_periodogram(self, unnorm_powers, lc):
+            """
+            Normalize the averaged power spectrum to Leahy, fractional rms, or
+            absolute rms normalization.
+
+            In Leahy normalization, the periodogram is normalized in such a way
+            that a flat light curve of Poissonian data will make a realization
+            of the power spectrum in which the powers are distributed as Chi^2
+            with two degrees of freedom (with a mean of 2 and a variance of 4).
+
+            In fractional rms normalization, the periodogram will be normalized
+            such that the integral of the periodogram will equal the total
+            variance in the light curve divided by the mean count rate of the
+            light curve squared.
+
+            In absolute rms normalization, the periodogram is normalized such
+            that the integral of the periodogram equals the total variance in
+            the light curve.
+
+            Parameters
+            ----------
+            unnorm_powers: numpy.ndarray
+                The squared absolute value of the Fourier amplitudes.
+
+            lc: lightcurve.Lightcurve object
+                The input light curve
+
+
+            Returns
+            -------
+            ps: numpy.nd.array
+                The normalized periodogram
+            """
+            if self.norm.lower() == 'leahy':
+                p = unnorm_powers
+                ps = 2. * p / self.nphots
+
+            elif self.norm.lower() == 'frac':
+                p = unnorm_powers / np.float(self.n**2.)
+                ps = p * 2. * lc.tseg / (np.mean(lc.counts)**2.0)
+
+            elif self.norm.lower() == 'abs':
+                p = unnorm_powers / np.float(self.n**2.)
+                ps = p * 2. * lc.tseg
+            else:
+                raise Exception("Normalization not recognized!")
+
+            return ps
