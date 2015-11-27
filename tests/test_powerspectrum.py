@@ -30,7 +30,7 @@ class TestPowerspectrum(object):
 
     def test_make_empty_periodogram(self):
         ps = Powerspectrum()
-        assert ps.norm == "rms"
+        assert ps.norm == "frac"
         assert ps.freq is None
         assert ps.ps is None
         assert ps.df is None
@@ -43,7 +43,7 @@ class TestPowerspectrum(object):
         assert ps.freq is not None
         assert ps.ps is not None
         assert ps.df == 1.0/self.lc.tseg
-        assert ps.norm == "rms"
+        assert ps.norm == "frac"
         assert ps.m == 1
         assert ps.n == self.lc.time.shape[0]
         assert ps.nphots == np.sum(self.lc.counts)
@@ -118,7 +118,7 @@ class TestPowerspectrum(object):
         rms and it stays that way!
         """
         ps = Powerspectrum(lc=self.lc)
-        assert ps.norm == "rms"
+        assert ps.norm == "frac"
 
     def test_rms_normalization_correct(self):
         """
@@ -126,13 +126,13 @@ class TestPowerspectrum(object):
         equal to the variance of the light curve divided by the mean
         of the light curve squared.
         """
-        ps = Powerspectrum(lc=self.lc, norm="rms")
+        ps = Powerspectrum(lc=self.lc, norm="frac")
         ps_int = np.sum(ps.ps[1:-1]*ps.df) + ps.ps[-1]*ps.df/2.
         std_lc = np.var(self.lc.counts)/np.mean(self.lc.counts)**2.
         assert np.isclose(ps_int, std_lc)
 
     def test_fractional_rms_in_rms_norm(self):
-        ps = Powerspectrum(lc=self.lc, norm="rms")
+        ps = Powerspectrum(lc=self.lc, norm="frac")
         rms_ps, rms_err = ps.compute_rms(min_freq=ps.freq[1],
                                          max_freq=ps.freq[-1])
         rms_lc = np.std(self.lc.counts)/np.mean(self.lc.counts)
