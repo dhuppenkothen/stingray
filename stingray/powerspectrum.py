@@ -303,7 +303,7 @@ class Powerspectrum(object):
         powers = self.ps[minind:maxind]
         if self.norm.lower() == "leahy":
             rms = np.sqrt(np.sum(powers) / self.nphots)
-        elif self.norm.lower() == "rms":
+        elif self.norm.lower() == "frac":
             rms = np.sqrt(np.sum(powers * self.df)) # TODO: multiply by mean
         elif self.norm.lower() == "abs":
             rms = np.sqrt(np.sum(powers * self.df))
