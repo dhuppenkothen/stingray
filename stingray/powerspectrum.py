@@ -168,11 +168,11 @@ class Powerspectrum(object):
 
             elif self.norm.lower() == 'frac':
                 p = unnorm_powers / np.float(self.n**2.)
-                ps = p * 2. * lc.tseg / (np.mean(lc.counts)**2.0)
+                ps = p * 2. * lc.dt / (np.mean(lc.counts)**2.0)
 
             elif self.norm.lower() == 'abs':
                 p = unnorm_powers / np.float(self.n**2.)
-                ps = p * 2. * lc.tseg
+                ps = p * 2. * lc.dt
             else:
                 raise Exception("Normalization not recognized!")
 
@@ -345,6 +345,7 @@ class AveragedPowerspectrum(Powerspectrum):
         Make an averaged periodogram from a light curve by segmenting the light
         curve, Fourier-transforming each segment and then averaging the
         resulting periodograms.
+
         Parameters
         ----------
         lc: lightcurve.Lightcurve object OR
@@ -389,7 +390,6 @@ class AveragedPowerspectrum(Powerspectrum):
 
         """
 
-
         assert np.isfinite(segment_size), "segment_size must be finite!"
 
         self.norm = norm.lower()
@@ -412,6 +412,7 @@ class AveragedPowerspectrum(Powerspectrum):
 
         ps_all = []
         nphots_all = []
+        meanrate_all = []
         while end_ind <= lc.counts.shape[0]:
             time = lc.time[start_ind:end_ind]
             counts = lc.counts[start_ind:end_ind]
@@ -419,31 +420,36 @@ class AveragedPowerspectrum(Powerspectrum):
             ps_seg = Powerspectrum(lc_seg, norm=self.norm)
             ps_all.append(ps_seg)
             nphots_all.append(np.sum(lc_seg.counts))
+            meanrate_all.append(np.mean(lc_seg.countrate))
             start_ind += nbins
             end_ind += nbins
 
-        return ps_all, nphots_all
+        return ps_all, nphots_all, meanrate_all
 
     def _make_powerspectrum(self, lc):
 
         ## chop light curves into segments
         if isinstance(lc, lightcurve.Lightcurve):
-            ps_all, nphots_all = self._make_segment_psd(lc,
+            ps_all, nphots_all, meanrate_all = self._make_segment_psd(lc,
                                                         self.segment_size)
+
         else:
-            ps_all, nphots_all = [], []
+            ps_all, nphots_all, meanrate_all = [], [], []
             for lc_seg in lc:
-                ps_sep, nphots_sep = self._make_segment_psd(lc_seg,
+                ps_sep, nphots_sep, meanrate_sep = self._make_segment_psd(lc_seg,
                                                             self.segment_size)
 
                 ps_all.append(ps_sep)
                 nphots_all.append(nphots_sep)
+                meanrate_all.append(meanrate_sep)
 
             ps_all = np.hstack(ps_all)
             nphots_all = np.hstack(nphots_all)
+            meanrate_all = np.hstack(meanrate_all)
 
         m = len(ps_all)
         nphots = np.mean(nphots_all)
+        meanrate = np.mean(meanrate_all)
         ps_avg = np.zeros_like(ps_all[0].ps)
         for ps in ps_all:
             ps_avg += ps.ps
@@ -456,52 +462,55 @@ class AveragedPowerspectrum(Powerspectrum):
         self.df = ps_all[0].df
         self.n = ps_all[0].n
         self.nphots = nphots
+        self.meanrate = meanrate
 
-    def _normalize_periodogram(self, unnorm_powers, lc):
-            """
-            Normalize the averaged power spectrum to Leahy, fractional rms, or
-            absolute rms normalization.
+        # ps_avg_norm = self._normalize_periodogram(ps_avg, tseg)
 
-            In Leahy normalization, the periodogram is normalized in such a way
-            that a flat light curve of Poissonian data will make a realization
-            of the power spectrum in which the powers are distributed as Chi^2
-            with two degrees of freedom (with a mean of 2 and a variance of 4).
-
-            In fractional rms normalization, the periodogram will be normalized
-            such that the integral of the periodogram will equal the total
-            variance in the light curve divided by the mean count rate of the
-            light curve squared.
-
-            In absolute rms normalization, the periodogram is normalized such
-            that the integral of the periodogram equals the total variance in
-            the light curve.
-
-            Parameters
-            ----------
-            unnorm_powers: numpy.ndarray
-                The squared absolute value of the Fourier amplitudes.
-
-            lc: lightcurve.Lightcurve object
-                The input light curve
-
-
-            Returns
-            -------
-            ps: numpy.nd.array
-                The normalized periodogram
-            """
-            if self.norm.lower() == 'leahy':
-                p = unnorm_powers
-                ps = 2. * p / self.nphots
-
-            elif self.norm.lower() == 'frac':
-                p = unnorm_powers / np.float(self.n**2.)
-                ps = p * 2. * lc.tseg / (np.mean(lc.counts)**2.0)
-
-            elif self.norm.lower() == 'abs':
-                p = unnorm_powers / np.float(self.n**2.)
-                ps = p * 2. * lc.tseg
-            else:
-                raise Exception("Normalization not recognized!")
-
-            return ps
+    # def _normalize_periodogram(self, unnorm_powers, tseg):
+    #         """
+    #         Normalize the averaged power spectrum to Leahy, fractional rms, or
+    #         absolute rms normalization.
+    #
+    #         In Leahy normalization, the periodogram is normalized in such a way
+    #         that a flat light curve of Poissonian data will make a realization
+    #         of the power spectrum in which the powers are distributed as Chi^2
+    #         with two degrees of freedom (with a mean of 2 and a variance of 4).
+    #
+    #         In fractional rms normalization, the periodogram will be normalized
+    #         such that the integral of the periodogram will equal the total
+    #         variance in the light curve divided by the mean count rate of the
+    #         light curve squared.
+    #
+    #         In absolute rms normalization, the periodogram is normalized such
+    #         that the integral of the periodogram equals the total variance in
+    #         the light curve.
+    #
+    #         Parameters
+    #         ----------
+    #         unnorm_powers: numpy.ndarray
+    #             The raw power spectrum (squared absolute value of the Fourier
+    #             amplitudes).
+    #
+    #         tseg: float
+    #             The size of one time bin in the light curve.
+    #
+    #         Returns
+    #         -------
+    #         ps: numpy.nd.array
+    #             The normalized periodogram
+    #         """
+    #         if self.norm.lower() == 'leahy':
+    #             p = unnorm_powers
+    #             ps = 2. * p / self.nphots
+    #
+    #         elif self.norm.lower() == 'frac':
+    #             p = unnorm_powers / np.float(self.n**2.)
+    #             ps = p * 2. * lc.dt / (self.meanrate**2.0)
+    #
+    #         elif self.norm.lower() == 'abs':
+    #             p = unnorm_powers / np.float(self.n**2.)
+    #             ps = p * 2. * lc.dt
+    #         else:
+    #             raise Exception("Normalization not recognized!")
+    #
+    #         return ps
