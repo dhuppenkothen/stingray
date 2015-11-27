@@ -1,7 +1,12 @@
 
+
 import numpy as np
+
+from nose.tools import raises
+
+
 from stingray import Lightcurve
-from stingray import Powerspectrum
+from stingray import Powerspectrum, AveragedPowerspectrum
 
 np.random.seed(20150907)
 
@@ -20,8 +25,6 @@ class TestPowerspectrum(object):
         poisson_counts = np.random.poisson(mean_counts,
                                            size=time.shape[0])
 
-        self.time = time
-        self.counts = poisson_counts
         self.lc = Lightcurve(time, counts=poisson_counts)
 
 
@@ -34,15 +37,6 @@ class TestPowerspectrum(object):
         assert ps.m == 1
         assert ps.n is None
 
-    def test_make_periodgram_from_arrays(self):
-        ps = Powerspectrum(time=self.time, counts=self.counts)
-        assert ps.freq is not None
-        assert ps.ps is not None
-        assert ps.df == 1.0/self.lc.tseg
-        assert ps.norm == "rms"
-        assert ps.m == 1
-        assert ps.n == self.lc.time.shape[0]
-        assert ps.nphots == np.sum(self.lc.counts)
 
     def test_make_periodogram_from_lightcurve(self):
         ps = Powerspectrum(lc=self.lc)
@@ -58,6 +52,29 @@ class TestPowerspectrum(object):
         ps = Powerspectrum(lc=self.lc)
         assert isinstance(ps.freq, np.ndarray)
         assert isinstance(ps.ps, np.ndarray)
+
+
+    def test_init_with_lightcurve(self):
+        assert Powerspectrum(self.lc)
+
+    @raises(AssertionError)
+    def test_init_without_lightcurve(self):
+        assert Powerspectrum(self.lc.counts)
+
+    @raises(AssertionError)
+    def test_init_with_nonsense_data(self):
+        nonsense_data = [None for i in xrange(100)]
+        assert Powerspectrum(nonsense_data)
+
+    @raises(AssertionError)
+    def test_init_with_nonsense_norm(self):
+        nonsense_norm = "bla"
+        assert Powerspectrum(self.lc, norm=nonsense_norm)
+
+    @raises(AssertionError)
+    def test_init_with_wrong_norm_type(self):
+        nonsense_norm = 1.0
+        assert Powerspectrum(self.lc, norm=nonsense_norm)
 
     def test_fourier_amplitudes(self):
         """
@@ -194,3 +211,115 @@ class TestPowerspectrum(object):
         for df in df_all:
             yield self.rebin_several, df
 
+
+class TestAveragedPowerspectrum(object):
+    def setUp(self):
+        tstart = 0.0
+        tend = 10.0
+        dt = 0.0001
+
+        time = np.linspace(tstart, tend, int((tend-tstart)/dt))
+
+        mean_count_rate = 1000.0
+        mean_counts = mean_count_rate*dt
+
+        poisson_counts = np.random.poisson(mean_counts,
+                                           size=time.shape[0])
+
+        self.lc = Lightcurve(time, counts=poisson_counts)
+
+    def test_one_segment(self):
+        segment_size = self.lc.tseg
+        ps = AveragedPowerspectrum(self.lc, segment_size)
+        assert np.isclose(ps.segment_size, segment_size)
+
+    def test_n_segments(self):
+        nseg_all = [1,2,3,5,10,20,100]
+        for nseg in nseg_all:
+            yield self.check_segment_size, nseg
+
+    def check_segment_size(self, nseg):
+        segment_size = self.lc.tseg/nseg
+        ps = AveragedPowerspectrum(self.lc, segment_size)
+        assert ps.m == nseg
+
+    def test_segments_with_leftover(self):
+        segment_size = self.lc.tseg/2. - 1.
+        ps = AveragedPowerspectrum(self.lc, segment_size)
+        assert np.isclose(ps.segment_size, segment_size)
+        assert ps.m == 2
+
+
+    @raises(TypeError)
+    def test_init_without_segment(self):
+        assert AveragedPowerspectrum(self.lc)
+
+    @raises(TypeError)
+    def test_init_with_nonsense_segment(self):
+        segment_size = "foo"
+        assert AveragedPowerspectrum(self.lc, segment_size)
+
+    @raises(TypeError)
+    def test_init_with_none_segment(self):
+        segment_size = None
+        assert AveragedPowerspectrum(self.lc, segment_size)
+
+    @raises(AssertionError)
+    def test_init_with_inf_segment(self):
+        segment_size = np.inf
+        assert AveragedPowerspectrum(self.lc, segment_size)
+
+    @raises(AssertionError)
+    def test_init_with_nan_segment(self):
+        segment_size = np.nan
+        assert AveragedPowerspectrum(self.lc, segment_size)
+
+
+    def test_list_of_light_curves(self):
+        n_lcs = 10
+
+        tstart = 0.0
+        tend = 1.0
+        dt = 0.0001
+
+        time = np.linspace(tstart, tend, int((tend-tstart)/dt))
+
+        mean_count_rate = 1000.0
+        mean_counts = mean_count_rate*dt
+
+        lc_all = []
+        for n in xrange(n_lcs):
+            poisson_counts = np.random.poisson(mean_counts,
+                                           size=len(time))
+
+            lc = Lightcurve(time, counts=poisson_counts)
+            lc_all.append(lc)
+
+        segment_size = 0.5
+        assert AveragedPowerspectrum(lc_all, segment_size)
+
+    @raises(AssertionError)
+    def test_list_with_nonsense_component(self):
+        n_lcs = 10
+
+        tstart = 0.0
+        tend = 1.0
+        dt = 0.0001
+
+        time = np.linspace(tstart, tend, int((tend-tstart)/dt))
+
+        mean_count_rate = 1000.0
+        mean_counts = mean_count_rate*dt
+
+        lc_all = []
+        for n in xrange(n_lcs):
+            poisson_counts = np.random.poisson(mean_counts,
+                                           size=len(time))
+
+            lc = Lightcurve(time, counts=poisson_counts)
+            lc_all.append(lc)
+
+        lc_all.append(1.0)
+        segment_size = 0.5
+
+        assert AveragedPowerspectrum(lc_all, segment_size)

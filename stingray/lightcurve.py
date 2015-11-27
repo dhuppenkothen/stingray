@@ -52,6 +52,12 @@ class Lightcurve(object):
 
         """
 
+        assert np.all(np.isfinite(time)), "There are inf or NaN values in " \
+                                            "your time array!"
+
+        assert np.all(np.isfinite(counts)), "There are inf or NaN values in " \
+                                            "your counts array!"
+
         self.time = np.asarray(time)
         self.counts = np.asarray(counts)
         self.ncounts = self.counts.shape[0]
