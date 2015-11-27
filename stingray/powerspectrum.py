@@ -25,14 +25,14 @@ class Powerspectrum(object):
         lc: lightcurve.Lightcurve object, optional, default None
             The light curve data to be Fourier-transformed.
 
-        norm: {"leahy" | "frac"}, optional, default "frac"
+        norm: {"leahy" | "frac" | "abs"}, optional, default "frac"
             The normaliation of the periodogram to be used. Options are
-            "leahy" or "frac", default is "frac".
+            "leahy", "frac" or "abs", default is "frac".
 
 
         Attributes
         ----------
-        norm: {"leahy" | "frac"}
+        norm: {"leahy" | "frac" | "abs"}
             the normalization of the periodogram
 
         freq: numpy.ndarray
@@ -58,8 +58,8 @@ class Powerspectrum(object):
         """
         assert isinstance(norm, str), "norm is not a string!"
 
-        assert norm.lower() in ["frac", "leahy"], \
-                "norm must be either 'frac' or 'leahy'!"
+        assert norm.lower() in ["frac", "leahy", "abs"], \
+                "norm must be 'frac', 'abs', or 'leahy'!"
 
         self.norm = norm.lower()
 
@@ -131,15 +131,21 @@ class Powerspectrum(object):
 
     def _normalize_periodogram(self, unnorm_powers, lc):
         """
-        Normalize the periodogram to either Leahy or RMS normalization.
+        Normalize the periodogram to Leahy, fractional rms, or absolute rms
+        normalization.
         In Leahy normalization, the periodogram is normalized in such a way
         that a flat light curve of Poissonian data will make a realization of
         the power spectrum in which the powers are distributed as Chi^2 with
         two degrees of freedom (with a mean of 2 and a variance of 4).
 
-        In fractional rms normalization, the periodogram will be normalized such that
-        the integral of the periodogram will equal the total variance in the
-        light curve divided by the mean of the light curve squared.
+        In fractional rms normalization, the periodogram will be normalized such
+        that the integral of the periodogram will equal the total variance in
+        the light curve divided by the mean count rate of the light curve
+        squared.
+
+        In absolute rms normalization, the periodogram is normalized such that
+        the integral of the periodogram equals the total variance in the light
+        curve.
 
         Parameters
         ----------
@@ -157,12 +163,15 @@ class Powerspectrum(object):
         """
         if self.norm.lower() == 'leahy':
             p = unnorm_powers
-            ps =  2.*p/self.nphots
+            ps = 2. * p / self.nphots
 
         elif self.norm.lower() == 'frac':
-            p = unnorm_powers/np.float(self.n**2.)
-            ps = p*2.*lc.tseg/(np.mean(lc.counts)**2.0)
+            p = unnorm_powers / np.float(self.n**2.)
+            ps = p * 2. * lc.tseg / (np.mean(lc.counts)**2.0)
 
+        elif self.norm.lower() == 'abs':
+            p = unnorm_powers / np.float(self.n**2.)
+            ps = p * 2. * lc.tseg
         else:
             raise Exception("Normalization not recognized!")
 
@@ -263,8 +272,7 @@ class Powerspectrum(object):
 
     def compute_rms(self, min_freq, max_freq):
         """
-        Compute the fractional rms amplitude in the periodgram
-        between two frequencies.
+        Compute the rms amplitude in the periodogram between two frequencies.
 
         Parameters
         ----------
@@ -293,10 +301,12 @@ class Powerspectrum(object):
         minind = self.freq.searchsorted(min_freq)
         maxind = self.freq.searchsorted(max_freq)
         powers = self.ps[minind:maxind]
-        if self.norm.lower() == 'leahy':
-            rms = np.sqrt(np.sum(powers)/self.nphots)
+        if self.norm.lower() == "leahy":
+            rms = np.sqrt(np.sum(powers) / self.nphots)
         elif self.norm.lower() == "rms":
-            rms = np.sqrt(np.sum(powers*self.df))
+            rms = np.sqrt(np.sum(powers * self.df)) # TODO: multiply by mean
+        elif self.norm.lower() == "abs":
+            rms = np.sqrt(np.sum(powers * self.df))
         else:
             raise Exception("Normalization not recognized!")
 
@@ -306,8 +316,7 @@ class Powerspectrum(object):
 
     def _rms_error(self, powers):
         """
-        Compute the error on the fractional rms amplitude using error
-        propagation.
+        Compute the error on the rms amplitude using error propagation.
         Note: this uses the actual measured powers, which is not
         strictly correct. We should be using the underlying power spectrum,
         but in the absence of an estimate of that, this will have to do.
@@ -315,13 +324,13 @@ class Powerspectrum(object):
         Parameters
         ----------
         powers: iterable
-            The list of powers used to compute the fractional rms amplitude.
+            The list of powers used to compute the rms amplitude.
 
 
         Returns
         -------
         delta_rms: float
-            the error on the fractional rms amplitude
+            The error on the rms amplitude.
         """
         p_err = scipy.stats.chi2(2.*self.m).var()*powers/self.m
         drms_dp = 1./(2.*np.sqrt(np.sum(powers)*self.df))
@@ -347,34 +356,34 @@ class AveragedPowerspectrum(Powerspectrum):
             segment_size, then any fraction left-over at the end of the
             time series will be lost.
 
-        norm: {"leahy" | "frac"}, optional, default "frac"
+        norm: {"leahy" | "frac" | "abs"}, optional, default "frac"
             The normaliation of the periodogram to be used. Options are
-            "leahy" or "frac", default is "frac".
+            "leahy", "frac" or "abs", default is "frac".
 
 
         Attributes
         ----------
-        norm: {"leahy" | "frac"}
-            the normalization of the periodogram
+        norm: {"leahy" | "frac" | "abs"}
+            The normalization of the power spectrum.
 
         freq: numpy.ndarray
-            The array of mid-bin frequencies that the Fourier transform samples
+            The array of mid-bin frequencies that the Fourier transform samples.
 
         ps: numpy.ndarray
             The array of normalized squared absolute values of Fourier
-            amplitudes
+            amplitudes.
 
         df: float
-            The frequency resolution
+            The frequency resolution.
 
         m: int
-            The number of averaged periodograms
+            The number of averaged power spectra.
 
         n: int
-            The number of data points in the light curve
+            The number of data points in the light curve.
 
         nphots: float
-            The total number of photons in the light curve
+            The total number of photons in the light curve.
 
 
         """
