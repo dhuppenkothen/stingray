@@ -112,17 +112,17 @@ class TestPowerspectrum(object):
         assert np.isclose(p_int, var_lc)
 
 
-    def test_rms_normalization_is_standard(self):
+    def test_frac_normalization_is_standard(self):
         """
         Make sure the standard normalization of a periodogram is
-        rms and it stays that way!
+        fractional rms and it stays that way!
         """
         ps = Powerspectrum(lc=self.lc)
         assert ps.norm == "frac"
 
-    def test_rms_normalization_correct(self):
+    def test_frac_normalization_correct(self):
         """
-        In rms normalization, the integral of the powers should be
+        In fractional rms normalization, the integral of the powers should be
         equal to the variance of the light curve divided by the mean
         of the light curve squared.
         """
@@ -131,7 +131,10 @@ class TestPowerspectrum(object):
         std_lc = np.var(self.lc.counts)/np.mean(self.lc.counts)**2.
         assert np.isclose(ps_int, std_lc)
 
-    def test_fractional_rms_in_rms_norm(self):
+    def test_rms_in_frac_norm(self):
+        """
+
+        """
         ps = Powerspectrum(lc=self.lc, norm="frac")
         rms_ps, rms_err = ps.compute_rms(min_freq=ps.freq[1],
                                          max_freq=ps.freq[-1])
@@ -153,11 +156,11 @@ class TestPowerspectrum(object):
                   (np.sum(ps.ps[1:-1])+ps.ps[-1]/2.)
         assert np.isclose(ps_var, np.var(self.lc.counts))
 
-    def test_fractional_rms_in_leahy_norm(self):
+    def test_rms_in_leahy_norm(self):
         """
-        fractional rms should only be *approximately* equal the standard
-        deviation divided by the mean of the light curve. Therefore, we allow
-        for a larger tolerance in np.isclose()
+        Rms of power spectrum in Leahy normalization should only be
+        *approximately* equal the standard deviation divided by the mean of the
+        light curve. Therefore, we allow for a larger tolerance in np.isclose()
         """
         ps = Powerspectrum(lc=self.lc, norm="Leahy")
         rms_ps, rms_err = ps.compute_rms(min_freq=ps.freq[1],
@@ -166,9 +169,9 @@ class TestPowerspectrum(object):
         rms_lc = np.std(self.lc.counts)/np.mean(self.lc.counts)
         assert np.isclose(rms_ps, rms_lc,atol=0.01)
 
-    def test_fractional_rms_error(self):
+    def test_rms_error(self):
         """
-        TODO: Need to write a test for the fractional rms error.
+        TODO: Need to write a test for the power spectrum rms error.
         But I don't know how!
         """
         pass
