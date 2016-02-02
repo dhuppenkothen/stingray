@@ -4,9 +4,10 @@ import numpy as np
 
 from nose.tools import raises
 
-
 from stingray import Lightcurve
 from stingray import Powerspectrum, AveragedPowerspectrum
+
+from stingray.powerspectrum import classical_pvalue
 
 np.random.seed(20150907)
 
@@ -30,7 +31,7 @@ class TestPowerspectrum(object):
 
     def test_make_empty_periodogram(self):
         ps = Powerspectrum()
-        assert ps.norm == "frac"
+        assert ps.norm == "rms"
         assert ps.freq is None
         assert ps.ps is None
         assert ps.df is None
@@ -43,7 +44,7 @@ class TestPowerspectrum(object):
         assert ps.freq is not None
         assert ps.ps is not None
         assert ps.df == 1.0/self.lc.tseg
-        assert ps.norm == "frac"
+        assert ps.norm == "rms"
         assert ps.m == 1
         assert ps.n == self.lc.time.shape[0]
         assert ps.nphots == np.sum(self.lc.counts)
@@ -112,30 +113,27 @@ class TestPowerspectrum(object):
         assert np.isclose(p_int, var_lc)
 
 
-    def test_frac_normalization_is_standard(self):
+    def test_rms_normalization_is_standard(self):
         """
         Make sure the standard normalization of a periodogram is
-        fractional rms and it stays that way!
+        rms and it stays that way!
         """
         ps = Powerspectrum(lc=self.lc)
-        assert ps.norm == "frac"
+        assert ps.norm == "rms"
 
-    def test_frac_normalization_correct(self):
+    def test_rms_normalization_correct(self):
         """
-        In fractional rms normalization, the integral of the powers should be
+        In rms normalization, the integral of the powers should be
         equal to the variance of the light curve divided by the mean
         of the light curve squared.
         """
-        ps = Powerspectrum(lc=self.lc, norm="frac")
+        ps = Powerspectrum(lc=self.lc, norm="rms")
         ps_int = np.sum(ps.ps[1:-1]*ps.df) + ps.ps[-1]*ps.df/2.
         std_lc = np.var(self.lc.counts)/np.mean(self.lc.counts)**2.
         assert np.isclose(ps_int, std_lc)
 
-    def test_rms_in_frac_norm(self):
-        """
-
-        """
-        ps = Powerspectrum(lc=self.lc, norm="frac")
+    def test_fractional_rms_in_rms_norm(self):
+        ps = Powerspectrum(lc=self.lc, norm="rms")
         rms_ps, rms_err = ps.compute_rms(min_freq=ps.freq[1],
                                          max_freq=ps.freq[-1])
         rms_lc = np.std(self.lc.counts)/np.mean(self.lc.counts)
@@ -156,11 +154,11 @@ class TestPowerspectrum(object):
                   (np.sum(ps.ps[1:-1])+ps.ps[-1]/2.)
         assert np.isclose(ps_var, np.var(self.lc.counts))
 
-    def test_rms_in_leahy_norm(self):
+    def test_fractional_rms_in_leahy_norm(self):
         """
-        Rms of power spectrum in Leahy normalization should only be
-        *approximately* equal the standard deviation divided by the mean of the
-        light curve. Therefore, we allow for a larger tolerance in np.isclose()
+        fractional rms should only be *approximately* equal the standard
+        deviation divided by the mean of the light curve. Therefore, we allow
+        for a larger tolerance in np.isclose()
         """
         ps = Powerspectrum(lc=self.lc, norm="Leahy")
         rms_ps, rms_err = ps.compute_rms(min_freq=ps.freq[1],
@@ -169,9 +167,9 @@ class TestPowerspectrum(object):
         rms_lc = np.std(self.lc.counts)/np.mean(self.lc.counts)
         assert np.isclose(rms_ps, rms_lc,atol=0.01)
 
-    def test_rms_error(self):
+    def test_fractional_rms_error(self):
         """
-        TODO: Need to write a test for the power spectrum rms error.
+        TODO: Need to write a test for the fractional rms error.
         But I don't know how!
         """
         pass
@@ -199,7 +197,7 @@ class TestPowerspectrum(object):
         had better be 'method'
         """
         ps = Powerspectrum(lc = self.lc, norm="Leahy")
-        assert ps.rebin.func_defaults[0] == "mean"
+        assert ps.rebin.__defaults__[0] == "mean"
 
     def rebin_several(self, df):
         """
@@ -213,6 +211,48 @@ class TestPowerspectrum(object):
         df_all = [2, 3, 5, 1.5, 1,85]
         for df in df_all:
             yield self.rebin_several, df
+
+    def test_classical_significances_runs(self):
+        ps = Powerspectrum(lc = self.lc, norm="Leahy")
+        ps.classical_significances()
+
+    @raises(AssertionError)
+    def test_classical_significances_fails_in_rms(self):
+        ps = Powerspectrum(lc = self.lc, norm="rms")
+        ps.classical_significances()
+
+    def test_classical_significances_threshold(self):
+        ps = Powerspectrum(lc = self.lc, norm="leahy")
+
+        ## change the powers so that just one exceeds the threshold
+        ps.ps = np.zeros(ps.ps.shape[0])+2.0
+
+        index = 1
+        ps.ps[index] = 10.0
+
+        threshold = 0.01
+
+        pval = ps.classical_significances(threshold=threshold,
+                                          trial_correction=False)
+
+        assert pval[0][0] < threshold
+        assert pval[0][1] == index
+
+    def test_classical_significances_trial_correction(self):
+        ps = Powerspectrum(lc = self.lc, norm="leahy")
+
+        ## change the powers so that just one exceeds the threshold
+        ps.ps = np.zeros(ps.ps.shape[0])+2.0
+
+        index = 1
+        ps.ps[index] = 10.0
+
+        threshold = 0.01
+
+        pval = ps.classical_significances(threshold=threshold,
+                                          trial_correction=True)
+
+        assert len(pval) == 0
 
 
 class TestAveragedPowerspectrum(object):
@@ -326,3 +366,102 @@ class TestAveragedPowerspectrum(object):
         segment_size = 0.5
 
         assert AveragedPowerspectrum(lc_all, segment_size)
+
+
+class TestClassicalSignificances(object):
+
+    def test_function_runs(self):
+        power = 2.0
+        nspec = 1.0
+        classical_pvalue(power, nspec)
+
+    @raises(AssertionError)
+    def test_power_is_not_infinite(self):
+        power = np.inf
+        nspec = 1
+        classical_pvalue(power, nspec)
+
+    @raises(AssertionError)
+    def test_power_is_not_infinite2(self):
+        power = -np.inf
+        nspec = 1
+        classical_pvalue(power, nspec)
+
+    @raises(AssertionError)
+    def test_power_is_non_nan(self):
+        power = np.nan
+        nspec = 1
+        classical_pvalue(power, nspec)
+
+    @raises(AssertionError)
+    def test_power_is_positive(self):
+        power = -2.0
+        nspec = 1.0
+        classical_pvalue(power, nspec)
+
+    @raises(AssertionError)
+    def test_nspec_is_not_infinite(self):
+        power = 2.0
+        nspec = np.inf
+        classical_pvalue(power, nspec)
+
+    @raises(AssertionError)
+    def test_nspec_is_not_infinite2(self):
+        power = 2.0
+        nspec = -np.inf
+        classical_pvalue(power, nspec)
+
+    @raises(AssertionError)
+    def test_nspec_is_not_nan(self):
+        power = 2.0
+        nspec = np.nan
+        classical_pvalue(power, nspec)
+
+    @raises(AssertionError)
+    def test_nspec_is_positive(self):
+        power = 2.0
+        nspec = -1.0
+        classical_pvalue(power, nspec)
+
+    @raises(AssertionError)
+    def test_nspec_is_nonzero(self):
+        power = 2.0
+        nspec = 0.0
+        classical_pvalue(power, nspec)
+
+    @raises(AssertionError)
+    def test_nspec_is_an_integer_number(self):
+        power = 2.0
+        nspec = 2.5
+        classical_pvalue(power, nspec)
+
+    def test_nspec_float_type_okay(self):
+        power = 2.0
+        nspec = 2.0
+        classical_pvalue(power, nspec)
+
+    def test_pvalue_decreases_with_increasing_power(self):
+        power1 = 2.0
+        power2 = 20.0
+        nspec = 1.0
+        pval1 = classical_pvalue(power1, nspec)
+        pval2 = classical_pvalue(power2, nspec)
+
+        assert pval1-pval2 > 0.0
+
+    def test_pvalue_must_decrease_with_increasing_nspec(self):
+
+        power = 3.0
+        nspec1 = 1.0
+        nspec2 = 10.0
+
+        pval1 = classical_pvalue(power, nspec1)
+        pval2 = classical_pvalue(power, nspec2)
+
+        assert pval1-pval2 > 0.0
+
+    def test_very_large_powers_produce_zero_prob(self):
+        power = 31000.0
+        nspec = 1
+        pval = classical_pvalue(power, nspec)
+        assert np.isclose(pval, 0.0)

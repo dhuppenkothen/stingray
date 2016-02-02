@@ -9,10 +9,97 @@ import scipy.optimize
 import stingray.lightcurve as lightcurve
 import stingray.utils as utils
 
+def classical_pvalue(power, nspec):
+    """
+    Compute the probability of detecting the current power under
+    the assumption that there is no periodic oscillation in the data.
+
+    This computes the single-trial p-value that the power was
+    observed under the null hypothesis that there is no signal in
+    the data.
+
+    Important: the underlying assumptions that make this calculation valid
+    are:
+    (1) the powers in the power spectrum follow a chi-square distribution
+    (2) the power spectrum is normalized according to Leahy (1984), such
+    that the powers have a mean of 2 and a variance of 4
+    (3) there is only white noise in the light curve. That is, there is no
+    aperiodic variability that would change the overall shape of the power
+    spectrum.
+
+    Also note that the p-value is for a *single trial*, i.e. the power currently
+    being tested. If more than one power or more than one power spectrum are
+    being tested, the resulting p-value must be corrected for the number
+    of trials (Bonferroni correction).
+
+    Mathematical formulation in Groth, 1975.
+    Original implementation in IDL by Anna L. Watts.
+
+    Parameters
+    ----------
+    power :  float
+        The squared Fourier amplitude of a spectrum to be evaluated
+
+    nspec : int
+        The number of spectra or frequency bins averaged in `power`.
+        This matters because averaging spectra or frequency bins increases
+        the signal-to-noise ratio, i.e. makes the statistical distributions
+        of the noise narrower, such that a smaller power might be very
+        significant in averaged spectra even though it would not be in a single
+        power spectrum.
+
+    """
+
+    assert np.isfinite(power), "power must be a finite floating point number!"
+    assert power > 0.0, "power must be a positive real number!"
+    assert np.isfinite(nspec), "nspec must be a finite integer number"
+    assert nspec >= 1, "nspec must be larger or equal to 1"
+    assert np.isclose(nspec%1, 0), "nspec must be an integer number!"
+
+    ## If the power is really big, it's safe to say it's significant,
+    ## and the p-value will be nearly zero
+    if power*nspec > 30000:
+        print("Probability of no signal too miniscule to calculate.")
+        return 0.0
+
+    else:
+        pval = _pavnosigfun(power, nspec)
+        return pval
+
+
+
+def _pavnosigfun(power, nspec):
+    """
+    Helper function doing the actual calculation of the p-value.
+    """
+    sum = 0.0
+    m = nspec-1
+
+    pn = power*nspec
+
+    while m >= 0:
+
+        s = 0.0
+        for i in xrange(int(m)-1):
+            s += np.log(float(m-i))
+
+        logterm = m*np.log(pn/2.0) - pn/2.0 - s
+        term = np.exp(logterm)
+        ratio = sum/term
+
+        if ratio > 1.0e15:
+            return sum
+
+        sum += term
+        m -= 1
+
+    return sum
+
+
 
 class Powerspectrum(object):
 
-    def __init__(self, lc=None, norm='frac'):
+    def __init__(self, lc=None, norm='rms'):
         """
         Make a Periodogram (power spectrum) from a (binned) light curve.
         Periodograms can be Leahy normalized or fractional rms normalized.
@@ -25,28 +112,28 @@ class Powerspectrum(object):
         lc: lightcurve.Lightcurve object, optional, default None
             The light curve data to be Fourier-transformed.
 
-        norm: {"leahy" | "frac" | "abs"}, optional, default "frac"
+        norm: {"leahy" | "rms"}, optional, default "rms"
             The normaliation of the periodogram to be used. Options are
-            "leahy", "frac" or "abs", default is "frac".
+            "leahy" or "rms", default is "rms".
 
 
         Attributes
         ----------
-        norm: {"leahy" | "frac" | "abs"}
-            The normalization of the periodogram.
+        norm: {"leahy" | "rms"}
+            the normalization of the periodogram
 
         freq: numpy.ndarray
-            The array of mid-bin frequencies that the Fourier transform samples.
+            The array of mid-bin frequencies that the Fourier transform samples
 
         ps: numpy.ndarray
             The array of normalized squared absolute values of Fourier
-            amplitudes.
+            amplitudes
 
         df: float
             The frequency resolution
 
         m: int
-            The number of averaged periodograms
+            The number of averaged powers in each bin
 
         n: int
             The number of data points in the light curve
@@ -56,10 +143,13 @@ class Powerspectrum(object):
 
 
         """
+
+        ## TODO: One should be able to convert from rms to Leahy and do this
+        ## anyway!
         assert isinstance(norm, str), "norm is not a string!"
 
-        assert norm.lower() in ["frac", "leahy", "abs"], \
-                "norm must be 'frac', 'abs', or 'leahy'!"
+        assert norm.lower() in ["rms", "leahy"], \
+                "norm must be either 'rms' or 'leahy'!"
 
         self.norm = norm.lower()
 
@@ -102,7 +192,7 @@ class Powerspectrum(object):
         ## make the actual Fourier transform
         self.unnorm_powers = self._fourier_transform(lc)
 
-        ## normalize to Leahy, absolute rms, or fractional rms normalization
+        ## normalize to either Leahy or rms normalization
         self.ps = self._normalize_periodogram(self.unnorm_powers, lc)
 
         ## make a list of frequencies to go with the powers
@@ -125,58 +215,48 @@ class Powerspectrum(object):
             The squared absolute value of the Fourier amplitudes
 
         """
-        fourier = scipy.fftpack.fft(lc.counts) ### do Fourier transform
+        fourier= scipy.fftpack.fft(lc.counts) ### do Fourier transform
         fr = np.abs(fourier[:self.n/2+1])**2.
         return fr
 
     def _normalize_periodogram(self, unnorm_powers, lc):
-            """
-            Normalize the averaged power spectrum to Leahy, fractional rms, or
-            absolute rms normalization.
+        """
+        Normalize the periodogram to either Leahy or RMS normalization.
+        In Leahy normalization, the periodogram is normalized in such a way
+        that a flat light curve of Poissonian data will make a realization of
+        the power spectrum in which the powers are distributed as Chi^2 with
+        two degrees of freedom (with a mean of 2 and a variance of 4).
 
-            In Leahy normalization, the periodogram is normalized in such a way
-            that a flat light curve of Poissonian data will make a realization
-            of the power spectrum in which the powers are distributed as Chi^2
-            with two degrees of freedom (with a mean of 2 and a variance of 4).
+        In rms normalization, the periodogram will be normalized such that
+        the integral of the periodogram will equal the total variance in the
+        light curve divided by the mean of the light curve squared.
 
-            In fractional rms normalization, the periodogram will be normalized
-            such that the integral of the periodogram will equal the total
-            variance in the light curve divided by the mean count rate of the
-            light curve squared.
+        Parameters
+        ----------
+        unnorm_powers: numpy.ndarray
+            The squared absolute value of the Fourier amplitudes
 
-            In absolute rms normalization, the periodogram is normalized such
-            that the integral of the periodogram equals the total variance in
-            the light curve.
-
-            Parameters
-            ----------
-            unnorm_powers: numpy.ndarray
-                The squared absolute value of the Fourier amplitudes.
-
-            lc: lightcurve.Lightcurve object
-                The input light curve
+        lc: lightcurve.Lightcurve object
+            The input light curve
 
 
-            Returns
-            -------
-            ps: numpy.nd.array
-                The normalized periodogram
-            """
-            if self.norm.lower() == 'leahy':
-                p = unnorm_powers
-                ps = 2. * p / self.nphots
+        Returns
+        -------
+        ps: numpy.nd.array
+            The normalized periodogram
+        """
+        if self.norm.lower() == 'leahy':
+            p = unnorm_powers
+            ps =  2.*p/self.nphots
 
-            elif self.norm.lower() == 'frac':
-                p = unnorm_powers / np.float(self.n**2.)
-                ps = p * 2. * lc.dt / (np.mean(lc.counts)**2.0)
+        elif self.norm.lower() == 'rms':
+            p = unnorm_powers/np.float(self.n**2.)
+            ps = p*2.*lc.tseg/(np.mean(lc.counts)**2.0)
 
-            elif self.norm.lower() == 'abs':
-                p = unnorm_powers / np.float(self.n**2.)
-                ps = p * 2. * lc.dt
-            else:
-                raise Exception("Normalization not recognized!")
+        else:
+            raise Exception("Normalization not recognized!")
 
-            return ps
+        return ps
 
     def rebin(self, df, method="mean"):
         """
@@ -273,7 +353,8 @@ class Powerspectrum(object):
 
     def compute_rms(self, min_freq, max_freq):
         """
-        Compute the rms amplitude in the periodogram between two frequencies.
+        Compute the fractional rms amplitude in the periodgram
+        between two frequencies.
 
         Parameters
         ----------
@@ -302,12 +383,10 @@ class Powerspectrum(object):
         minind = self.freq.searchsorted(min_freq)
         maxind = self.freq.searchsorted(max_freq)
         powers = self.ps[minind:maxind]
-        if self.norm.lower() == "leahy":
-            rms = np.sqrt(np.sum(powers) / self.nphots)
-        elif self.norm.lower() == "frac":
-            rms = np.sqrt(np.sum(powers * self.df)) # TODO: multiply by mean
-        elif self.norm.lower() == "abs":
-            rms = np.sqrt(np.sum(powers * self.df))
+        if self.norm.lower() == 'leahy':
+            rms = np.sqrt(np.sum(powers)/self.nphots)
+        elif self.norm.lower() == "rms":
+            rms = np.sqrt(np.sum(powers*self.df))
         else:
             raise Exception("Normalization not recognized!")
 
@@ -317,7 +396,8 @@ class Powerspectrum(object):
 
     def _rms_error(self, powers):
         """
-        Compute the error on the rms amplitude using error propagation.
+        Compute the error on the fractional rms amplitude using error
+        propagation.
         Note: this uses the actual measured powers, which is not
         strictly correct. We should be using the underlying power spectrum,
         but in the absence of an estimate of that, this will have to do.
@@ -325,27 +405,99 @@ class Powerspectrum(object):
         Parameters
         ----------
         powers: iterable
-            The list of powers used to compute the rms amplitude.
+            The list of powers used to compute the fractional rms amplitude.
 
 
         Returns
         -------
         delta_rms: float
-            The error on the rms amplitude.
+            the error on the fractional rms amplitude
         """
         p_err = scipy.stats.chi2(2.*self.m).var()*powers/self.m
         drms_dp = 1./(2.*np.sqrt(np.sum(powers)*self.df))
         delta_rms = np.sum(p_err*drms_dp*self.df)
         return delta_rms
 
+    def classical_significances(self, threshold=1.0, trial_correction=False):
+        """
+        Compute the classical significances for the powers in the power
+        spectrum, assuming an underlying noise distribution that follows a
+        chi-square distributions with 2M degrees of freedom, where M is the
+        number of powers averaged in each bin.
+
+        Note that this function will *only* produce correct results when the
+        following underlying assumptions are fulfilled:
+        (1) The power spectrum is Leahy-normalized
+        (2) There is no source of variability in the data other than the
+        periodic signal to be determined with this method. This is important!
+        If there are other sources of (aperiodic) variability in the data, this
+        method will *not* produce correct results, but instead produce a large
+        number of spurious false positive detections!
+        (3) There are no significant instrumental effects changing the
+        statistical distribution of the powers (e.g. pile-up or dead time)
+
+        By default, the method produces (index,p-values) for all powers in
+        the power spectrum, where index is the numerical index of the power in
+        question. If a `threshold` is set, then only powers with p-values
+        *below* that threshold with their respective indices. If
+        `trial_correction` is set to True, then the threshold will be corrected
+        for the number of trials (frequencies) in the power spectrum before
+        being used.
+
+        Parameters
+        ----------
+        threshold : float
+            The threshold to be used when reporting p-values of potentially
+            significant powers. Must be between 0 and 1.
+            Default is 1 (all p-values will be reported).
+
+        trial_correction : bool
+            A Boolean flag that sets whether the `threshold` will be correted
+            by the number of frequencies before being applied. This decreases
+            the threshold (p-values need to be lower to count as significant).
+            Default is False (report all powers) though for any application
+            where `threshold` is set to something meaningful, this should also
+            be applied!
+
+        Returns
+        -------
+        pvals : iterable
+            A list of (index, p-value) tuples for all powers that have p-values
+            lower than the threshold specified in `threshold`.
+
+        """
+        assert self.norm == "leahy", "This method only works on " \
+                                     "Leahy-normalized power spectra!"
+
+
+        ## calculate p-values for all powers
+        ## leave out zeroth power since it just encodes the number of photons!
+        pv= np.array([classical_pvalue(power, self.m) for power in self.ps[1:]])
+
+        ## if trial correction is used, then correct the threshold for
+        ## the number of powers in the power spectrum
+        if trial_correction:
+            threshold /= np.float(self.ps.shape[0])
+
+        ## need to add 1 to the indices to make up for the fact that
+        ## we left out the first power above!
+        indices = np.where(pv < threshold)[0]+1
+
+        pvals = zip(pv, indices)
+
+        return pvals
+
+
+
+
+
 class AveragedPowerspectrum(Powerspectrum):
 
-    def __init__(self, lc, segment_size, norm="frac"):
+    def __init__(self, lc, segment_size, norm="rms"):
         """
         Make an averaged periodogram from a light curve by segmenting the light
         curve, Fourier-transforming each segment and then averaging the
         resulting periodograms.
-
         Parameters
         ----------
         lc: lightcurve.Lightcurve object OR
@@ -358,37 +510,38 @@ class AveragedPowerspectrum(Powerspectrum):
             segment_size, then any fraction left-over at the end of the
             time series will be lost.
 
-        norm: {"leahy" | "frac" | "abs"}, optional, default "frac"
+        norm: {"leahy" | "rms"}, optional, default "rms"
             The normaliation of the periodogram to be used. Options are
-            "leahy", "frac", or "abs", default is "frac".
+            "leahy" or "rms", default is "rms".
 
 
         Attributes
         ----------
-        norm: {"leahy" | "frac" | "abs"}
-            The normalization of the power spectrum.
+        norm: {"leahy" | "rms"}
+            the normalization of the periodogram
 
         freq: numpy.ndarray
-            The array of mid-bin frequencies that the Fourier transform samples.
+            The array of mid-bin frequencies that the Fourier transform samples
 
         ps: numpy.ndarray
             The array of normalized squared absolute values of Fourier
-            amplitudes.
+            amplitudes
 
         df: float
-            The frequency resolution.
+            The frequency resolution
 
         m: int
-            The number of averaged power spectra.
+            The number of averaged periodograms
 
         n: int
-            The number of data points in the light curve.
+            The number of data points in the light curve
 
         nphots: float
-            The total number of photons in the light curve.
+            The total number of photons in the light curve
 
 
         """
+
 
         assert np.isfinite(segment_size), "segment_size must be finite!"
 
@@ -412,7 +565,6 @@ class AveragedPowerspectrum(Powerspectrum):
 
         ps_all = []
         nphots_all = []
-        meanrate_all = []
         while end_ind <= lc.counts.shape[0]:
             time = lc.time[start_ind:end_ind]
             counts = lc.counts[start_ind:end_ind]
@@ -420,36 +572,31 @@ class AveragedPowerspectrum(Powerspectrum):
             ps_seg = Powerspectrum(lc_seg, norm=self.norm)
             ps_all.append(ps_seg)
             nphots_all.append(np.sum(lc_seg.counts))
-            meanrate_all.append(np.mean(lc_seg.countrate))
             start_ind += nbins
             end_ind += nbins
 
-        return ps_all, nphots_all, meanrate_all
+        return ps_all, nphots_all
 
     def _make_powerspectrum(self, lc):
 
         ## chop light curves into segments
         if isinstance(lc, lightcurve.Lightcurve):
-            ps_all, nphots_all, meanrate_all = self._make_segment_psd(lc,
+            ps_all, nphots_all = self._make_segment_psd(lc,
                                                         self.segment_size)
-
         else:
-            ps_all, nphots_all, meanrate_all = [], [], []
+            ps_all, nphots_all = [], []
             for lc_seg in lc:
-                ps_sep, nphots_sep, meanrate_sep = self._make_segment_psd(lc_seg,
+                ps_sep, nphots_sep = self._make_segment_psd(lc_seg,
                                                             self.segment_size)
 
                 ps_all.append(ps_sep)
                 nphots_all.append(nphots_sep)
-                meanrate_all.append(meanrate_sep)
 
             ps_all = np.hstack(ps_all)
             nphots_all = np.hstack(nphots_all)
-            meanrate_all = np.hstack(meanrate_all)
 
         m = len(ps_all)
         nphots = np.mean(nphots_all)
-        meanrate = np.mean(meanrate_all)
         ps_avg = np.zeros_like(ps_all[0].ps)
         for ps in ps_all:
             ps_avg += ps.ps
@@ -462,55 +609,3 @@ class AveragedPowerspectrum(Powerspectrum):
         self.df = ps_all[0].df
         self.n = ps_all[0].n
         self.nphots = nphots
-        self.meanrate = meanrate
-
-        # ps_avg_norm = self._normalize_periodogram(ps_avg, tseg)
-
-    # def _normalize_periodogram(self, unnorm_powers, tseg):
-    #         """
-    #         Normalize the averaged power spectrum to Leahy, fractional rms, or
-    #         absolute rms normalization.
-    #
-    #         In Leahy normalization, the periodogram is normalized in such a way
-    #         that a flat light curve of Poissonian data will make a realization
-    #         of the power spectrum in which the powers are distributed as Chi^2
-    #         with two degrees of freedom (with a mean of 2 and a variance of 4).
-    #
-    #         In fractional rms normalization, the periodogram will be normalized
-    #         such that the integral of the periodogram will equal the total
-    #         variance in the light curve divided by the mean count rate of the
-    #         light curve squared.
-    #
-    #         In absolute rms normalization, the periodogram is normalized such
-    #         that the integral of the periodogram equals the total variance in
-    #         the light curve.
-    #
-    #         Parameters
-    #         ----------
-    #         unnorm_powers: numpy.ndarray
-    #             The raw power spectrum (squared absolute value of the Fourier
-    #             amplitudes).
-    #
-    #         tseg: float
-    #             The size of one time bin in the light curve.
-    #
-    #         Returns
-    #         -------
-    #         ps: numpy.nd.array
-    #             The normalized periodogram
-    #         """
-    #         if self.norm.lower() == 'leahy':
-    #             p = unnorm_powers
-    #             ps = 2. * p / self.nphots
-    #
-    #         elif self.norm.lower() == 'frac':
-    #             p = unnorm_powers / np.float(self.n**2.)
-    #             ps = p * 2. * lc.dt / (self.meanrate**2.0)
-    #
-    #         elif self.norm.lower() == 'abs':
-    #             p = unnorm_powers / np.float(self.n**2.)
-    #             ps = p * 2. * lc.dt
-    #         else:
-    #             raise Exception("Normalization not recognized!")
-    #
-    #         return ps

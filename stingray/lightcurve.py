@@ -11,7 +11,7 @@ import numpy as np
 import stingray.utils as utils
 
 class Lightcurve(object):
-    def __init__(self, time, counts):
+    def __init__(self, time, counts, input_counts=True):
         """
         Make a light curve object from an array of time stamps and an
         array of counts.
@@ -26,6 +26,10 @@ class Lightcurve(object):
             bins defined in `time` (note: **not** the count rate, i.e.
             counts/second, but the counts/bin).
 
+        input_counts: bool, optional, default True
+            If True, the code assumes that the input data in 'counts'
+            is in units of counts/bin. If False, it assumes the data
+            in 'counts' is in counts/second.
 
         Attributes
         ----------
@@ -59,10 +63,16 @@ class Lightcurve(object):
                                             "your counts array!"
 
         self.time = np.asarray(time)
-        self.counts = np.asarray(counts)
-        self.ncounts = self.counts.shape[0]
         self.dt = time[1] - time[0]
-        self.countrate = self.counts/self.dt
+
+        if input_counts:
+            self.counts = np.asarray(counts)
+            self.countrate = self.counts/self.dt
+        else:
+            self.countrate = np.asarray(counts)
+            self.counts = self.countrate*self.dt
+
+        self.ncounts = self.counts.shape[0]
         self.tseg = self.time[-1] - self.time[0] + self.dt
         self.tstart = self.time[0]-0.5*self.dt
 
