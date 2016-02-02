@@ -1,3 +1,3 @@
 from stingray.lightcurve import *
 from stingray.utils import *
-from powerspectrum import *
+from stingray.powerspectrum import *

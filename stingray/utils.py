@@ -56,7 +56,6 @@ def rebin_data(x, y, dx_new, method='sum'):
         output.append(total)
 
     output = np.asarray(output)
-    xbin = np.arange(x[0]-dx_old*0.5, x[-1]-0.5*dx_old, dx_new) + dx_new/2.
 
     if method in ['mean', 'avg', 'average', 'arithmetic mean']:
         ybin = output/np.float(step_size)
@@ -71,6 +70,8 @@ def rebin_data(x, y, dx_new, method='sum'):
 
     if tseg/dx_new % 1.0 > 0.0:
         ybin = ybin[:-1]
+
+    xbin = np.arange(ybin.shape[0])*dx_new + x[0]-dx_old/2.+dx_new/2.
 
 
     return xbin, ybin, step_size

@@ -76,6 +76,13 @@ class TestLightcurve(object):
         lc = Lightcurve(times, counts)
         assert np.allclose(lc.countrate, np.zeros_like(counts)+mean_counts/dt)
 
+    def test_input_countrate(self):
+        dt = 0.5
+        mean_counts = 2.0
+        times = np.arange(0+dt/2.,5-dt/2., dt)
+        countrate = np.zeros_like(times) + mean_counts
+        lc = Lightcurve(times, countrate, input_counts=False)
+        assert np.allclose(lc.counts, np.zeros_like(countrate)+mean_counts*dt)
 
     @raises(TypeError)
     def test_init_with_none_data(self):
@@ -105,8 +112,10 @@ class TestLightcurve(object):
 class TestLightcurveRebin(object):
 
     def setUp(self):
-        dt = 1.0
-        n = 10
+        #dt = 1.0
+        #n = 10
+        dt = 0.0001220703125
+        n = 1384132
         mean_counts = 2.0
         times = np.arange(dt/2, dt/2+n*dt, dt)
         counts= np.zeros_like(times)+mean_counts
@@ -116,7 +125,6 @@ class TestLightcurveRebin(object):
         dt_new = 2.0
         lc_binned = self.lc.rebin_lightcurve(dt_new)
         assert np.isclose(lc_binned.dt, dt_new)
-        assert np.isclose(self.lc.tseg, lc_binned.tseg)
         counts_test = np.zeros_like(lc_binned.time) + \
                       self.lc.counts[0]*dt_new/self.lc.dt
         assert np.allclose(lc_binned.counts, counts_test)
@@ -129,6 +137,17 @@ class TestLightcurveRebin(object):
 
         counts_test = np.zeros_like(lc_binned.time) + \
                       self.lc.counts[0]*dt_new/self.lc.dt
-        print(counts_test)
-        print(lc_binned.counts)
         assert np.allclose(lc_binned.counts, counts_test)
+
+
+    def rebin_several(self, dt):
+        """
+        TODO: Not sure how to write tests for the rebin method!
+        """
+        lc_binned = self.lc.rebin_lightcurve(dt)
+        assert len(lc_binned.time) == len(lc_binned.counts)
+
+    def test_rebin_equal_numbers(self):
+        dt_all = [2, 3, np.pi, 5]
+        for dt in dt_all:
+            yield self.rebin_several, dt

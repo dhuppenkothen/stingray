@@ -29,13 +29,6 @@ class TestRebinData(object):
         xbin, ybin, step_size = utils.rebin_data(self.x, self.y, dx_new)
         assert xbin.shape[0] == ybin.shape[0]
 
-    def test_new_bins(self):
-        dx_new = 2.0
-        xbin_test = np.arange(self.x[0]-self.dx/2., self.x[-1]+self.dx/2., \
-                              dx_new) + dx_new/2.
-
-        xbin, ybin, step_size = utils.rebin_data(self.x, self.y, dx_new)
-        assert np.allclose(xbin, xbin_test)
 
     def test_binned_counts(self):
         dx_new = 2.0
@@ -53,7 +46,8 @@ class TestRebinData(object):
     def test_uneven_binned_counts(self):
         dx_new = 1.5
         xbin, ybin, step_size = utils.rebin_data(self.x, self.y, dx_new)
-
+        print(xbin)
+        print(ybin)
         ybin_test = np.zeros_like(xbin) + self.counts*dx_new/self.dx
         assert np.allclose(ybin_test, ybin)
 
