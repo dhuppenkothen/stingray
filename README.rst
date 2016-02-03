@@ -24,6 +24,8 @@ The contents will be:
 - Bayesian QPO searches
 - power colours
 - rms spectra
+- astroquery interface with RXTE, Astrosat, NICER (these modules need to get built too)
+
 
 Documentation
 -------------
@@ -47,6 +49,7 @@ Copyright
 ---------
 
 All content © 2015 the authors. The code is distributed under the MIT license.
+
 
 Pull requests are welcome! If you are interested in the further development of
 this project, please `get in touch via the issues
