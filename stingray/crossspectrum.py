@@ -12,7 +12,7 @@ import stingray.utils as utils
 
 class Crossspectrum(object):
 
-    def __init__(self, lc_1=None, lc_2=None):
+    def __init__(self, lc_1=None, lc_2=None, norm='none'):
         """
         Make a cross spectrum from a (binned) light curve.
         You can also make an empty Crossspectrum object to populate with your
@@ -26,6 +26,9 @@ class Crossspectrum(object):
             
         lc_2: lightcurve.Lightcurve object, optional, default None
             The light curve data for the reference band.
+
+        norm: {'frac', 'abs', 'leahy', 'none'}, default 'none'
+            The normalization of the (real part of the) cross spectrum.
 
         Attributes
         ----------
@@ -52,16 +55,45 @@ class Crossspectrum(object):
             The total number of photons in light curve 2
         """
 
+        assert isinstance(norm, str), "norm is not a string!"
+
+        assert norm.lower() in ["frac", "abs", "leahy", "none"], \
+                "norm must be 'frac', 'abs', 'leahy', or 'none'!"
+
+        self.norm = norm.lower()
+
         ## check if input data is a Lightcurve object, if not make one or
-        ## make an empty Crossspectrum object if lc_1 == time == counts == None
+        ## make an empty Crossspectrum object if lc_1 == None or lc_2 == None
+        ## TODO: handle only one lc input better?
         if lc_1 is not None and lc_2 is not None:
             pass
+
         elif lc_1 is not None and lc_2 is None:
-            ## TODO: declare lc_2 things to be none
-        	pass
+            print("lc_2 is None. You can't do a cross spectrum with just one "\
+                  "light curve!")
+            self.freq = None
+            self.cs = None
+            self.df = None
+            self.nphots_1 = None
+            self.nphots_2 = None
+            self.m = 1
+            self.n = None
+
+            return
+
         elif lc_2 is not None and lc_1 is None:
-            ## TODO: declare lc_1 things to be none
-        	pass
+            print("lc_1 is None. You can't do a cross spectrum with just one "\
+                  "light curve!")
+            self.freq = None
+            self.cs = None
+            self.df = None
+            self.nphots_1 = None
+            self.nphots_2 = None
+            self.m = 1
+            self.n = None
+
+            return
+
         else:
             self.freq = None
             self.cs = None
@@ -77,7 +109,7 @@ class Crossspectrum(object):
 
     def _make_crossspectrum(self, lc_1, lc_2):
 
-        ## make sure my inputs work!
+        ## make sure the inputs work!
         assert isinstance(lc_1, lightcurve.Lightcurve), \
                         "lc_1 must be a lightcurve.Lightcurve object!"
         assert isinstance(lc_2, lightcurve.Lightcurve), \
@@ -104,11 +136,11 @@ class Crossspectrum(object):
         ## This should *always* be 1 here
         self.m = 1
 
-        ## make the actual Fourier transform
+        ## make the actual Fourier transform and compute cross spectrum
         self.unnorm_cross = self._fourier_transform(lc_1, lc_2)
 
         ## TODO: normalize?
-        self.cs = self.unnorm_cross
+        self.cs = self._normalize_crossspectrum(self.unnorm_cross, lc_2)
         
         ## make a list of frequencies to go with the cross spectrum
         self.freq = np.arange(self.cs.shape[0])*self.df + self.df/2.
@@ -171,18 +203,57 @@ class Crossspectrum(object):
         bin_cs.cs = np.hstack([self.cs[0], bincs])
         bin_cs.df = df
         bin_cs.n = self.n
+        bin_cs.norm = self.norm
         bin_cs.nphots_1 = self.nphots_1
         bin_cs.nphots_2 = self.nphots_2
         bin_cs.m = int(step_size)
 
         return bin_cs
 
- 
+    def _normalize_crossspectrum(self, unnorm_cs, lc):
+        """
+        Normalize the real part of the cross spectrum to Leahy, absolute rms^2,
+        fractional rms^2 normalization, or not at all.
+
+        Parameters
+        ----------
+        unnorm_cs: numpy.ndarray
+            The unnormalized cross spectrum.
+
+        lc: lightcurve.Lightcurve object
+            The reference band light curve.
+
+        Returns
+        -------
+        cs: numpy.nd.array
+            The normalized co-spectrum (real part of the cross spectrum). For
+            'none' normalization, imaginary part is returned as well.
+        """
+        if self.norm.lower() == 'leahy':
+            c = unnorm_cs.real
+            cs = c * 2. / self.nphots_2
+
+        elif self.norm.lower() == 'frac':
+            c = unnorm_cs.real / np.float(self.n**2.)
+            cs = c * 2. * lc.tseg / (np.mean(lc.counts)**2.0)
+
+        elif self.norm.lower() == 'abs':
+            print("in here!!")
+            c = unnorm_cs.real / np.float(self.n**2.)
+            cs = c * (2. * lc.tseg)
+
+        elif self.norm.lower() == 'none':
+            cs = unnorm_cs
+
+        else:
+            raise Exception("Normalization not recognized!")
+
+        return cs
 
 
 class AveragedCrossspectrum(Crossspectrum):
 
-    def __init__(self, lc_1, lc_2, segment_size=1):
+    def __init__(self, lc_1, lc_2, segment_size=1, norm='none'):
         """
         Make an averaged cross spectrum from a light curve by segmenting two 
         light curves, Fourier-transforming each segment and then averaging the
@@ -206,6 +277,8 @@ class AveragedCrossspectrum(Crossspectrum):
             of the segment_size, then any fraction left-over at the end of the
             time series will be lost. Otherwise you introduce artefacts.
 
+        norm: {'frac', 'abs', 'leahy', 'none'}, default 'none'
+            The normalization of the (real part of the) cross spectrum.
 
         Attributes
         ----------
@@ -232,12 +305,18 @@ class AveragedCrossspectrum(Crossspectrum):
 
         """
 
+        assert isinstance(norm, str), "norm is not a string!"
+
+        assert norm.lower() in ["frac", "abs", "leahy", "none"], \
+                "norm must be 'frac', 'abs', 'leahy', or 'none'!"
+
+        self.norm = norm.lower()
 
         assert np.isfinite(segment_size), "segment_size must be finite!"
 
         self.segment_size = segment_size
 
-        Crossspectrum.__init__(self, lc_1, lc_2)
+        Crossspectrum.__init__(self, lc_1, lc_2, self.norm)
 
         return
 
@@ -270,7 +349,7 @@ class AveragedCrossspectrum(Crossspectrum):
             counts_2 = lc_2.counts[start_ind:end_ind]
             lc_1_seg = lightcurve.Lightcurve(time_1, counts_1)
             lc_2_seg = lightcurve.Lightcurve(time_2, counts_2)
-            cs_seg = Crossspectrum(lc_1_seg, lc_2_seg)
+            cs_seg = Crossspectrum(lc_1_seg, lc_2_seg, norm=self.norm)
             cs_all.append(cs_seg)
             nphots_1_all.append(np.sum(lc_1_seg.counts))
             nphots_2_all.append(np.sum(lc_2_seg.counts))
