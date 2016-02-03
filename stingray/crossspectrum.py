@@ -139,8 +139,9 @@ class Crossspectrum(object):
         ## make the actual Fourier transform and compute cross spectrum
         self.unnorm_cross = self._fourier_transform(lc_1, lc_2)
 
-        ## TODO: normalize?
-        self.cs = self._normalize_crossspectrum(self.unnorm_cross, lc_2)
+        ## If co-spectrum is desired, normalize here. Otherwise, get raw back
+        ## with the imaginary part still intact.
+        self.cs = self._normalize_crossspectrum(self.unnorm_cross, lc_1.tseg)
         
         ## make a list of frequencies to go with the cross spectrum
         self.freq = np.arange(self.cs.shape[0])*self.df + self.df/2.
@@ -210,7 +211,7 @@ class Crossspectrum(object):
 
         return bin_cs
 
-    def _normalize_crossspectrum(self, unnorm_cs, lc):
+    def _normalize_crossspectrum(self, unnorm_cs, tseg):
         """
         Normalize the real part of the cross spectrum to Leahy, absolute rms^2,
         fractional rms^2 normalization, or not at all.
@@ -220,8 +221,8 @@ class Crossspectrum(object):
         unnorm_cs: numpy.ndarray
             The unnormalized cross spectrum.
 
-        lc: lightcurve.Lightcurve object
-            The reference band light curve.
+        tseg: int
+            The length of the Fourier segment, in seconds.
 
         Returns
         -------
@@ -229,17 +230,23 @@ class Crossspectrum(object):
             The normalized co-spectrum (real part of the cross spectrum). For
             'none' normalization, imaginary part is returned as well.
         """
+
+        ## The "effective" count rate is the geometrical mean of the count rates
+        ## of the two light curves; need to divide by tseg to have count rate
+        actual_mean = np.sqrt(self.nphots_1 * self.nphots_2 / tseg)
+        # print("Actual mean:", actual_mean)
+
         if self.norm.lower() == 'leahy':
             c = unnorm_cs.real
-            cs = c * 2. / self.nphots_2
+            cs = c * 2. / actual_mean
 
         elif self.norm.lower() == 'frac':
             c = unnorm_cs.real / np.float(self.n**2.)
-            cs = c * 2. * lc.tseg / (np.mean(lc.counts)**2.0)
+            cs = c * 2. * tseg / (actual_mean**2.0)
 
         elif self.norm.lower() == 'abs':
             c = unnorm_cs.real / np.float(self.n**2.)
-            cs = c * (2. * lc.tseg)
+            cs = c * (2. * tseg)
 
         elif self.norm.lower() == 'none':
             cs = unnorm_cs
