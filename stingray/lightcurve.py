@@ -124,10 +124,10 @@ class Lightcurve(object):
         if tseg is None:
             tseg = toa[-1] - toa[0]
 
-        print("tseg: " + str(tseg))
+        # print("tseg: " + str(tseg))
 
         timebin = np.int(tseg/dt)
-        print("timebin:  " + str(timebin))
+        # print("timebin:  " + str(timebin))
 
         tend = tstart + timebin*dt
 

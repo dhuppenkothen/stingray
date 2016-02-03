@@ -238,7 +238,6 @@ class Crossspectrum(object):
             cs = c * 2. * lc.tseg / (np.mean(lc.counts)**2.0)
 
         elif self.norm.lower() == 'abs':
-            print("in here!!")
             c = unnorm_cs.real / np.float(self.n**2.)
             cs = c * (2. * lc.tseg)
 
