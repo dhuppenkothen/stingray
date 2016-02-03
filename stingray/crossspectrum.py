@@ -15,7 +15,6 @@ class Crossspectrum(object):
     def __init__(self, lc_1=None, lc_2=None):
         """
         Make a cross spectrum from a (binned) light curve.
-        Cross spectra can be Leahy normalized or fractional rms normalized.
         You can also make an empty Crossspectrum object to populate with your
         own fourier-transformed data (this can sometimes be useful when making
         binned periodograms).
@@ -34,7 +33,7 @@ class Crossspectrum(object):
             The array of mid-bin frequencies that the Fourier transform samples
 
         cs: numpy.ndarray
-            The array of cross spectra
+            The array of cross spectra (complex numbers)
 
         df: float
             The frequency resolution
@@ -58,10 +57,10 @@ class Crossspectrum(object):
         if lc_1 is not None and lc_2 is not None:
             pass
         elif lc_1 is not None and lc_2 is None:
-        	## TODO: declare lc_2 things to be none
+            ## TODO: declare lc_2 things to be none
         	pass
         elif lc_2 is not None and lc_1 is None:
-        	## TODO: declare lc_1 things to be none
+            ## TODO: declare lc_1 things to be none
         	pass
         else:
             self.freq = None
@@ -81,7 +80,7 @@ class Crossspectrum(object):
         ## make sure my inputs work!
         assert isinstance(lc_1, lightcurve.Lightcurve), \
                         "lc_1 must be a lightcurve.Lightcurve object!"
-		assert isinstance(lc_2, lightcurve.Lightcurve), \
+        assert isinstance(lc_2, lightcurve.Lightcurve), \
                         "lc_2 must be a lightcurve.Lightcurve object!"
 
 
@@ -96,7 +95,7 @@ class Crossspectrum(object):
         		"Light curves do not have same number of time bins per segment."
         self.n = lc_1.counts.shape[0]
 
-		assert lc_1.tseg == lc_2.tseg, "Light curves do not have same tseg."
+        assert lc_1.tseg == lc_2.tseg, "Light curves do not have same tseg."
 		
         ## the frequency resolution
         self.df = 1.0/lc_1.tseg
@@ -140,7 +139,7 @@ class Crossspectrum(object):
         fourier_1 = scipy.fftpack.fft(lc_1.counts) ### do Fourier transform 1
         fourier_2 = scipy.fftpack.fft(lc_2.counts) ### do Fourier transform 2
 		
-		cross = fourier_1[:self.n/2+1] * np.conj(fourier_2[:self.n/2+1])
+        cross = fourier_1[:self.n/2+1] * np.conj(fourier_2[:self.n/2+1])
         return cross
 
 
@@ -168,7 +167,6 @@ class Crossspectrum(object):
         bin_cs = Crossspectrum()
 
         ## store the binned periodogram in the new object
-        bin_cs.norm = self.norm
         bin_cs.freq = np.hstack([binfreq[0]-self.df, binfreq])
         bin_cs.cs = np.hstack([self.cs[0], bincs])
         bin_cs.df = df
@@ -184,7 +182,7 @@ class Crossspectrum(object):
 
 class AveragedCrossspectrum(Crossspectrum):
 
-    def __init__(self, lc_1, lc_2, segment_size):
+    def __init__(self, lc_1, lc_2, segment_size=1):
         """
         Make an averaged cross spectrum from a light curve by segmenting two 
         light curves, Fourier-transforming each segment and then averaging the
@@ -202,7 +200,7 @@ class AveragedCrossspectrum(Crossspectrum):
             Second light curve data to be Fourier-transformed. This is the 
             reference band.
             
-        segment_size: float
+        segment_size: float, default 1
             The size of each segment to average. Note that if the total duration
             of each Lightcurve object in lc_1 or lc_2 is not an integer multiple
             of the segment_size, then any fraction left-over at the end of the
@@ -247,7 +245,7 @@ class AveragedCrossspectrum(Crossspectrum):
     def _make_segment_csd(self, lc_1, lc_2, segment_size):
 		
 		
-		## TODO: need to update this for making cross spectra.
+        ## TODO: need to update this for making cross spectra.
         assert isinstance(lc_1, lightcurve.Lightcurve)
         assert isinstance(lc_2, lightcurve.Lightcurve)
 
@@ -265,18 +263,17 @@ class AveragedCrossspectrum(Crossspectrum):
         nphots_1_all = []
         nphots_2_all = []
 
-        
-        ## Need to edit this for cross spectra.
         while end_ind <= lc_1.counts.shape[0]:
             time_1 = lc_1.time[start_ind:end_ind]
             counts_1 = lc_1.counts[start_ind:end_ind]
+            time_2 = lc_2.time[start_ind:end_ind]
+            counts_2 = lc_2.counts[start_ind:end_ind]
             lc_1_seg = lightcurve.Lightcurve(time_1, counts_1)
             lc_2_seg = lightcurve.Lightcurve(time_2, counts_2)
             cs_seg = Crossspectrum(lc_1_seg, lc_2_seg)
             cs_all.append(cs_seg)
             nphots_1_all.append(np.sum(lc_1_seg.counts))
             nphots_2_all.append(np.sum(lc_2_seg.counts))
-			## What to do about this?
             start_ind += nbins
             end_ind += nbins
 
@@ -285,8 +282,7 @@ class AveragedCrossspectrum(Crossspectrum):
     def _make_crossspectrum(self, lc_1, lc_2):
 
         ## chop light curves into segments
-        if isinstance(lc_1, lightcurve.Lightcurve) and 
-        	isinstance(lc_2, lightcurve.Lightcurve):
+        if isinstance(lc_1, lightcurve.Lightcurve) and isinstance(lc_2, lightcurve.Lightcurve):
             cs_all, nphots_1_all, nphots_2_all = self._make_segment_csd(lc_1, 
             										lc_2, self.segment_size)
         else:
