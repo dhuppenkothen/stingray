@@ -21,7 +21,7 @@ class TestPowerspectrum(object):
         time = np.linspace(tstart, tend, int((tend-tstart)/dt))
 
         mean_count_rate = 100.0
-        mean_counts = mean_count_rate*dt
+        mean_counts = mean_count_rate * dt
 
         poisson_counts = np.random.poisson(mean_counts,
                                            size=time.shape[0])
@@ -29,7 +29,7 @@ class TestPowerspectrum(object):
         self.lc = Lightcurve(time, counts=poisson_counts)
 
 
-    def test_make_empty_periodogram(self):
+    def test_make_empty_powerspectrum(self):
         ps = Powerspectrum()
         assert ps.norm == "frac"
         assert ps.freq is None
@@ -39,7 +39,7 @@ class TestPowerspectrum(object):
         assert ps.n is None
 
 
-    def test_make_periodogram_from_lightcurve(self):
+    def test_make_powerspectrum_from_lightcurve(self):
         ps = Powerspectrum(lc=self.lc)
         assert ps.freq is not None
         assert ps.ps is not None
@@ -49,7 +49,7 @@ class TestPowerspectrum(object):
         assert ps.n == self.lc.time.shape[0]
         assert ps.nphots == np.sum(self.lc.counts)
 
-    def test_periodogram_types(self):
+    def test_powerspectrum_types(self):
         ps = Powerspectrum(lc=self.lc)
         assert isinstance(ps.freq, np.ndarray)
         assert isinstance(ps.ps, np.ndarray)
@@ -99,8 +99,8 @@ class TestPowerspectrum(object):
 
     def test_total_variance(self):
         """
-        the integral of powers (or Riemann sum) should be close
-        to the variance divided by twice the length of the light curve.
+        The integral of powers (or Riemann sum) should be close to the variance
+        divided by twice the length of the light curve.
 
         Note: make sure the factors of ncounts match!
         Also, make sure to *exclude* the zeroth power!
@@ -113,30 +113,30 @@ class TestPowerspectrum(object):
         assert np.isclose(p_int, var_lc)
 
 
-    def test_rms_normalization_is_standard(self):
+    def test_frac_rms_normalization_is_standard(self):
         """
-        Make sure the standard normalization of a periodogram is
-        rms and it stays that way!
+        Make sure the standard normalization of a power spectrum is
+        fractional rms and it stays that way!
         """
         ps = Powerspectrum(lc=self.lc)
         assert ps.norm == "frac"
 
-    def test_rms_normalization_correct(self):
+    def test_frac_rms_normalization_correct(self):
         """
-        In rms normalization, the integral of the powers should be
-        equal to the variance of the light curve divided by the mean
-        of the light curve squared.
+        In fractional rms normalization, the integral of the powers should be
+        equal to the variance of the light curve divided by the mean of the
+        light curve squared.
         """
         ps = Powerspectrum(lc=self.lc, norm="frac")
         ps_int = np.sum(ps.ps[1:-1]*ps.df) + ps.ps[-1]*ps.df/2.
         std_lc = np.var(self.lc.counts)/np.mean(self.lc.counts)**2.
         assert np.isclose(ps_int, std_lc)
 
-    def test_fractional_rms_in_rms_norm(self):
+    def test_integrated_rms_in_frac_rms_norm(self):
         ps = Powerspectrum(lc=self.lc, norm="frac")
         rms_ps, rms_err = ps.compute_rms(min_freq=ps.freq[1],
                                          max_freq=ps.freq[-1])
-        rms_lc = np.std(self.lc.counts)/np.mean(self.lc.counts)
+        rms_lc = np.std(self.lc.counts) / np.mean(self.lc.counts)
         assert np.isclose(rms_ps, rms_lc, atol=0.01)
 
     def test_leahy_normalization_correct(self):
@@ -147,16 +147,16 @@ class TestPowerspectrum(object):
         """
         In Leahy normalization, the total variance should be the sum of
         powers multiplied by the number of counts and divided by the
-        square of the number of data points in the light curve
+        square of the number of data points in the light curve.
         """
         ps = Powerspectrum(lc=self.lc, norm="Leahy")
-        ps_var =  (np.sum(self.lc.counts)/ps.n**2.)*\
-                  (np.sum(ps.ps[1:-1])+ps.ps[-1]/2.)
+        ps_var = (np.sum(self.lc.counts) / ps.n**2.) * \
+                  (np.sum(ps.ps[1:-1]) + ps.ps[-1] / 2.)
         assert np.isclose(ps_var, np.var(self.lc.counts))
 
     def test_fractional_rms_in_leahy_norm(self):
         """
-        fractional rms should only be *approximately* equal the standard
+        Integrated power (rms) should only be *approximately* equal the standard
         deviation divided by the mean of the light curve. Therefore, we allow
         for a larger tolerance in np.isclose()
         """
@@ -164,13 +164,20 @@ class TestPowerspectrum(object):
         rms_ps, rms_err = ps.compute_rms(min_freq=ps.freq[1],
                                          max_freq=ps.freq[-1])
 
-        rms_lc = np.std(self.lc.counts)/np.mean(self.lc.counts)
-        assert np.isclose(rms_ps, rms_lc,atol=0.01)
+        rms_lc = np.std(self.lc.counts) / np.mean(self.lc.counts)
+        assert np.isclose(rms_ps, rms_lc, atol=0.01)
 
     def test_fractional_rms_error(self):
         """
-        TODO: Need to write a test for the fractional rms error.
+        TODO: Need to write a test for the integrated rms error.
         But I don't know how!
+        """
+        pass
+
+    def test_abs_rms_normalization_correct(self):
+        """
+        TODO: Need to write a test for the absolute rms normalization of a
+        power spectrum!
         """
         pass
 
