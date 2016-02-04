@@ -184,7 +184,7 @@ class Powerspectrum(object):
         ## the frequency resolution
         self.df = 1.0/lc.tseg
 
-        ## the number of averaged periodograms in the final output
+        ## the number of averaged power spectra in the final output
         ## This should *always* be 1 here
         self.m = 1
 
@@ -192,7 +192,7 @@ class Powerspectrum(object):
         self.unnorm_powers = self._fourier_transform(lc)
 
         ## Normalize power spectrum
-        self.ps = self._normalize_periodogram(self.unnorm_powers, lc)
+        self.ps = self._normalize_ps(self.unnorm_powers, lc)
 
         ## make a list of frequencies to go with the powers
         self.freq = np.arange(self.ps.shape[0])*self.df + self.df/2.
@@ -218,7 +218,7 @@ class Powerspectrum(object):
         fr = np.abs(fourier[:self.n/2+1])**2.
         return fr
 
-    def _normalize_periodogram(self, unnorm_powers, lc):
+    def _normalize_ps(self, unnorm_powers, lc):
         """
         Normalize the power spectrum to Leahy, absolute rms, or fractional rms
         normalization.
@@ -231,10 +231,13 @@ class Powerspectrum(object):
         In fractional rms normalization, the power spectrum is normalized
         such that the integral of the power spectrum will equal the total
         variance in the light curve divided by the mean of the light curve
-        squared.
+        squared. The poisson noise level for this normalization is 2 / rate^2
+        where rate is the mean count rate of the light curve.
 
-        In absolute rms normalization, the power spectrum is normalized such
-        that the
+        In absolute rms normalization (sometimes also called counts^2
+        normalization), the power spectrum is normalized such that the Poisson
+        noise level is 2 * rate, where rate is the mean count rate of the light
+        curve.
 
         Parameters
         ----------
@@ -244,11 +247,10 @@ class Powerspectrum(object):
         lc: lightcurve.Lightcurve object
             The input light curve.
 
-
         Returns
         -------
         ps: numpy.nd.array
-            The normalized power spectrum
+            The normalized power spectrum.
         """
         if self.norm.lower() == 'leahy':
             p = unnorm_powers
@@ -287,10 +289,10 @@ class Powerspectrum(object):
                                                      self.ps[1:], df,
                                                      method=method)
 
-        ## make an empty periodogram object
+        ## make an empty power spectrum object
         bin_ps = Powerspectrum()
 
-        ## store the binned periodogram in the new object
+        ## store the binned power spectrum in the new object
         bin_ps.norm = self.norm
         bin_ps.freq = np.hstack([binfreq[0]-self.df, binfreq])
         bin_ps.ps = np.hstack([self.ps[0], binps])
@@ -304,9 +306,8 @@ class Powerspectrum(object):
 
     def rebin_log(self, f=0.01):
         """
-        Logarithmic rebin of the power spectrum.
-        The new frequency depends on the previous frequency
-        modified by a factor f:
+        Logarithmic rebin of the power spectrum. The new frequency depends on
+        the previous frequency modified by a factor f:
 
         dnu_j = dnu_{j-1}*(1+f)
 
@@ -362,8 +363,7 @@ class Powerspectrum(object):
 
     def compute_rms(self, min_freq, max_freq):
         """
-        Compute the fractional rms amplitude in the power spectrum between two
-        frequencies.
+        Compute the rms of the power spectrum between two frequencies.
 
         Parameters
         ----------
@@ -382,11 +382,11 @@ class Powerspectrum(object):
         """
         #assert min_freq >= self.freq[0], "Lower frequency bound must be " \
         #                                 "larger or equal the minimum " \
-        #                                 "frequency in the periodogram!"
+        #                                 "frequency in the power spectrum!"
 
         #assert max_freq <= self.freq[-1], "Upper frequency bound must be " \
         #                                 "smaller or equal the maximum " \
-        #                                 "frequency in the periodogram!"
+        #                                 "frequency in the power spectrum!"
 
         minind = self.freq.searchsorted(min_freq)
         maxind = self.freq.searchsorted(max_freq)
@@ -407,11 +407,11 @@ class Powerspectrum(object):
 
     def _rms_error(self, powers):
         """
-        Compute the error on the fractional rms amplitude using error
-        propagation.
-        Note: this uses the actual measured powers, which is not
-        strictly correct. We should be using the underlying power spectrum,
-        but in the absence of an estimate of that, this will have to do.
+        Compute the error on the power spectrum rms using error propagation.
+
+        Note: this uses the actual measured powers, which is not strictly
+        correct. We should be using the underlying power spectrum, but in the
+        absence of an estimate of that, this will have to do.
 
         Parameters
         ----------
@@ -423,9 +423,10 @@ class Powerspectrum(object):
         delta_rms: float
             The error on the fractional rms amplitude.
         """
-        p_err = scipy.stats.chi2(2.*self.m).var()*powers/self.m
-        drms_dp = 1./(2.*np.sqrt(np.sum(powers)*self.df))
-        delta_rms = np.sum(p_err*drms_dp*self.df)
+
+        p_err = scipy.stats.chi2(2. * self.m).var() * powers / self.m
+        drms_dp = 1. / (2. * np.sqrt(np.sum(powers) * self.df))
+        delta_rms = np.sum(p_err * drms_dp * self.df)
         return delta_rms
 
     def classical_significances(self, threshold=1.0, trial_correction=False):
@@ -505,9 +506,10 @@ class AveragedPowerspectrum(Powerspectrum):
 
     def __init__(self, lc, segment_size, norm="frac"):
         """
-        Make an averaged periodogram from a light curve by segmenting the light
-        curve, Fourier-transforming each segment and then averaging the
-        resulting periodograms.
+        Make an averaged power spectrum from a light curve by segmenting the
+        light curve, Fourier-transforming each segment and then averaging the
+        resulting power spectra.
+
         Parameters
         ----------
         lc: lightcurve.Lightcurve object OR
@@ -521,7 +523,7 @@ class AveragedPowerspectrum(Powerspectrum):
             time series will be lost.
 
         norm: {"leahy" | "frac" | "abs"}, optional, default "frac"
-            The normaliation of the power spectrum to be used. Options are
+            The normalization of the power spectrum to be used. Options are
             "leahy", "abs", or "frac", default is "frac".
 
 
