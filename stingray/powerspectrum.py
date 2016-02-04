@@ -99,57 +99,56 @@ def _pavnosigfun(power, nspec):
 
 class Powerspectrum(object):
 
-    def __init__(self, lc=None, norm='rms'):
+    def __init__(self, lc=None, norm='frac'):
         """
-        Make a Periodogram (power spectrum) from a (binned) light curve.
-        Periodograms can be Leahy normalized or fractional rms normalized.
-        You can also make an empty Periodogram object to populate with your
+        Make a power spectrum from a (binned) light curve.
+        Power spectra can be Leahy, fractional rms, or absolute rms normalized.
+        You can also make an empty power spectru object to populate with your
         own fourier-transformed data (this can sometimes be useful when making
-        binned periodograms).
+        binned power spectra).
 
         Parameters
         ----------
         lc: lightcurve.Lightcurve object, optional, default None
             The light curve data to be Fourier-transformed.
 
-        norm: {"leahy" | "rms"}, optional, default "rms"
-            The normaliation of the periodogram to be used. Options are
-            "leahy" or "rms", default is "rms".
+        norm: {"leahy" | "frac" | "abs"}, optional, default "frac"
+            The normaliation of the power spectrum to be used. Options are
+            "leahy", "frac", or "abs", default is "frac".
 
 
         Attributes
         ----------
-        norm: {"leahy" | "rms"}
-            the normalization of the periodogram
+        norm: {"leahy" | "frac" | "abs"}
+            The normalization of the power spectrum.
 
         freq: numpy.ndarray
-            The array of mid-bin frequencies that the Fourier transform samples
+            The array of mid-bin frequencies that the Fourier transform samples.
 
         ps: numpy.ndarray
             The array of normalized squared absolute values of Fourier
-            amplitudes
+            amplitudes.
 
         df: float
-            The frequency resolution
+            The frequency resolution.
 
         m: int
-            The number of averaged powers in each bin
+            The number of averaged powers in each bin.
 
         n: int
-            The number of data points in the light curve
+            The number of data points in the light curve.
 
         nphots: float
-            The total number of photons in the light curve
-
+            The total number of photons in the light curve.
 
         """
 
-        ## TODO: One should be able to convert from rms to Leahy and do this
-        ## anyway!
+        ## TODO: One should be able to convert from frac to abs to Leahy and do
+        ##  this anyway!
         assert isinstance(norm, str), "norm is not a string!"
 
-        assert norm.lower() in ["rms", "leahy"], \
-                "norm must be either 'rms' or 'leahy'!"
+        assert norm.lower() in ["frac", "leahy", "abs"], \
+                "norm must be either 'frac', 'abs', or 'leahy'!"
 
         self.norm = norm.lower()
 
@@ -185,15 +184,15 @@ class Powerspectrum(object):
         ## the frequency resolution
         self.df = 1.0/lc.tseg
 
-        ## the number of averaged periodograms in the final output
+        ## the number of averaged power spectra in the final output
         ## This should *always* be 1 here
         self.m = 1
 
         ## make the actual Fourier transform
         self.unnorm_powers = self._fourier_transform(lc)
 
-        ## normalize to either Leahy or rms normalization
-        self.ps = self._normalize_periodogram(self.unnorm_powers, lc)
+        ## Normalize power spectrum
+        self.ps = self._normalize_ps(self.unnorm_powers, lc)
 
         ## make a list of frequencies to go with the powers
         self.freq = np.arange(self.ps.shape[0])*self.df + self.df/2.
@@ -215,43 +214,55 @@ class Powerspectrum(object):
             The squared absolute value of the Fourier amplitudes
 
         """
-        fourier= scipy.fftpack.fft(lc.counts) ### do Fourier transform
+        fourier = scipy.fftpack.fft(lc.counts) ### do Fourier transform
         fr = np.abs(fourier[:self.n/2+1])**2.
         return fr
 
-    def _normalize_periodogram(self, unnorm_powers, lc):
+    def _normalize_ps(self, unnorm_powers, lc):
         """
-        Normalize the periodogram to either Leahy or RMS normalization.
-        In Leahy normalization, the periodogram is normalized in such a way
+        Normalize the power spectrum to Leahy, absolute rms, or fractional rms
+        normalization.
+
+        In Leahy normalization, the power spectrum is normalized in such a way
         that a flat light curve of Poissonian data will make a realization of
         the power spectrum in which the powers are distributed as Chi^2 with
         two degrees of freedom (with a mean of 2 and a variance of 4).
 
-        In rms normalization, the periodogram will be normalized such that
-        the integral of the periodogram will equal the total variance in the
-        light curve divided by the mean of the light curve squared.
+        In fractional rms normalization, the power spectrum is normalized
+        such that the integral of the power spectrum will equal the total
+        variance in the light curve divided by the mean of the light curve
+        squared. The poisson noise level for this normalization is 2 / rate^2
+        where rate is the mean count rate of the light curve.
+
+        In absolute rms normalization (sometimes also called counts^2
+        normalization), the power spectrum is normalized such that the Poisson
+        noise level is 2 * rate, where rate is the mean count rate of the light
+        curve.
 
         Parameters
         ----------
         unnorm_powers: numpy.ndarray
-            The squared absolute value of the Fourier amplitudes
+            The squared absolute value of the Fourier amplitudes.
 
         lc: lightcurve.Lightcurve object
-            The input light curve
-
+            The input light curve.
 
         Returns
         -------
         ps: numpy.nd.array
-            The normalized periodogram
+            The normalized power spectrum.
         """
         if self.norm.lower() == 'leahy':
             p = unnorm_powers
-            ps =  2.*p/self.nphots
+            ps = 2.*p/self.nphots
 
-        elif self.norm.lower() == 'rms':
+        elif self.norm.lower() == 'frac':
             p = unnorm_powers/np.float(self.n**2.)
             ps = p*2.*lc.tseg/(np.mean(lc.counts)**2.0)
+
+        elif self.norm.lower() == 'abs':
+            p = unnorm_powers/np.float(self.n**2.)
+            ps = p * 2. * lc.tseg
 
         else:
             raise Exception("Normalization not recognized!")
@@ -260,7 +271,7 @@ class Powerspectrum(object):
 
     def rebin(self, df, method="mean"):
         """
-        Rebin the periodogram to a new frequency resolution df.
+        Rebin the power spectrum to a new frequency resolution df.
 
         Parameters
         ----------
@@ -269,8 +280,8 @@ class Powerspectrum(object):
 
         Returns
         -------
-        bin_ps = Periodogram object
-            The newly binned periodogram
+        bin_ps = Powerspectrum object
+            The newly binned power spectrum
         """
 
         ## rebin power spectrum to new resolution
@@ -278,10 +289,10 @@ class Powerspectrum(object):
                                                      self.ps[1:], df,
                                                      method=method)
 
-        ## make an empty periodogram object
+        ## make an empty power spectrum object
         bin_ps = Powerspectrum()
 
-        ## store the binned periodogram in the new object
+        ## store the binned power spectrum in the new object
         bin_ps.norm = self.norm
         bin_ps.freq = np.hstack([binfreq[0]-self.df, binfreq])
         bin_ps.ps = np.hstack([self.ps[0], binps])
@@ -295,29 +306,27 @@ class Powerspectrum(object):
 
     def rebin_log(self, f=0.01):
         """
-        Logarithmic rebin of the periodogram.
-        The new frequency depends on the previous frequency
-        modified by a factor f:
+        Logarithmic rebin of the power spectrum. The new frequency depends on
+        the previous frequency modified by a factor f:
 
         dnu_j = dnu_{j-1}*(1+f)
 
         Parameters
         ----------
         f: float, optional, default 0.01
-            parameter that steers the frequency resolution
-
+            Parameter that steers the frequency resolution.
 
         Returns
         -------
         binfreq: numpy.ndarray
-            the binned frequencies
+            The binned frequencies.
 
         binps: numpy.ndarray
-            the binned powers
+            The binned powers.
 
         nsamples: numpy.ndarray
-            the samples of the original periodogramincluded in each
-            frequency bin
+            The samples of the original power spectrum included in each
+            frequency bin.
         """
 
         minfreq = self.freq[1]*0.5 ## frequency to start from
@@ -351,10 +360,10 @@ class Powerspectrum(object):
         
         return binfreq, binps, nsamples
 
+
     def compute_rms(self, min_freq, max_freq):
         """
-        Compute the fractional rms amplitude in the periodgram
-        between two frequencies.
+        Compute the rms of the power spectrum between two frequencies.
 
         Parameters
         ----------
@@ -363,7 +372,6 @@ class Powerspectrum(object):
 
         max_freq: float
             The upper frequency bound for the calculation
-
 
         Returns
         -------
@@ -374,18 +382,21 @@ class Powerspectrum(object):
         """
         #assert min_freq >= self.freq[0], "Lower frequency bound must be " \
         #                                 "larger or equal the minimum " \
-        #                                 "frequency in the periodogram!"
+        #                                 "frequency in the power spectrum!"
 
         #assert max_freq <= self.freq[-1], "Upper frequency bound must be " \
         #                                 "smaller or equal the maximum " \
-        #                                 "frequency in the periodogram!"
+        #                                 "frequency in the power spectrum!"
 
         minind = self.freq.searchsorted(min_freq)
         maxind = self.freq.searchsorted(max_freq)
         powers = self.ps[minind:maxind]
-        if self.norm.lower() == 'leahy':
+
+        if self.norm.lower() == "leahy":
             rms = np.sqrt(np.sum(powers)/self.nphots)
-        elif self.norm.lower() == "rms":
+        elif self.norm.lower() == "frac":
+            rms = np.sqrt(np.sum(powers*self.df))
+        elif self.norm.lower() == "abs":
             rms = np.sqrt(np.sum(powers*self.df))
         else:
             raise Exception("Normalization not recognized!")
@@ -396,26 +407,26 @@ class Powerspectrum(object):
 
     def _rms_error(self, powers):
         """
-        Compute the error on the fractional rms amplitude using error
-        propagation.
-        Note: this uses the actual measured powers, which is not
-        strictly correct. We should be using the underlying power spectrum,
-        but in the absence of an estimate of that, this will have to do.
+        Compute the error on the power spectrum rms using error propagation.
+
+        Note: this uses the actual measured powers, which is not strictly
+        correct. We should be using the underlying power spectrum, but in the
+        absence of an estimate of that, this will have to do.
 
         Parameters
         ----------
         powers: iterable
             The list of powers used to compute the fractional rms amplitude.
 
-
         Returns
         -------
         delta_rms: float
-            the error on the fractional rms amplitude
+            The error on the fractional rms amplitude.
         """
-        p_err = scipy.stats.chi2(2.*self.m).var()*powers/self.m
-        drms_dp = 1./(2.*np.sqrt(np.sum(powers)*self.df))
-        delta_rms = np.sum(p_err*drms_dp*self.df)
+
+        p_err = scipy.stats.chi2(2. * self.m).var() * powers / self.m
+        drms_dp = 1. / (2. * np.sqrt(np.sum(powers) * self.df))
+        delta_rms = np.sum(p_err * drms_dp * self.df)
         return delta_rms
 
     def classical_significances(self, threshold=1.0, trial_correction=False):
@@ -493,11 +504,12 @@ class Powerspectrum(object):
 
 class AveragedPowerspectrum(Powerspectrum):
 
-    def __init__(self, lc, segment_size, norm="rms"):
+    def __init__(self, lc, segment_size, norm="frac"):
         """
-        Make an averaged periodogram from a light curve by segmenting the light
-        curve, Fourier-transforming each segment and then averaging the
-        resulting periodograms.
+        Make an averaged power spectrum from a light curve by segmenting the
+        light curve, Fourier-transforming each segment and then averaging the
+        resulting power spectra.
+
         Parameters
         ----------
         lc: lightcurve.Lightcurve object OR
@@ -510,35 +522,34 @@ class AveragedPowerspectrum(Powerspectrum):
             segment_size, then any fraction left-over at the end of the
             time series will be lost.
 
-        norm: {"leahy" | "rms"}, optional, default "rms"
-            The normaliation of the periodogram to be used. Options are
-            "leahy" or "rms", default is "rms".
+        norm: {"leahy" | "frac" | "abs"}, optional, default "frac"
+            The normalization of the power spectrum to be used. Options are
+            "leahy", "abs", or "frac", default is "frac".
 
 
         Attributes
         ----------
-        norm: {"leahy" | "rms"}
-            the normalization of the periodogram
+        norm: {"leahy" | "frac" | "abs"}
+            The normalization of the power spectrum.
 
         freq: numpy.ndarray
-            The array of mid-bin frequencies that the Fourier transform samples
+            The array of mid-bin frequencies that the Fourier transform samples.
 
         ps: numpy.ndarray
             The array of normalized squared absolute values of Fourier
-            amplitudes
+            amplitudes.
 
         df: float
             The frequency resolution
 
         m: int
-            The number of averaged periodograms
+            The number of averaged power spectra.
 
         n: int
             The number of data points in the light curve
 
         nphots: float
             The total number of photons in the light curve
-
 
         """
 
