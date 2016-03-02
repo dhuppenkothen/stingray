@@ -1,6 +1,7 @@
 
 
 import numpy as np
+import logging
 
 from nose.tools import raises
 
@@ -8,6 +9,7 @@ from stingray import Lightcurve
 from stingray import Powerspectrum, AveragedPowerspectrum
 
 from stingray.powerspectrum import classical_pvalue
+
 
 np.random.seed(20150907)
 
@@ -93,8 +95,8 @@ class TestPowerspectrum(object):
     def test_dc_component(self):
         ps = Powerspectrum(lc=self.lc)
         pp = np.sqrt(ps.unnorm_powers)/ps.n
-        print((pp[0]))
-        print((np.mean(self.lc.counts)))
+        logging.info((pp[0]))
+        logging.info((np.mean(self.lc.counts)))
         assert pp[0]==np.mean(self.lc.counts)
 
     def test_total_variance(self):

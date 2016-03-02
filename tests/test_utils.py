@@ -1,5 +1,6 @@
 
 import numpy as np
+import logging 
 import stingray.utils as utils
 
 np.random.seed(20150907)
@@ -46,8 +47,8 @@ class TestRebinData(object):
     def test_uneven_binned_counts(self):
         dx_new = 1.5
         xbin, ybin, step_size = utils.rebin_data(self.x, self.y, dx_new)
-        print(xbin)
-        print(ybin)
+        logging.info(xbin)
+        logging.info(ybin)
         ybin_test = np.zeros_like(xbin) + self.counts*dx_new/self.dx
         assert np.allclose(ybin_test, ybin)
 
