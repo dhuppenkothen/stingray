@@ -82,7 +82,7 @@ def _pavnosigfun(power, nspec):
     while m >= 0:
 
         s = 0.0
-        for i in xrange(int(m)-1):
+        for i in range(int(m)-1):
             s += np.log(float(m-i))
 
         logterm = m*np.log(pn/2.0) - pn/2.0 - s
@@ -340,7 +340,7 @@ class Powerspectrum(object):
 
         ## compute the number of powers in each frequency bin
         nsamples = np.array([len(binno[np.where(binno == i)[0]]) \
-                             for i in xrange(np.max(binno))])
+                             for i in range(np.max(binno))])
 
         ## the frequency resolution
         df = np.diff(binfreq)
