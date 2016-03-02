@@ -30,11 +30,12 @@ env:
         - SCIPY_VERSION=0.17.0
         - ASTROPY_VERSION=stable
         - SETUP_CMD='test'
-        - PIP_DEPENDENCIES='emcee corner'
+        # - PIP_DEPENDENCIES='emcee corner'
         # For this package-template, we include examples of Cython modules,
         # so Cython is required for testing. If your package does not include
         # Cython code, you can set CONDA_DEPENDENCIES=''
-        - CONDA_DEPENDENCIES='Cython numpy scipy matplotlib'
+        - CONDA_DEPENDENCIES=''
+        # - CONDA_DEPENDENCIES='Cython numpy scipy matplotlib'
     matrix:
         # Make sure that egg_info works without dependencies
         - SETUP_CMD='egg_info'
@@ -60,19 +61,19 @@ matrix:
           env: ASTROPY_VERSION=development
 
         # Try older numpy versions
-        - python: 2.7
-          env: NUMPY_VERSION=1.8
-        - python: 2.7
-          env: NUMPY_VERSION=1.7
-        - python: 2.7
-          env: NUMPY_VERSION=1.6
+        # - python: 2.7
+        #   env: NUMPY_VERSION=1.8
+        # - python: 2.7
+        #   env: NUMPY_VERSION=1.7
+        # - python: 2.7
+        #   env: NUMPY_VERSION=1.6
         # Try older scipy versions
-        - python: 2.7
-          env: SCIPY_VERSION=0.16.0
-        - python: 2.7
-          env: SCIPY_VERSION=0.15.0
-        - python: 2.7
-          env: SCIPY_VERSION=0.14.0
+        # - python: 2.7
+        #   env: SCIPY_VERSION=0.16.0
+        # - python: 2.7
+        #   env: SCIPY_VERSION=0.15.0
+        # - python: 2.7
+        #   env: SCIPY_VERSION=0.14.0
  
 
 before_install:
