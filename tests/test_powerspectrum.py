@@ -64,7 +64,7 @@ class TestPowerspectrum(object):
 
     @raises(AssertionError)
     def test_init_with_nonsense_data(self):
-        nonsense_data = [None for i in xrange(100)]
+        nonsense_data = [None for i in range(100)]
         assert Powerspectrum(nonsense_data)
 
     @raises(AssertionError)
@@ -93,8 +93,8 @@ class TestPowerspectrum(object):
     def test_dc_component(self):
         ps = Powerspectrum(lc=self.lc)
         pp = np.sqrt(ps.unnorm_powers)/ps.n
-        print(pp[0])
-        print(np.mean(self.lc.counts))
+        print((pp[0]))
+        print((np.mean(self.lc.counts)))
         assert pp[0]==np.mean(self.lc.counts)
 
     def test_total_variance(self):
@@ -331,7 +331,7 @@ class TestAveragedPowerspectrum(object):
         mean_counts = mean_count_rate*dt
 
         lc_all = []
-        for n in xrange(n_lcs):
+        for n in range(n_lcs):
             poisson_counts = np.random.poisson(mean_counts,
                                            size=len(time))
 
@@ -355,7 +355,7 @@ class TestAveragedPowerspectrum(object):
         mean_counts = mean_count_rate*dt
 
         lc_all = []
-        for n in xrange(n_lcs):
+        for n in range(n_lcs):
             poisson_counts = np.random.poisson(mean_counts,
                                            size=len(time))
 
