@@ -30,11 +30,11 @@ env:
         - SCIPY_VERSION=0.17.0
         - ASTROPY_VERSION=stable
         - SETUP_CMD='test'
-        - PIP_DEPENDENCIES='emcee corner'
+        # - PIP_DEPENDENCIES='emcee corner'
         # For this package-template, we include examples of Cython modules,
         # so Cython is required for testing. If your package does not include
         # Cython code, you can set CONDA_DEPENDENCIES=''
-        - CONDA_DEPENDENCIES='Cython numpy scipy matplotlib'
+        - CONDA_DEPENDENCIES='scipy numpy nose'
     matrix:
         # Make sure that egg_info works without dependencies
         - SETUP_CMD='egg_info'
@@ -73,7 +73,7 @@ matrix:
           env: SCIPY_VERSION=0.15.0
         - python: 2.7
           env: SCIPY_VERSION=0.14.0
- 
+
 
 before_install:
 
@@ -101,7 +101,7 @@ install:
     # As described above, using ci-helpers, you should be able to set up an
     # environment with dependencies installed using conda and pip, but in some
     # cases this may not provide enough flexibility in how to install a
-    # specific dependency (and it will not be able to install non-Python 
+    # specific dependency (and it will not be able to install non-Python
     # dependencies). Therefore, you can also include commands below (as
     # well as at the start of the install section or in the before_install
     # section if they are needed before setting up conda) to install any
