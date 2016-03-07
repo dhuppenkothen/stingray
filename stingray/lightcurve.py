@@ -75,12 +75,6 @@ class Lightcurve(object):
         assert np.all(np.isfinite(counts)), "There are inf or NaN values in " \
                                             "your counts array!"
 
-        try:
-            assert np.all(np.isfinite(err)), "There are inf or NaN values in " \
-                                             "your err array!"
-        except TypeError:
-            pass
-
         self.time = np.asarray(time)
         self.dt = time[1] - time[0]
 
@@ -88,6 +82,8 @@ class Lightcurve(object):
             self.counts = np.asarray(counts)
             self.countrate = self.counts/self.dt
             if err is not None:
+                assert np.all(np.isfinite(err)), "There are inf or NaN " \
+                                                 "values in your err array!"
                 self.counts_err = np.asarray(err)
                 self.countrate_err = np.asarray(err)/self.dt
             else:
@@ -97,6 +93,8 @@ class Lightcurve(object):
             self.countrate = np.asarray(counts)
             self.counts = self.countrate*self.dt
             if err is not None:
+                assert np.all(np.isfinite(err)), "There are inf or NaN " \
+                                                 "values in your err array!"
                 self.counts_err = np.asarray(err)*self.dt
                 self.countrate_err = np.asarray(err)
             else:
