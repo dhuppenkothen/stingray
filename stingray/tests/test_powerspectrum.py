@@ -35,6 +35,7 @@ class TestPowerspectrum(object):
         assert ps.norm == "rms"
         assert ps.freq is None
         assert ps.ps is None
+        assert ps.ps_err is None
         assert ps.df is None
         assert ps.m == 1
         assert ps.n is None
@@ -49,11 +50,13 @@ class TestPowerspectrum(object):
         assert ps.m == 1
         assert ps.n == self.lc.time.shape[0]
         assert ps.nphots == np.sum(self.lc.counts)
+        assert (ps.ps_err == ps.ps/np.sqrt(ps.m)).all()
 
     def test_periodogram_types(self):
         ps = Powerspectrum(lc=self.lc)
         assert isinstance(ps.freq, np.ndarray)
         assert isinstance(ps.ps, np.ndarray)
+        assert isinstance(ps.ps_err, np.ndarray)
 
 
     def test_init_with_lightcurve(self):
@@ -177,6 +180,7 @@ class TestPowerspectrum(object):
         assert bin_ps.m == 2
         assert bin_ps.n == self.lc.time.shape[0]
         assert bin_ps.nphots == np.sum(self.lc.counts)
+        assert (bin_ps.ps_err == bin_ps.ps/np.sqrt(bin_ps.m)).all()
 
     def test_rebin_uses_mean(self):
         """
@@ -491,4 +495,3 @@ class TestClassicalSignificances(object):
         nspec = 1
         pval = classical_pvalue(power, nspec)
         assert np.isclose(pval, 0.0)
-
