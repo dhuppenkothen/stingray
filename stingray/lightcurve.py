@@ -88,8 +88,8 @@ class Lightcurve(object):
             self.counts = np.asarray(counts)
             self.countrate = self.counts/self.dt
             if err is not None:
-                self.counts_err = err
-                self.countrate_err = err/self.dt
+                self.counts_err = np.asarray(err)
+                self.countrate_err = np.asarray(err)/self.dt
             else:
                 self.counts_err = np.sqrt(self.counts)
                 self.countrate_err = np.sqrt(self.counts)/self.dt
@@ -97,8 +97,8 @@ class Lightcurve(object):
             self.countrate = np.asarray(counts)
             self.counts = self.countrate*self.dt
             if err is not None:
-                self.counts_err = err*self.dt
-                self.countrate_err = err
+                self.counts_err = np.asarray(err)*self.dt
+                self.countrate_err = np.asarray(err)
             else:
                 self.counts_err = np.sqrt(self.counts)
                 self.countrate_err = np.sqrt(self.counts)/self.dt
