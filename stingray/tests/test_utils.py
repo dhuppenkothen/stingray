@@ -39,10 +39,8 @@ class TestRebinData(object):
 
     def test_binned_counts(self):
         dx_new = 2.0
-
         xbin, ybin, yerrbin, step_size = utils.rebin_data(self.x, self.y,
                                                           self.yerr, dx_new)
-
         ybin_test = np.zeros_like(xbin) + self.counts*dx_new/self.dx
         assert np.allclose(ybin, ybin_test)
 
