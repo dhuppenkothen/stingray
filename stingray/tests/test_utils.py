@@ -59,7 +59,6 @@ class TestRebinData(object):
 
     def test_binned_errors(self):
         dx_new = 3.0
-
         yerr = np.zeros_like(self.x) + 0.2
         xbin, ybin, yerrbin, step_size = utils.rebin_data(self.x, self.y,
                                                           yerr, dx_new)
