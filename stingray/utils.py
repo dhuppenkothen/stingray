@@ -103,8 +103,8 @@ def rebin_data(x, y, yerr, dx_new, method='sum'):
     erroutput = np.sqrt(np.asarray(erroutput))
 
     if method in ['mean', 'avg', 'average', 'arithmetic mean']:
-        ybin = output/np.float(step_size)
-        yerrbin = erroutput/np.float(step_size)
+        ybin = output/step_size
+        yerrbin = erroutput/step_size
 
     elif method == "sum":
         ybin = output
