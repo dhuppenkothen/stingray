@@ -47,13 +47,13 @@ class Lightcurve(object):
             The counts per bin corresponding to the bins in `time`.
 
         counts_err: numpy.ndarray
-            The uncertainties in the counts (assumes Poisson distribution)
+            The uncertainties of the `counts` array
 
         countrate: numpy.ndarray
             The counts per second in each of the bins defined in `time`.
 
         countrate_err: numpy.ndarray
-            The uncertainties in the countrate (assumes Poisson distribution)
+            The uncertainties of the `countrate` array
 
         ncounts: int
             The number of data points in the light curve.
