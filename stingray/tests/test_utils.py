@@ -56,8 +56,6 @@ class TestRebinData(object):
         dx_new = 1.5
         xbin, ybin, yerrbin, step_size = utils.rebin_data(self.x, self.y,
                                                           self.yerr, dx_new)
-        print(xbin)
-        print(ybin)
         ybin_test = np.zeros_like(xbin) + self.counts*dx_new/self.dx
         assert np.allclose(ybin_test, ybin)
 
