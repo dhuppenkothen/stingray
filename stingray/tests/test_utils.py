@@ -57,13 +57,24 @@ class TestRebinData(object):
         ybin_test = np.zeros_like(xbin) + self.counts*dx_new/self.dx
         assert np.allclose(ybin_test, ybin)
 
-    def test_binned_errors(self):
+    def test_binned_errors_sum(self):
         dx_new = 3.0
         yerr = np.zeros_like(self.x) + 0.2
         xbin, ybin, yerrbin, step_size = utils.rebin_data(self.x, self.y,
-                                                          yerr, dx_new)
-        expected_errors = np.sqrt(np.sum(np.full(step_size, 0.2)*2))/step_size
+                                                          yerr, dx_new,
+                                                          method='sum')
+        expected_errors = np.sqrt(np.sum(np.full(step_size, 0.2)**2))
         assert np.allclose(yerrbin, expected_errors)
+
+    def test_binned_errors_avg(self):
+        dx_new = 3.0
+        yerr = np.zeros_like(self.x) + 0.2
+        xbin, ybin, yerrbin, step_size = utils.rebin_data(self.x, self.y,
+                                                          yerr, dx_new,
+                                                          method='avg')
+        expected_errors = np.sqrt(np.sum(np.full(step_size, 0.2)**2))/step_size
+        assert np.allclose(yerrbin, expected_errors)
+
 
 class TestUtils(object):
 
