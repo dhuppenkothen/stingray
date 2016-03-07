@@ -62,7 +62,7 @@ class TestRebinData(object):
         yerr = np.zeros_like(self.x) + 0.2
         xbin, ybin, yerrbin, step_size = utils.rebin_data(self.x, self.y,
                                                           yerr, dx_new)
-        expected_errors = np.sqrt(np.sum(np.full(step_size, 0.2)*2))
+        expected_errors = np.sqrt(np.sum(np.full(step_size, 0.2)*2))/step_size
         assert np.allclose(yerrbin, expected_errors)
 
 class TestUtils(object):
