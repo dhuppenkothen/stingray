@@ -76,8 +76,8 @@ class Lightcurve(object):
                                             "your counts array!"
 
         try:
-                assert np.all(np.isfinite(err)), "There are inf or NaN values in " \
-                                                 "your err array!"
+            assert np.all(np.isfinite(err)), "There are inf or NaN values in " \
+                                             "your err array!"
         except TypeError:
             pass
 
