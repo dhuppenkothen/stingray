@@ -65,6 +65,9 @@ def rebin_data(x, y, yerr, dx_new, method='sum'):
 
     yerrbin: numpy.ndarray
         The binned uncertainties of y. sqrt(sum(yerr**2))
+
+    step_size: float
+        Number of consecutive bins aggregated
     """
 
     dx_old = x[1] - x[0]
