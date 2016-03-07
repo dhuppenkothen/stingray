@@ -153,7 +153,6 @@ def is_iterable(stuff):
     return isinstance(stuff, collections.Iterable)
 
 
-
 def _order_list_of_arrays(data, order):
     if hasattr(data, 'items'):
         data = dict([(i[0], i[1][order])
