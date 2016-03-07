@@ -1,5 +1,8 @@
 X-Ray Timing Made Easy
 =======================
++------------------+-------------------------+----------------------------+
+| Master           | |Build Status Master|   | |Coverage Status Master|   |
++------------------+-------------------------+----------------------------+
 
 We are writing a general-purpose timing package for X-ray time series.
 
@@ -7,6 +10,7 @@ Authors
 --------
 * Abigail Stevens (UvA)
 * Daniela Huppenkothen (NYU CDS)
+* Matteo Bachetti (INAF/OACa)
 
 Contributers
 ------------
@@ -55,3 +59,10 @@ All content © 2015 the authors. The code is distributed under the MIT license.
 Pull requests are welcome! If you are interested in the further development of
 this project, please `get in touch via the issues
 <https://github.com/dhuppenkothen/stingray/issues>`_!
+
+.. |Build Status Master| image:: https://travis-ci.org/StingraySoftware/stingray.svg?branch=master
+    :target: https://travis-ci.org/StingraySoftware/stingray   
+.. |Coverage Status Master| image:: https://coveralls.io/repos/github/StingraySoftware/stingray/badge.svg?branch=master 
+    :target: https://coveralls.io/github/StingraySoftware/stingray?branch=master 
+
+
