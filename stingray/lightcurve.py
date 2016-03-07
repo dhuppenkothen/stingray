@@ -13,7 +13,7 @@ import logging
 
 
 class Lightcurve(object):
-    def __init__(self, time, counts, input_counts=True):
+    def __init__(self, time, counts, err=None, input_counts=True):
         """
         Make a light curve object from an array of time stamps and an
         array of counts.
@@ -25,8 +25,14 @@ class Lightcurve(object):
 
         counts: iterable, optional, default None
             A list or array of the counts in each bin corresponding to the
-            bins defined in `time` (note: **not** the count rate, i.e.
-            counts/second, but the counts/bin).
+            bins defined in `time` (note: use input_counts=False to input the
+            count rate, i.e. counts/second, otherwise use counts/bin).
+
+        err: iterable, optional, default None
+            A list or array of the uncertainties (or standard deviation) in
+            each bin corresponding to the bins defined in `time`. In units of
+            counts/bin or counts/second (see `input_counts`).
+            If None (default), it assumes the data is Poisson distributed.
 
         input_counts: bool, optional, default True
             If True, the code assumes that the input data in 'counts'
@@ -41,8 +47,14 @@ class Lightcurve(object):
         counts: numpy.ndarray
             The counts per bin corresponding to the bins in `time`.
 
+        counts_err: numpy.ndarray
+            The uncertainties in the counts (assumes Poisson distribution)
+
         countrate: numpy.ndarray
             The counts per second in each of the bins defined in `time`.
+
+        countrate_err: numpy.ndarray
+            The uncertainties in the countrate (assumes Poisson distribution)
 
         ncounts: int
             The number of data points in the light curve.
@@ -64,15 +76,33 @@ class Lightcurve(object):
         assert np.all(np.isfinite(counts)), "There are inf or NaN values in " \
                                             "your counts array!"
 
+        try:
+                assert np.all(np.isfinite(err)), "There are inf or NaN values in " \
+                                                 "your err array!"
+        except TypeError:
+            pass
+
         self.time = np.asarray(time)
         self.dt = time[1] - time[0]
 
         if input_counts:
             self.counts = np.asarray(counts)
             self.countrate = self.counts/self.dt
+            if err is not None:
+                self.counts_err = err
+                self.countrate_err = err/self.dt
+            else:
+                self.counts_err = np.sqrt(self.counts)
+                self.countrate_err = np.sqrt(self.counts)/self.dt
         else:
             self.countrate = np.asarray(counts)
             self.counts = self.countrate*self.dt
+            if err is not None:
+                self.counts_err = err*self.dt
+                self.countrate_err = err
+            else:
+                self.counts_err = np.sqrt(self.counts)
+                self.countrate_err = np.sqrt(self.counts)/self.dt
 
         self.ncounts = self.counts.shape[0]
         self.tseg = self.time[-1] - self.time[0] + self.dt
@@ -169,9 +199,10 @@ class Lightcurve(object):
         assert dt_new >= self.dt, "New time resolution must be larger than " \
                                   "old time resolution!"
 
-        bin_time, bin_counts, _ = utils.rebin_data(self.time,
-                                                   self.counts,
-                                                   dt_new, method)
+        bin_time, bin_counts, bin_err, _ = utils.rebin_data(self.time,
+                                                           self.counts,
+                                                           self.counts_err,
+                                                           dt_new, method)
 
-        lc_new = Lightcurve(bin_time, bin_counts)
+        lc_new = Lightcurve(bin_time, bin_counts, err=bin_err)
         return lc_new

@@ -6,12 +6,52 @@ import scipy.fftpack
 import scipy.optimize
 import logging
 
+import scipy.interpolate
+import scipy.ndimage.interpolation
+import matplotlib.pyplot as plt
+
 import stingray.lightcurve as lightcurve
 import stingray.utils as utils
 from stingray.utils import simon
 
 __all__ = ["Powerspectrum", "AveragedPowerspectrum"]
 
+
+
+class _LineBuilder:
+    """
+    Auxilary class to store the manually traced line defined by the user
+    when calling trace_manual().
+    """
+
+    def __init__(self, im, ax):
+        self.im = im
+        self.ax = ax
+        self.xs = []
+        self.ys = []
+        self.line = None
+        self.cid = im.figure.canvas.mpl_connect('button_press_event', self)
+
+    def __call__(self, event):
+
+        if event.inaxes != self.im.axes:
+            return
+
+        if event.button == 3:
+            self.im.figure.canvas.mpl_disconnect(self.cid)
+            return
+        elif event.button == 1:
+            self.xs.append(event.xdata)
+            self.ys.append(event.ydata)
+            if len(self.xs) > 1:
+                self.line.set_data(self.xs, self.ys)
+                self.im.set_extent(self.im.get_extent())
+                self.im.figure.canvas.draw()
+            else:
+                self.line, = self.ax.plot(self.xs, self.ys)
+                self.line.set_data(self.xs, self.ys)
+        else:
+            pass
 
 def classical_pvalue(power, nspec):
     """
@@ -131,6 +171,9 @@ class Powerspectrum(object):
             The array of normalized squared absolute values of Fourier
             amplitudes
 
+        ps_err: numpy.ndarray
+            The uncertainties in the power (ps)
+
         df: float
             The frequency resolution
 
@@ -162,6 +205,7 @@ class Powerspectrum(object):
         else:
             self.freq = None
             self.ps = None
+            self.ps_err = None
             self.df = None
             self.nphots = None
             self.m = 1
@@ -195,6 +239,10 @@ class Powerspectrum(object):
 
         ## normalize to either Leahy or rms normalization
         self.ps = self._normalize_periodogram(self.unnorm_powers, lc)
+
+        ## uncertainties in the power is equal to the power for 1 realization
+        self.ps_err = self.ps/np.sqrt(self.m)
+
 
     def _fourier_modulus(self, lc):
         """
@@ -272,9 +320,11 @@ class Powerspectrum(object):
         """
 
         ## rebin power spectrum to new resolution
-        binfreq, binps, step_size = utils.rebin_data(self.freq[1:],
-                                                     self.ps[1:], df,
-                                                     method=method)
+        ## an empty variable is required to hold the yerr value returned
+        binfreq, binps, _, step_size = utils.rebin_data(self.freq[1:],
+                                                        self.ps[1:],
+                                                        self.ps_err[1:], df,
+                                                        method=method)
 
         ## make an empty periodogram object
         bin_ps = Powerspectrum()
@@ -286,7 +336,8 @@ class Powerspectrum(object):
         bin_ps.df = df
         bin_ps.n = self.n
         bin_ps.nphots = self.nphots
-        bin_ps.m = int(step_size)
+        bin_ps.m = int(step_size)*self.m
+        bin_ps.ps_err = bin_ps.ps/np.sqrt(bin_ps.m)
 
         return bin_ps
 
@@ -311,6 +362,9 @@ class Powerspectrum(object):
 
         binps: numpy.ndarray
             the binned powers
+
+        binps_err: numpy.ndarray
+            the uncertainty of the binned powers
 
         nsamples: numpy.ndarray
             the samples of the original periodogramincluded in each
@@ -340,14 +394,18 @@ class Powerspectrum(object):
                              for i in range(np.max(binno))])
 
 
+        ## compute the uncertainty for each binned power
+        number_of_combined_powers = self.m*nsamples
+        binps_err = binps/np.sqrt(number_of_combined_powers)
+
         ## the frequency resolution
         df = np.diff(binfreq)
 
         ## shift the lower bin edges to the middle of the bin and drop the
         ## last right bin edge
-        binfreq = binfreq[:-1]+df/2
+        binfreq = binfreq[:-1]+df/2.
 
-        return binfreq, binps, nsamples
+        return binfreq, binps, binps_err, nsamples
 
     def compute_rms(self, min_freq, max_freq):
         """
@@ -524,6 +582,9 @@ class AveragedPowerspectrum(Powerspectrum):
             The array of normalized squared absolute values of Fourier
             amplitudes
 
+        ps_err: numpy.ndarray
+            The uncertainties in the averaged power
+
         df: float
             The frequency resolution
 
@@ -599,6 +660,390 @@ class AveragedPowerspectrum(Powerspectrum):
         self.freq = ps_all[0].freq
         self.ps = ps_avg
         self.m = m
+        self.ps_err = self.ps/np.sqrt(self.m)
         self.df = ps_all[0].df
         self.n = ps_all[0].n
         self.nphots = nphots
+
+class DynamicPowerspectrum(Powerspectrum):
+
+    def __init__(self, lc, segment_size, df, norm="rms"):
+        """
+        Make a dynamic periodogram from a light curve by segmenting the light
+        curve, Fourier-transforming each segment and then storing the individual
+        powerspectra in a numpy array of Powerspectrum objects.
+
+        Parameters
+        ----------
+        lc: lightcurve.Lightcurve object OR
+            iterable of lightcurve.Lightcurve objects
+            The light curve data to be Fourier-transformed.
+
+        segment_size: float
+            The size of each segment. Note that if the total duration
+            of each Lightcurve object in lc is not an integer multiple of the
+            segment_size, then any fraction left-over at the end of the
+            time series will be lost.
+
+        df: int, float
+            The frequency bin size for the powerspectra of each segment.
+
+        norm: {"leahy" | "rms"}, optional, default "rms"
+            The normaliation of the periodogram to be used. Options are
+            "leahy" or "rms", default is "rms".
+
+
+        Attributes
+        ----------
+        norm: {"leahy" | "rms"}
+            the normalization of the periodogram
+
+        freq: numpy.ndarray
+            The array of mid-bin frequencies that the Fourier transform samples
+            at each segment
+
+        time: numpy.ndarray
+            The array of time stamps of each segment corresponding to the middle
+            of the segment, same scale and units as the Lightcurve time array
+
+        dynps: numpy.ndarray(dtype=Powerspectrum)
+            A collection of all segments powerspectra
+
+        df: float
+            The frequency resolution
+
+        m: int
+            The number of averaged periodograms
+
+        n: int
+            The number of data points in the light curve
+
+        nphots: float
+            The total number of photons in the light curve
+
+
+        """
+
+
+        assert np.isfinite(segment_size), "segment_size must be finite!"
+
+        self.norm = norm.lower()
+        self.segment_size = segment_size
+        self.df = df
+
+        Powerspectrum.__init__(self, lc, norm)
+
+        return
+
+
+    def _make_segment_psd(self, lc, segment_size):
+
+        assert isinstance(lc, lightcurve.Lightcurve)
+
+        ## number of bins per segment
+        nbins = int(segment_size/lc.dt)
+
+        start_ind = 0
+        end_ind = nbins
+
+        ps_all = []
+        nphots_all = []
+        time_stamps = []
+        while end_ind <= lc.counts.shape[0]:
+            time = lc.time[start_ind:end_ind]
+            counts = lc.counts[start_ind:end_ind]
+            lc_seg = lightcurve.Lightcurve(time, counts)
+            ps_seg = Powerspectrum(lc_seg, norm=self.norm)
+            ps_all.append(ps_seg)
+            nphots_all.append(np.sum(lc_seg.counts))
+            time_stamps.append(np.mean(time))
+            start_ind += nbins
+            end_ind += nbins
+
+        return ps_all, nphots_all, nbins, time_stamps
+
+    def _make_powerspectrum(self, lc):
+
+        ## chop light curves into segments
+        if isinstance(lc, lightcurve.Lightcurve):
+            ps_all, nphots_all, nbins, time_stamps = \
+                self._make_segment_psd(lc, self.segment_size)
+        else:
+            ps_all, nphots_all, time_stamps = [], [], []
+            for lc_seg in lc:
+                ps_sep, nphots_sep, nbins, time_stamp_sep = \
+                    self._make_segment_psd(lc_seg, self.segment_size)
+
+                ps_all.append(ps_sep)
+                nphots_all.append(nphots_sep)
+                time_stamps.append(time_stamp_sep)
+
+            ps_all = np.hstack(ps_all)
+            nphots_all = np.hstack(nphots_all)
+            time_stamps = np.hstack(time_stamps)
+
+        m = len(ps_all)
+        nphots = np.mean(nphots_all)
+        dyn_ps = np.array([], dtype=Powerspectrum)
+        for ps in ps_all:
+            dyn_ps = np.append(dyn_ps, ps.rebin(df=self.df, method="mean"))
+
+        nbins = len(dyn_ps)/m
+
+        self.time = time_stamps
+        self.dynps = dyn_ps
+        self.m = m
+        self.freq = dyn_ps[0].freq
+        self.df = dyn_ps[0].df
+        self.n = dyn_ps[0].n
+        self.nphots = nphots
+
+    def trace_maximum(self, min_freq=None, max_freq=None):
+        """
+        Compute the position of the maximum of the powerspectrum at each
+        segment, between two specified frequencies.
+
+        Usefull to automatically trace strong narrow features.
+
+        Parameters
+        ----------
+        min_freq: float
+            The lower frequency bound to search for a maximum.
+            If None defaults to the minimum frequency. Default is None
+
+        max_freq: float
+            The upper frequency bound to search for a maximum.
+            If None defaults to the maximum frequency. Default is None
+
+        Returns
+        -------
+        max_position: np.array
+            The array of indexes of the position of the maximum for each
+            powerspectrum in the range specified by min_freq and max_freq.
+        """
+
+        if min_freq is None:
+            min_freq = min(self.freq)
+        else:
+            pass
+
+        if max_freq is None:
+            max_freq = max(self.freq)
+        else:
+            pass
+
+        max_position = []
+        idx_min = np.abs(self.freq - min_freq).argmin()
+        idx_max = np.abs(self.freq - max_freq).argmin() + 1.0
+        for ps in self.dynps:
+            max_position.append(ps.ps[idx_min:idx_max].argmax() + idx_min + 1)
+
+        return np.array(max_position)
+
+    def shift_and_average(self, to_freq=0, trace_array=None,
+                          min_freq=None, max_freq=None):
+        """
+        shift power spectra to selected frequency, according to trace_array
+        position and average after shifting.
+
+        Parameters
+        ----------
+        to_freq: int or float
+            Frequency to shift the PowerSpectra to. Default is zero
+
+        trace_array: np.ndarray
+            Array of indices tracing a particular feature of
+            the DynamicPowerspectrum. Defaut is None
+
+        min_freq: int or float
+            minimum frequency of the traced feature to be considered.
+            If None defaults to lowest frequency. Default is None
+
+        max_freq: int or float
+            maximum Frequency of the traced feature to be considered.
+            If None defaults to highest Frequency. Default is None
+        """
+
+        assert trace_array is not None, 'Trace array must be provided'
+
+        if min_freq is None:
+            min_freq = min(self.freq)
+        else:
+            min_freq = self.freq[np.abs(self.freq - min_freq).argmin()]
+
+        if max_freq is None:
+            max_freq = max(self.freq)
+        else:
+            max_freq = self.freq[np.abs(self.freq - max_freq).argmin()]
+
+        selected_pss = self.dynps[(self.freq[trace_array] >= min_freq) &
+                                  (self.freq[trace_array] < max_freq)]
+
+        number_of_ps = len(selected_pss)
+        nphots_avg = 0
+        ps_avg = np.zeros_like(selected_pss[0].ps)
+        for ps, idx in zip(selected_pss, trace_array):
+            to_index = np.abs(ps.freq - to_freq).argmin()
+            from_index = idx
+            shift = int(to_index - from_index)
+            ps_avg += scipy.ndimage.interpolation.shift(ps.ps, shift)
+            nphots_avg += ps.nphots
+
+        avg_ps = Powerspectrum(lc=None, norm=selected_pss[0].norm)
+
+        ps_avg /= np.float(number_of_ps)
+        nphots_avg /= np.float(number_of_ps)
+        # Number of realizations is equal to
+        # binsize (number of frequencies) * number of averaged spectra
+        m = selected_pss[0].m*number_of_ps
+
+        avg_ps.freq = selected_pss[0].freq
+        avg_ps.ps = ps_avg
+        avg_ps.m = m
+        avg_ps.ps_err = ps_avg/np.sqrt(m)
+        avg_ps.df = selected_pss[0].df
+        avg_ps.n = selected_pss[0].n
+        avg_ps.nphots = nphots_avg
+
+        return avg_ps
+
+    def average_interval(self, trace_array=None, min_freq=None, max_freq=None):
+        """
+        Average a selected number of PowerSpectra for which the trace array
+        falls inside a given frequency range.
+
+        Parameters
+        ----------
+        trace_array: numpy.ndarray
+            The array of index of frequencies that defines a selection. The
+            Powerspectra will be selected if frequency[trace_array] falls
+            inside range(min_freq, max_freq)
+
+        min_freq: float
+            The lower frequency bound to select the powerspectra
+
+        max_freq: float
+            The upper frequency bound to select the powerspectra
+
+        Returns
+        -------
+
+        avg_ps: Powerspectrum
+            The averaged Powerspectrum based on the selection criteria
+        """
+
+        assert trace_array is not None, 'Trace array must be provided'
+
+        if min_freq is None:
+            min_freq = min(self.freq)
+        else:
+            min_freq = self.freq[np.abs(self.freq - min_freq).argmin()]
+
+        if max_freq is None:
+            max_freq = max(self.freq)
+        else:
+            max_freq = self.freq[np.abs(self.freq - max_freq).argmin()]
+
+        selected_pss = self.dynps[(self.freq[trace_array] >= min_freq) &
+                                  (self.freq[trace_array] < max_freq)]
+
+        avg_ps = Powerspectrum(lc=None, norm='rms')
+
+        number_of_ps = len(selected_pss)
+        nphots_avg = 0
+        ps_avg = np.zeros_like(selected_pss[0].ps)
+        for ps in selected_pss:
+            ps_avg += ps.ps
+            nphots_avg += ps.nphots
+
+        ps_avg /= np.float(number_of_ps)
+        nphots_avg /= np.float(number_of_ps)
+        # Number of realizations is equal to
+        # binsize (number of frequencies) * number of averaged spectra
+        m = selected_pss[0].m*number_of_ps
+
+        avg_ps.freq = selected_pss[0].freq
+        avg_ps.ps = ps_avg
+        avg_ps.m = m
+        avg_ps.ps_err = ps_avg/np.sqrt(m)
+        avg_ps.df = selected_pss[0].df
+        avg_ps.n = selected_pss[0].n
+        avg_ps.nphots = nphots_avg
+
+        return avg_ps
+
+    def trace_manual(self, order=1, cmin=0, cmax=3, cmap='gray',
+                     min_freq=None, max_freq=None):
+        """
+        Open a matplotlib widow to trace a feature in the DynamicPowerspectrum
+        by manually selecting points (mouse click) in the 2D-plot.
+
+        Use the left mouse button to select points in the desired feature.
+        Use the right mouse button to end the selection, or close the window.
+
+
+        Parameters
+        ----------
+        order: int, optionoal
+            The order of the function to interpolate between consecutive points.
+            NOTE: the number of points (clicks) must be at least order+1.
+            Default is 1
+
+        cmin: float, optional
+            The power of the lower boundary of the colorbar. Default is 0.
+
+        cmax: float, optional
+            The power of the upper boundary of the colorbar. Default is 3.
+
+        min_freq: float, optional
+            The minimum frequency to be plotted. If None, defaults to the lowest
+            frequency. Default is None
+
+        max_freq: float, optional
+            The maximum frequency to be plotted. If None, defaults to the highest
+            frequency. Default is None
+        """
+
+        if min_freq is None:
+            min_freq = min(self.freq)
+        else:
+            min_freq = self.freq[np.abs(self.freq - min_freq).argmin()]
+
+        if max_freq is None:
+            max_Freq = max(self.freq)
+        else:
+            max_freq = self.freq[np.abs(self.freq - max_freq).argmin() + 1]
+
+        img = np.array([ps.ps for ps in self.dynps]).T
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        extent = min(self.time), max(self.time), max(self.freq), min(self.freq)
+        im = ax.imshow(img, aspect='auto', vmin=cmin, vmax=cmax, cmap='gray',
+                       interpolation='none', extent=extent)
+        fig.colorbar(im, label='Power ({})'.format(self.norm))
+        ax.set_xlabel('Time (s)')
+        ax.set_ylabel('Frequency (Hz)')
+        ax.set_ylim(min_freq, max_freq)
+
+        linebuilder = _LineBuilder(im, ax)
+
+        plt.show()
+
+        # manually interpolate first value to position of first click
+        x = np.array([self.time[0]])
+        y = np.array([linebuilder.ys[0]])
+        # append the clicked values
+        x = np.append(x, linebuilder.xs)
+        y = np.append(y, linebuilder.ys)
+        # manually interpolate last value to position of last click
+        x = np.append(x, self.time[-1])
+        y = np.append(y, linebuilder.ys[-1])
+
+        trace_function = scipy.interpolate.interp1d(x, y, kind=order)
+        frequencies = trace_function(self.time)
+
+        trace_array = []
+        for f, ps in zip(frequencies, self.dynps):
+            trace_array.append(np.abs(ps.freq - f).argmin())
+
+        return trace_array

@@ -12,6 +12,10 @@ Authors
 * Daniela Huppenkothen (NYU CDS)
 * Matteo Bachetti (INAF/OACa)
 
+Contributers
+------------
+* Evandro Martinez Ribeiro (RuG)
+
 Contents
 --------
 
