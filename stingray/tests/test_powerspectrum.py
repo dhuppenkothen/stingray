@@ -1,15 +1,12 @@
 
-
 import numpy as np
-
 from nose.tools import raises
-
 from stingray import Lightcurve
 from stingray import Powerspectrum, AveragedPowerspectrum
-
 from stingray.powerspectrum import classical_pvalue
 
 np.random.seed(20150907)
+
 
 class TestPowerspectrum(object):
 
@@ -18,17 +15,12 @@ class TestPowerspectrum(object):
         tstart = 0.0
         tend = 1.0
         dt = 0.0001
-
         time = np.linspace(tstart, tend, int((tend-tstart)/dt))
-
         mean_count_rate = 100.0
-        mean_counts = mean_count_rate*dt
-
+        mean_counts = mean_count_rate * dt
         poisson_counts = np.random.poisson(mean_counts,
                                            size=time.shape[0])
-
         cls.lc = Lightcurve(time, counts=poisson_counts)
-
 
     def test_make_empty_periodogram(self):
         ps = Powerspectrum()
@@ -40,12 +32,11 @@ class TestPowerspectrum(object):
         assert ps.m == 1
         assert ps.n is None
 
-
     def test_make_periodogram_from_lightcurve(self):
         ps = Powerspectrum(lc=self.lc)
         assert ps.freq is not None
         assert ps.ps is not None
-        assert ps.df == 1.0/self.lc.tseg
+        assert ps.df == 1.0 / self.lc.tseg
         assert ps.norm == "rms"
         assert ps.m == 1
         assert ps.n == self.lc.time.shape[0]
@@ -57,7 +48,6 @@ class TestPowerspectrum(object):
         assert isinstance(ps.freq, np.ndarray)
         assert isinstance(ps.ps, np.ndarray)
         assert isinstance(ps.ps_err, np.ndarray)
-
 
     def test_init_with_lightcurve(self):
         assert Powerspectrum(self.lc)
@@ -81,7 +71,6 @@ class TestPowerspectrum(object):
         nonsense_norm = 1.0
         assert Powerspectrum(self.lc, norm=nonsense_norm)
 
-
     def test_total_variance(self):
         """
         the integral of powers (or Riemann sum) should be close
@@ -92,11 +81,10 @@ class TestPowerspectrum(object):
         """
         ps = Powerspectrum(lc=self.lc)
         nn = ps.n
-        pp = ps.unnorm_powers/np.float(nn)**2.
-        p_int = np.sum(pp[:-1]*ps.df) + (pp[-1]*ps.df)/2.
-        var_lc = np.var(self.lc.counts)/(2.*self.lc.tseg)
+        pp = ps.unnorm_powers / np.float(nn)**2
+        p_int = np.sum(pp[:-1]*ps.df) + (pp[-1]*ps.df)/2
+        var_lc = np.var(self.lc.counts) / (2.*self.lc.tseg)
         assert np.isclose(p_int, var_lc, atol=0.01, rtol=0.01)
-
 
     def test_rms_normalization_is_standard(self):
         """
@@ -113,26 +101,23 @@ class TestPowerspectrum(object):
         of the light curve squared.
         """
         ps = Powerspectrum(lc=self.lc, norm="rms")
-        ps_int = np.sum(ps.ps[:-1]*ps.df) + ps.ps[-1]*ps.df/2.
-        std_lc = np.var(self.lc.counts)/np.mean(self.lc.counts)**2.
+        ps_int = np.sum(ps.ps[:-1]*ps.df) + ps.ps[-1]*ps.df/2
+        std_lc = np.var(self.lc.counts) / np.mean(self.lc.counts)**2
         assert np.isclose(ps_int, std_lc, atol=0.01, rtol=0.01)
 
     def test_fractional_rms_in_rms_norm(self):
         ps = Powerspectrum(lc=self.lc, norm="rms")
         rms_ps, rms_err = ps.compute_rms(min_freq=ps.freq[1],
                                          max_freq=ps.freq[-1])
-        rms_lc = np.std(self.lc.counts)/np.mean(self.lc.counts)
+        rms_lc = np.std(self.lc.counts) / np.mean(self.lc.counts)
         assert np.isclose(rms_ps, rms_lc, atol=0.01)
 
-
     def test_leahy_norm_correct(self):
-        time = np.arange(0, 10.0, 10./1e6)
+        time = np.arange(0, 10.0, 10/1e6)
         counts = np.random.poisson(1000, size=time.shape[0])
-
         lc = Lightcurve(time, counts)
         ps = Powerspectrum(lc, norm="leahy")
         assert np.isclose(np.mean(ps.ps), 2.0, atol=0.01, rtol=0.01)
-
 
     def test_leahy_norm_total_variance(self):
         """
@@ -141,8 +126,8 @@ class TestPowerspectrum(object):
         square of the number of data points in the light curve
         """
         ps = Powerspectrum(lc=self.lc, norm="Leahy")
-        ps_var =  (np.sum(self.lc.counts)/ps.n**2.)*\
-                  (np.sum(ps.ps[:-1])+ps.ps[-1]/2.)
+        ps_var = (np.sum(self.lc.counts)/ps.n**2.) * \
+            (np.sum(ps.ps[:-1]) + ps.ps[-1]/2.)
 
         assert np.isclose(ps_var, np.var(self.lc.counts), atol=0.01)
 
@@ -155,9 +140,8 @@ class TestPowerspectrum(object):
         ps = Powerspectrum(lc=self.lc, norm="Leahy")
         rms_ps, rms_err = ps.compute_rms(min_freq=ps.freq[0],
                                          max_freq=ps.freq[-1])
-
-        rms_lc = np.std(self.lc.counts)/np.mean(self.lc.counts)
-        assert np.isclose(rms_ps, rms_lc,atol=0.01)
+        rms_lc = np.std(self.lc.counts) / np.mean(self.lc.counts)
+        assert np.isclose(rms_ps, rms_lc, atol=0.01)
 
     def test_fractional_rms_error(self):
         """
@@ -167,15 +151,14 @@ class TestPowerspectrum(object):
         pass
 
     def test_rebin_makes_right_attributes(self):
-        ps = Powerspectrum(lc = self.lc, norm="Leahy")
-        ## replace powers
-        ps.ps = np.ones_like(ps.ps)*2.0
+        ps = Powerspectrum(lc=self.lc, norm="Leahy")
+        # replace powers
+        ps.ps = np.ones_like(ps.ps) * 2.0
         rebin_factor = 2.0
         bin_ps = ps.rebin(rebin_factor*ps.df)
-
         assert bin_ps.freq is not None
         assert bin_ps.ps is not None
-        assert bin_ps.df == rebin_factor*1.0/self.lc.tseg
+        assert bin_ps.df == rebin_factor * 1.0 / self.lc.tseg
         assert bin_ps.norm.lower() == "leahy"
         assert bin_ps.m == 2
         assert bin_ps.n == self.lc.time.shape[0]
@@ -189,81 +172,63 @@ class TestPowerspectrum(object):
         Note: function defaults come as a tuple, so the first keyword argument
         had better be 'method'
         """
-        ps = Powerspectrum(lc = self.lc, norm="Leahy")
+        ps = Powerspectrum(lc=self.lc, norm="Leahy")
         assert ps.rebin.__defaults__[0] == "mean"
 
     def rebin_several(self, df):
         """
         TODO: Not sure how to write tests for the rebin method!
         """
-        ps = Powerspectrum(lc = self.lc, norm="Leahy")
+        ps = Powerspectrum(lc=self.lc, norm="Leahy")
         bin_ps = ps.rebin(df)
-        assert np.isclose(bin_ps.freq[0], bin_ps.df, atol=1e-4, rtol=1e-4)
+        assert np.isclose(bin_ps.freq[1], bin_ps.df, atol=1e-4, rtol=1e-4)
 
     def test_rebin(self):
-        df_all = [2, 3, 5, 1.5, 1,85]
+        df_all = [2, 3, 5, 1.5, 1, 85]
         for df in df_all:
             yield self.rebin_several, df
 
     def test_classical_significances_runs(self):
-        ps = Powerspectrum(lc = self.lc, norm="Leahy")
+        ps = Powerspectrum(lc=self.lc, norm="Leahy")
         ps.classical_significances()
 
     @raises(AssertionError)
     def test_classical_significances_fails_in_rms(self):
-        ps = Powerspectrum(lc = self.lc, norm="rms")
+        ps = Powerspectrum(lc=self.lc, norm="rms")
         ps.classical_significances()
 
-
     def test_classical_significances_threshold(self):
-        ps = Powerspectrum(lc = self.lc, norm="leahy")
-
-        ## change the powers so that just one exceeds the threshold
+        ps = Powerspectrum(lc=self.lc, norm="leahy")
+        # change the powers so that just one exceeds the threshold
         ps.ps = np.zeros(ps.ps.shape[0])+2.0
-
         index = 1
         ps.ps[index] = 10.0
-
         threshold = 0.01
-
         pval = ps.classical_significances(threshold=threshold,
                                           trial_correction=False)
-        assert pval[0,0] < threshold
-        assert pval[1,0] == index
+        assert pval[0, 0] < threshold
+        assert pval[1, 0] == index
 
     def test_classical_significances_trial_correction(self):
-        ps = Powerspectrum(lc = self.lc, norm="leahy")
-
-        ## change the powers so that just one exceeds the threshold
-        ps.ps = np.zeros(ps.ps.shape[0])+2.0
-
+        ps = Powerspectrum(lc=self.lc, norm="leahy")
+        # change the powers so that just one exceeds the threshold
+        ps.ps = np.zeros(ps.ps.shape[0]) + 2.0
         index = 1
         ps.ps[index] = 10.0
-
         threshold = 0.01
-
         pval = ps.classical_significances(threshold=threshold,
                                           trial_correction=True)
-
-
         assert np.size(pval) == 0
 
-
     def test_pvals_is_numpy_array(self):
-
-        ps = Powerspectrum(lc = self.lc, norm="leahy")
-
-        ## change the powers so that just one exceeds the threshold
+        ps = Powerspectrum(lc=self.lc, norm="leahy")
+        # change the powers so that just one exceeds the threshold
         ps.ps = np.zeros(ps.ps.shape[0])+2.0
-
         index = 1
         ps.ps[index] = 10.0
-
         threshold = 1.0
-
         pval = ps.classical_significances(threshold=threshold,
                                           trial_correction=True)
-
         assert isinstance(pval, np.ndarray)
         assert pval.shape[0] == 2
 
@@ -274,15 +239,11 @@ class TestAveragedPowerspectrum(object):
         tstart = 0.0
         tend = 10.0
         dt = 0.0001
-
         time = np.linspace(tstart, tend, int((tend-tstart)/dt))
-
         mean_count_rate = 1000.0
         mean_counts = mean_count_rate*dt
-
         poisson_counts = np.random.poisson(mean_counts,
                                            size=time.shape[0])
-
         cls.lc = Lightcurve(time, counts=poisson_counts)
 
     def test_one_segment(self):
@@ -291,7 +252,7 @@ class TestAveragedPowerspectrum(object):
         assert np.isclose(ps.segment_size, segment_size)
 
     def test_n_segments(self):
-        nseg_all = [1,2,3,5,10,20,100]
+        nseg_all = [1, 2, 3, 5, 10, 20, 100]
         for nseg in nseg_all:
             yield self.check_segment_size, nseg
 
@@ -305,7 +266,6 @@ class TestAveragedPowerspectrum(object):
         ps = AveragedPowerspectrum(self.lc, segment_size)
         assert np.isclose(ps.segment_size, segment_size)
         assert ps.m == 2
-
 
     @raises(TypeError)
     def test_init_without_segment(self):
@@ -331,59 +291,43 @@ class TestAveragedPowerspectrum(object):
         segment_size = np.nan
         assert AveragedPowerspectrum(self.lc, segment_size)
 
-
     def test_list_of_light_curves(self):
         n_lcs = 10
-
         tstart = 0.0
         tend = 1.0
         dt = 0.0001
-
         time = np.linspace(tstart, tend, int((tend-tstart)/dt))
-
         mean_count_rate = 1000.0
         mean_counts = mean_count_rate*dt
-
         lc_all = []
         for n in range(n_lcs):
             poisson_counts = np.random.poisson(mean_counts,
-                                           size=len(time))
-
+                                               size=len(time))
             lc = Lightcurve(time, counts=poisson_counts)
             lc_all.append(lc)
-
         segment_size = 0.5
         assert AveragedPowerspectrum(lc_all, segment_size)
 
     @raises(AssertionError)
     def test_list_with_nonsense_component(self):
         n_lcs = 10
-
         tstart = 0.0
         tend = 1.0
         dt = 0.0001
-
         time = np.linspace(tstart, tend, int((tend-tstart)/dt))
-
         mean_count_rate = 1000.0
         mean_counts = mean_count_rate*dt
-
         lc_all = []
         for n in range(n_lcs):
             poisson_counts = np.random.poisson(mean_counts,
-                                           size=len(time))
-
+                                               size=len(time))
             lc = Lightcurve(time, counts=poisson_counts)
             lc_all.append(lc)
-
         lc_all.append(1.0)
         segment_size = 0.5
-
         assert AveragedPowerspectrum(lc_all, segment_size)
 
-
     def test_leahy_correct_for_multiple(self):
-
         n = 100
         lc_all = []
         for i in range(n):
@@ -391,9 +335,7 @@ class TestAveragedPowerspectrum(object):
             counts = np.random.poisson(1000, size=time.shape[0])
             lc = Lightcurve(time, counts)
             lc_all.append(lc)
-
         ps = AveragedPowerspectrum(lc_all, 10.0, norm="leahy")
-
         assert np.isclose(np.mean(ps.ps), 2.0, atol=1e-3, rtol=1e-3)
         assert np.isclose(np.std(ps.ps), 2.0/np.sqrt(n), atol=0.1, rtol=0.1)
 
@@ -480,14 +422,11 @@ class TestClassicalSignificances(object):
         assert pval1-pval2 > 0.0
 
     def test_pvalue_must_decrease_with_increasing_nspec(self):
-
         power = 3.0
         nspec1 = 1.0
         nspec2 = 10.0
-
         pval1 = classical_pvalue(power, nspec1)
         pval2 = classical_pvalue(power, nspec2)
-
         assert pval1-pval2 > 0.0
 
     def test_very_large_powers_produce_zero_prob(self):
