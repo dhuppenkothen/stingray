@@ -75,7 +75,6 @@ class TestRebinData(object):
         expected_errors = np.sqrt(np.sum(np.full(step_size, 0.2)**2))/step_size
         assert np.allclose(yerrbin, expected_errors)
 
-
 class TestUtils(object):
 
     def test_optimal_bin_time(self):

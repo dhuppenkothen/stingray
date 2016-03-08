@@ -83,13 +83,13 @@ class Lightcurve(object):
 
         if input_counts:
             self.counts = np.asarray(counts)
-            self.countrate = self.counts/self.dt
+            self.countrate = self.counts / self.dt
             self.counts_err = np.asarray(err)
-            self.countrate_err = np.asarray(err)/self.dt
+            self.countrate_err = np.asarray(err) / self.dt
         else:
             self.countrate = np.asarray(counts)
-            self.counts = self.countrate*self.dt
-            self.counts_err = np.asarray(err)*self.dt
+            self.counts = self.countrate * self.dt
+            self.counts_err = np.asarray(err) * self.dt
             self.countrate_err = np.asarray(err)
 
         self.ncounts = self.counts.shape[0]

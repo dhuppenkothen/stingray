@@ -279,7 +279,7 @@ class Powerspectrum(object):
 
         # store the binned periodogram in the new object
         bin_ps.norm = self.norm
-        bin_ps.freq = np.hstack([binfreq[0]-self.df, binfreq])
+        bin_ps.freq = np.hstack([binfreq[0] - self.df, binfreq])
         bin_ps.ps = np.hstack([self.ps[0], binps])
         bin_ps.df = df
         bin_ps.n = self.n
