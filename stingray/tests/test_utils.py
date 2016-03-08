@@ -4,6 +4,7 @@ import stingray.utils as utils
 
 np.random.seed(20150907)
 
+
 class TestRebinData(object):
 
     @classmethod
@@ -35,7 +36,6 @@ class TestRebinData(object):
                                                           self.yerr, dx_new)
         assert xbin.shape[0] == ybin.shape[0]
         assert ybin.shape[0] == yerrbin.shape[0]
-
 
     def test_binned_counts(self):
         dx_new = 2.0
@@ -85,22 +85,20 @@ class TestUtils(object):
 
     def test_order_list_of_arrays(self):
         alist = [np.array([1, 0]), np.array([2, 3])]
-
         order = np.argsort(alist[0])
         assert np.all(np.array([np.array([0, 1]), np.array([3, 2])]) ==
                       np.array(utils._order_list_of_arrays(alist, order)))
-
         alist = {"a": np.array([1, 0]), "b": np.array([2, 3])}
         alist_new = utils._order_list_of_arrays(alist, order)
         assert np.all(np.array([0, 1]) == alist_new["a"])
         assert np.all(np.array([3, 2]) == alist_new["b"])
-
         alist = 0
-        assert utils._order_list_of_arrays(alist, order) == None
+        assert utils._order_list_of_arrays(alist, order) is None
 
     def test_look_for_array(self):
         assert utils._look_for_array_in_array(np.arange(2), np.arange(1, 3))
-        assert not utils._look_for_array_in_array(np.arange(2), np.arange(2, 4))
+        assert not utils._look_for_array_in_array(np.arange(2),
+                                                  np.arange(2, 4))
 
     def test_assign_value_if_none(self):
         assert utils._assign_value_if_none(None, 2) == 2

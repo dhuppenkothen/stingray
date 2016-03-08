@@ -17,19 +17,19 @@ def _default_value_if_no_key(dictionary, key, default):
 
 def pulse_phase(times, *frequency_derivatives, **opts):
     """Calculate pulse phase from the frequency and its derivatives.
-        
+
     Parameters
     ----------
     times : array of floats
         The times at which the phase is calculated
     *frequency_derivatives: floats
         List of derivatives in increasing order, starting from zero.
-    
+
     Returns
     -------
     phases : array of floats
         The absolute pulse phase
-    
+
     Other Parameters
     ----------------
     ph0 : float
@@ -37,7 +37,6 @@ def pulse_phase(times, *frequency_derivatives, **opts):
     to_1 : bool, default True
         Only return the fractional part of the phase, normalized from 0 to 1
     """
-
     ph0 = _default_value_if_no_key(opts, "ph0", 0)
     to_1 = _default_value_if_no_key(opts, "to_1", True)
     ph = ph0
@@ -52,20 +51,20 @@ def pulse_phase(times, *frequency_derivatives, **opts):
 
 def phase_exposure(start_time, stop_time, period, nbin=16, gtis=None):
     '''Calculate the exposure on each phase of a pulse profile.
-    
+
     Parameters
     ----------
     start_time, stop_time : float
         Starting and stopping time (or phase if ``period``==1)
     period : float
         The pulse period (if 1, equivalent to phases)
-    
+
     Returns
     -------
     expo : array of floats
-        The normalized exposure of each bin in the pulse profile (1 is the 
+        The normalized exposure of each bin in the pulse profile (1 is the
         highest exposure, 0 the lowest)
-    
+
     Other parameters
     ----------------
     nbin : int, optional, default 16
@@ -84,7 +83,7 @@ def phase_exposure(start_time, stop_time, period, nbin=16, gtis=None):
     # -----------------------------------------
 
     expo = np.zeros(nbin)
-    phs = np.linspace(0, 1, nbin + 1)
+    phs = np.linspace(0, 1, nbin+1)
     phs = np.array(list(zip(phs[0:-1], phs[1:])))
 
     # Discard gtis outside [start, stop]
@@ -136,13 +135,13 @@ def phase_exposure(start_time, stop_time, period, nbin=16, gtis=None):
 
 def fold_events(times, *frequency_derivatives, **opts):
     '''Epoch folding with exposure correction.
-        
+
     Parameters
     ----------
     times : array of floats
     f, fdot, fddot... : float
         The frequency and any number of derivatives.
-    
+
     Returns
     -------
     phase_bins : array of floats
@@ -163,7 +162,7 @@ def fold_events(times, *frequency_derivatives, **opts):
         Good time intervals
     ref_time : float, optional, default 0
         Reference time for the timing solution
-    
+
     '''
     nbin = _default_value_if_no_key(opts, "nbin", 16)
     weights = _default_value_if_no_key(opts, "weights", 1)
@@ -206,17 +205,17 @@ def fold_events(times, *frequency_derivatives, **opts):
 
 def stat(profile, err=None):
     """Calculate the epoch folding statistics \'a la Leahy et al. (1983).
-    
+
     Parameters
     ----------
     profile : array
         The pulse profile
-    
+
     Returns
     -------
     stat : float
         The epoch folding statistics
-    
+
     Other Parameters
     ----------------
     err : float or array
@@ -230,7 +229,7 @@ def stat(profile, err=None):
 
 def fold_profile_probability(stat, nbin, ntrial=1):
     """Calculate the probability of a certain folded profile, due to noise.
-    
+
     Parameters
     ----------
     stat : float
@@ -256,9 +255,9 @@ def fold_profile_probability(stat, nbin, ntrial=1):
 
 def fold_detection_level(nbin, epsilon=0.01, ntrial=1):
     """Return the detection level for a folded profile.
-        
+
     See Leahy et al. (1983).
-        
+
     Parameters
     ----------
     nbin : int
@@ -269,7 +268,7 @@ def fold_detection_level(nbin, epsilon=0.01, ntrial=1):
     Returns
     -------
     detlev : float
-        The epoch folding statistics corresponding to a probability 
+        The epoch folding statistics corresponding to a probability
         epsilon * 100 % that the signal has been produced by noise
 
     Other Parameters
@@ -285,7 +284,7 @@ def fold_detection_level(nbin, epsilon=0.01, ntrial=1):
 
 def z_n(phase, n=2, norm=1):
     '''Z^2_n statistics, a` la Buccheri+03, A&A, 128, 245, eq. 2.
-     
+
     Parameters
     ----------
     phase : array of floats
@@ -394,7 +393,9 @@ def fftfit_fun(profile, template, amplitude, phase):
     good = freq > 0
     idx = np.arange(0, len(prof_ft), dtype=int)
     sigma = np.std(prof_ft[good])
-    return np.sum(np.absolute(prof_ft - temp_ft*amplitude*np.exp(-2*np.pi*1.0j*idx*phase))**2 / sigma)
+    return np.sum(np.absolute(prof_ft -
+                  temp_ft*amplitude*np.exp(-2*np.pi*1.0j*idx*phase))**2 /
+                  sigma)
 
 
 def _fft_fun_wrap(pars, data):
@@ -409,7 +410,7 @@ def _triple_sinusoid_model(phase, a0, ph, a1, ph1, a2, ph2):
     twopi = np.pi * 2
     return a0 * np.cos(twopi * (phase - ph)) + \
         a1 * np.cos(twopi * (2 * (phase - ph - ph1))) + \
-            a2 * np.cos(twopi * (3 * (phase - ph - ph2)))
+        a2 * np.cos(twopi * (3 * (phase - ph - ph2)))
 
 
 def _pulse_template(phase, prof):
@@ -460,7 +461,7 @@ def fftfit(prof, template=None, **fftfit_kwargs):
     p0 = [np.max(prof), np.float(np.argmax(prof) / nbin)]
 
     res = basinhopping(_fft_fun_wrap, p0,
-                       minimizer_kwargs={'args':([prof, template],),
+                       minimizer_kwargs={'args': ([prof, template],),
                                          'bounds': [[0, None], [0, None]]},
                        niter=10000, niter_success=200)
 
@@ -525,7 +526,7 @@ def fftfit_error(phase, prof, template, p0, **fftfit_kwargs):
 
     # But still, never less than half a bin!
     std_save = np.max([std_save, np.diff(phase)[0] / 2])
-    return np.mean(amp_fit), np.std(amp_fit), mean_save, std_save 
+    return np.mean(amp_fit), np.std(amp_fit), mean_save, std_save
 
 
 def get_TOA(prof, period, tstart, template=None, additional_phase=0,

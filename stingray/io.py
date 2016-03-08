@@ -35,7 +35,6 @@ def high_precision_keyword_read(hdr, keyword):
     -------
     value : long double
         The value of the key, or None if something went wrong
-
     """
     try:
         value = np.longdouble(hdr[keyword])
@@ -113,7 +112,6 @@ def _get_additional_data(lctable, additional_columns):
 def load_events_and_gtis(fits_file, additional_columns=None,
                          gtistring='GTI,STDGTI',
                          gti_file=None, hduname='EVENTS', column='TIME'):
-
     """Load event lists and GTIs from one or more files.
 
     Loads event list from HDU EVENTS of file fits_file, with Good Time
@@ -491,7 +489,7 @@ def create_gti_from_condition(time, condition,
     for idx in idxs:
         logging.debug(idx)
         startidx = idx[0]
-        stopidx = idx[1]-1
+        stopidx = idx[1] - 1
 
         t0 = time[startidx] - dt[startidx] + safe_interval[0]
         t1 = time[stopidx] + dt[stopidx] - safe_interval[1]

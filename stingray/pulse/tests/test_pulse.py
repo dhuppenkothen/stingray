@@ -8,9 +8,7 @@ def _template_fun(phase, ph0, amplitude, baseline=0):
 
 
 class TestAll(unittest.TestCase):
-
     """Unit tests for the stingray.pulsar module."""
-
     def test_pulse_phase1(self):
         """Test pulse phase calculation, frequency only."""
         times = np.arange(0, 4, 0.5)
@@ -66,7 +64,8 @@ class TestAll(unittest.TestCase):
         ph, p, pe = fold_events(times, 1, nbin=nbin)
 
         np.testing.assert_array_almost_equal(p, np.ones(nbin))
-        np.testing.assert_array_almost_equal(ph, np.arange(nbin) / nbin + 0.5/nbin)
+        np.testing.assert_array_almost_equal(ph, np.arange(nbin)/nbin +
+                                             0.5/nbin)
         np.testing.assert_array_almost_equal(pe, np.ones(nbin))
 
     def test_pulse_profile2(self):
@@ -76,7 +75,8 @@ class TestAll(unittest.TestCase):
         period = 1
         ph, p, pe = fold_events(times, 1, nbin=nbin, expocorr=True)
 
-        np.testing.assert_array_almost_equal(ph, np.arange(nbin) / nbin + 0.5/nbin)
+        np.testing.assert_array_almost_equal(ph, np.arange(nbin)/nbin +
+                                             0.5/nbin)
         np.testing.assert_array_almost_equal(p, np.ones(nbin))
         np.testing.assert_array_almost_equal(pe, np.ones(nbin))
 
