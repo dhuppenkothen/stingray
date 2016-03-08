@@ -12,7 +12,7 @@ __all__ = ["Lightcurve"]
 
 
 class Lightcurve(object):
-    def __init__(self, time, counts, err=None, input_counts=True):
+    def __init__(self, time, counts, err=False, input_counts=True):
         """
         Make a light curve object from an array of time stamps and an
         array of counts.
@@ -27,11 +27,11 @@ class Lightcurve(object):
             bins defined in `time` (note: use input_counts=False to input the
             count rate, i.e. counts/second, otherwise use counts/bin).
 
-        err: iterable, optional, default None
+        err: iterable, optional, default False
             A list or array of the uncertainties (or standard deviation) in
             each bin corresponding to the bins defined in `time`. In units of
             counts/bin or counts/second (see `input_counts`).
-            If None (default), it assumes the data is Poisson distributed.
+            If False (default), it assumes the data is Poisson distributed.
 
         input_counts: bool, optional, default True
             If True, the code assumes that the input data in 'counts'
@@ -68,12 +68,15 @@ class Lightcurve(object):
             The start time of the light curve.
 
         """
-
         assert np.all(np.isfinite(time)), "There are inf or NaN values in " \
                                           "your time array!"
-
         assert np.all(np.isfinite(counts)), "There are inf or NaN values in " \
                                             "your counts array!"
+        if err is not False:
+            assert np.all(np.isfinite(err)), "There are inf or NaN " \
+                                             "values in your err array!"
+        else:
+            err = np.sqrt(np.asarray(counts))
 
         self.time = np.asarray(time)
         self.dt = time[1] - time[0]
@@ -81,33 +84,20 @@ class Lightcurve(object):
         if input_counts:
             self.counts = np.asarray(counts)
             self.countrate = self.counts/self.dt
-            if err is not None:
-                assert np.all(np.isfinite(err)), "There are inf or NaN " \
-                                                 "values in your err array!"
-                self.counts_err = np.asarray(err)
-                self.countrate_err = np.asarray(err)/self.dt
-            else:
-                self.counts_err = np.sqrt(self.counts)
-                self.countrate_err = np.sqrt(self.counts)/self.dt
+            self.counts_err = np.asarray(err)
+            self.countrate_err = np.asarray(err)/self.dt
         else:
             self.countrate = np.asarray(counts)
             self.counts = self.countrate*self.dt
-            if err is not None:
-                assert np.all(np.isfinite(err)), "There are inf or NaN " \
-                                                 "values in your err array!"
-                self.counts_err = np.asarray(err)*self.dt
-                self.countrate_err = np.asarray(err)
-            else:
-                self.counts_err = np.sqrt(self.counts)
-                self.countrate_err = np.sqrt(self.counts)/self.dt
+            self.counts_err = np.asarray(err)*self.dt
+            self.countrate_err = np.asarray(err)
 
         self.ncounts = self.counts.shape[0]
         self.tseg = self.time[-1] - self.time[0] + self.dt
-        self.tstart = self.time[0]-0.5*self.dt
+        self.tstart = self.time[0] - 0.5*self.dt
 
     @staticmethod
     def make_lightcurve(toa, dt, tseg=None, tstart=None):
-
         """
         Make a light curve out of photon arrival times.
 
@@ -138,34 +128,29 @@ class Lightcurve(object):
         -------
         lc: :class:`Lightcurve` object
             A light curve object with the binned light curve
-
         """
-
-        ## tstart is an optional parameter to set a starting time for
-        ## the light curve in case this does not coincide with the first photon
+        # tstart is an optional parameter to set a starting time for
+        # the light curve in case this does not coincide with the first photon
         if tstart is None:
-            ## if tstart is not set, assume light curve starts with first photon
+            # if tstart is not set, assume light curve starts with first photon
             tstart = toa[0]
 
-        ## compute the number of bins in the light curve
-        ## for cases where tseg/dt are not integer, computer one
-        ## last time bin more that we have to subtract in the end
+        # compute the number of bins in the light curve
+        # for cases where tseg/dt are not integer, computer one
+        # last time bin more that we have to subtract in the end
         if tseg is None:
             tseg = toa[-1] - toa[0]
 
         logging.info("make_lightcurve: tseg: " + str(tseg))
-
         timebin = np.int(tseg/dt)
-        logging.info("make_lightcurve: timebin:  " + str(timebin))
 
+        logging.info("make_lightcurve: timebin:  " + str(timebin))
         tend = tstart + timebin*dt
 
-        counts, histbins = np.histogram(toa, bins=timebin, range=[tstart, tend])
-
-        dt = histbins[1]-histbins[0]
-
-        time = histbins[:-1]+0.5*dt
-
+        counts, histbins = np.histogram(toa, bins=timebin,
+                                        range=[tstart, tend])
+        dt = histbins[1] - histbins[0]
+        time = histbins[:-1] + 0.5*dt
         counts = np.asarray(counts)
 
         return Lightcurve(time, counts)
@@ -197,9 +182,9 @@ class Lightcurve(object):
                                   "old time resolution!"
 
         bin_time, bin_counts, bin_err, _ = utils.rebin_data(self.time,
-                                                           self.counts,
-                                                           self.counts_err,
-                                                           dt_new, method)
+                                                            self.counts,
+                                                            self.counts_err,
+                                                            dt_new, method)
 
         lc_new = Lightcurve(bin_time, bin_counts, err=bin_err)
         return lc_new
