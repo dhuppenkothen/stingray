@@ -4,13 +4,13 @@
 
 from astropy.tests.pytest_plugins import *
 
-## Uncomment the following line to treat all DeprecationWarnings as
-## exceptions
+# Uncomment the following line to treat all DeprecationWarnings as
+# exceptions
 # enable_deprecations_as_exceptions()
 
-## Uncomment and customize the following lines to add/remove entries
-## from the list of packages for which version numbers are displayed
-## when running the tests
+# Uncomment and customize the following lines to add/remove entries
+# from the list of packages for which version numbers are displayed
+# when running the tests
 # try:
 #     PYTEST_HEADER_MODULES['Astropy'] = 'astropy'
 #     PYTEST_HEADER_MODULES['scikit-image'] = 'skimage'
@@ -18,13 +18,13 @@ from astropy.tests.pytest_plugins import *
 # except NameError:  # needed to support Astropy < 1.0
 #     pass
 
-## Uncomment the following lines to display the version number of the
-## package rather than the version number of Astropy in the top line when
-## running the tests.
+# Uncomment the following lines to display the version number of the
+# package rather than the version number of Astropy in the top line when
+# running the tests.
 # import os
 #
-## This is to figure out the affiliated package version, rather than
-## using Astropy's
+# This is to figure out the affiliated package version, rather than
+# using Astropy's
 # from . import version
 #
 # try:
