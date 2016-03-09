@@ -141,11 +141,11 @@ def use_setuptools(version=DEFAULT_VERSION, download_base=DEFAULT_URL,
         e = sys.exc_info()[1]
         if was_imported:
             sys.stderr.write(
-            "The required version of setuptools (>=%s) is not available,\n"
-            "and can't be installed while this script is running. Please\n"
-            "install a more recent version first, using\n"
-            "'easy_install -U setuptools'."
-            "\n\n(Currently using %r)\n" % (version, e.args[0]))
+                "The required version of setuptools (>=%s) is not available,\n"
+                "and can't be installed while this script is running. Please\n"
+                "install a more recent version first, using\n"
+                "'easy_install -U setuptools'."
+                "\n\n(Currently using %r)\n" % (version, e.args[0]))
             sys.exit(2)
         else:
             del pkg_resources, sys.modules['pkg_resources']    # reload ok

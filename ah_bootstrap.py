@@ -477,6 +477,7 @@ class _Bootstrapper(object):
         # is not straightforward to programmatically augment the arguments
         # which are passed to easy_install
         class _Distribution(Distribution):
+
             def get_option_dict(self, command_name):
                 opts = Distribution.get_option_dict(self, command_name)
                 if command_name == 'easy_install':
@@ -865,6 +866,7 @@ root of the extracted source code.
 
 
 class _AHBootstrapSystemExit(SystemExit):
+
     def __init__(self, *args):
         if not args:
             msg = 'An unknown problem occurred bootstrapping astropy_helpers.'
@@ -883,6 +885,7 @@ if sys.version_info[:2] < (2, 7):
     import distutils
 
     class log(object):
+
         def __getattr__(self, attr):
             return getattr(distutils.log, attr)
 
