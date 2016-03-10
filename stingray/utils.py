@@ -40,7 +40,7 @@ def rebin_data(x, y, yerr, dx_new, method='sum'):
     x: iterable
         The dependent variable with some resolution dx_old = x[1]-x[0]
 
-    y: interable
+    y: iterable
         The independent variable to be binned
 
     yerr: iterable
@@ -68,6 +68,8 @@ def rebin_data(x, y, yerr, dx_new, method='sum'):
     step_size: float
         Number of consecutive bins aggregated
     """
+    y = np.asarray(y)
+
     dx_old = x[1] - x[0]
 
     assert dx_new >= dx_old, "New frequency resolution must be larger than " \
