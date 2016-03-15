@@ -21,7 +21,7 @@ def simon(message, **kwargs):
     is watching him/her.
 
     Parameters
-    ---------
+    ----------
     message : string
         The message that is thrown
     kwargs : dict
