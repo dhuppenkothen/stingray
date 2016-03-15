@@ -7,16 +7,13 @@ datadir = os.path.join(curdir, 'data')
 
 
 class TestIO(object):
-
     """Real unit tests."""
-
     def test_crossgti1(self):
         """Test the basic working of the intersection of GTIs."""
         from ..io import cross_gtis
         gti1 = np.array([[1, 4]])
         gti2 = np.array([[2, 5]])
         newgti = cross_gtis([gti1, gti2])
-
         assert np.all(newgti == [[2, 4]]), 'GTIs do not coincide!'
 
     def test_crossgti2(self):
@@ -25,7 +22,6 @@ class TestIO(object):
         gti1 = np.array([[1, 2], [4, 5], [7, 10], [11, 11.2], [12.2, 13.2]])
         gti2 = np.array([[2, 5], [6, 9], [11.4, 14]])
         newgti = cross_gtis([gti1, gti2])
-
         assert np.all(newgti == [[4.0, 5.0], [7.0, 9.0], [12.2, 13.2]]), \
             'GTIs do not coincide!'
 
@@ -42,7 +38,6 @@ class TestIO(object):
         from ..io import get_btis
         gti = np.array([[1, 2], [4, 5], [7, 10], [11, 11.2], [12.2, 13.2]])
         bti = get_btis(gti)
-
         assert np.all(bti == [[2, 4], [5, 7], [10, 11], [11.2, 12.2]]), \
             'BTI is wrong!, %s' % repr(bti)
 

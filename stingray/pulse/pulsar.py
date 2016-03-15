@@ -37,7 +37,6 @@ def pulse_phase(times, *frequency_derivatives, **opts):
     to_1 : bool, default True
         Only return the fractional part of the phase, normalized from 0 to 1
     """
-
     ph0 = _default_value_if_no_key(opts, "ph0", 0)
     to_1 = _default_value_if_no_key(opts, "to_1", True)
     ph = ph0
@@ -84,7 +83,7 @@ def phase_exposure(start_time, stop_time, period, nbin=16, gtis=None):
     # -----------------------------------------
 
     expo = np.zeros(nbin)
-    phs = np.linspace(0, 1, nbin + 1)
+    phs = np.linspace(0, 1, nbin+1)
     phs = np.array(list(zip(phs[0:-1], phs[1:])))
 
     # Discard gtis outside [start, stop]

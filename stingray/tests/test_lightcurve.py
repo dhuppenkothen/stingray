@@ -12,12 +12,19 @@ class TestLightcurve(object):
         cls.times = [1, 2, 3, 4]
         cls.counts = [2, 2, 2, 2]
         cls.dt = 1.0
+        cls.err = [0.02, 0.02, 0.02, 0.02]
 
     def test_create(self):
         """
         Demonstrate that we can create a trivial Lightcurve object.
         """
         lc = Lightcurve(self.times, self.counts)
+
+    def test_create_with_uncertainties(self):
+        """
+        Demonstrate that we can create a Lightcurve object with uncertainties.
+        """
+        lc = Lightcurve(self.times, self.counts, self.err)
 
     def test_lightcurve_from_toa(self):
         lc = Lightcurve.make_lightcurve(self.times, self.dt)
@@ -65,7 +72,7 @@ class TestLightcurve(object):
 
         assert np.allclose(lc.counts, ncounts)
 
-    def test_countrate(self):
+    def test_countrate_and_err(self):
         dt = 0.5
         mean_counts = 2.0
         times = np.arange(0 + dt/2, 5 - dt/2, dt)
@@ -73,8 +80,9 @@ class TestLightcurve(object):
         lc = Lightcurve(times, counts)
         assert np.allclose(lc.countrate, np.zeros_like(counts) +
                            mean_counts/dt)
+        assert np.allclose(lc.countrate_err, np.sqrt(counts)/dt)
 
-    def test_input_countrate(self):
+    def test_input_countrate_and_err(self):
         dt = 0.5
         mean_counts = 2.0
         times = np.arange(0 + dt/2, 5 - dt/2, dt)
@@ -82,6 +90,7 @@ class TestLightcurve(object):
         lc = Lightcurve(times, countrate, input_counts=False)
         assert np.allclose(lc.counts, np.zeros_like(countrate) +
                            mean_counts*dt)
+        assert np.allclose(lc.counts_err, np.sqrt(countrate)*dt)
 
     @raises(TypeError)
     def test_init_with_none_data(self):
@@ -90,6 +99,15 @@ class TestLightcurve(object):
         times = np.arange(0 + dt/2, 5 - dt/2, dt)
         counts = np.array([None for i in range(times.shape[0])])
         lc = Lightcurve(times, counts)
+
+    @raises(TypeError)
+    def test_init_with_none_errors(self):
+        dt = 0.5
+        mean_counts = 2.0
+        times = np.arange(0 + dt/2, 5 - dt/2, dt)
+        counts = np.zeros_like(times) + mean_counts
+        err = np.array([None for i in range(times.shape[0])])
+        lc = Lightcurve(times, counts, err=err)
 
     @raises(AssertionError)
     def test_init_with_inf_data(self):
@@ -100,12 +118,30 @@ class TestLightcurve(object):
         lc = Lightcurve(times, counts)
 
     @raises(AssertionError)
+    def test_init_with_inf_errors(self):
+        dt = 0.5
+        mean_counts = 2.0
+        times = np.arange(0 + dt/2, 5 - dt/2, dt)
+        counts = np.zeros_like(times) + mean_counts
+        err = np.array([np.inf for i in range(times.shape[0])])
+        lc = Lightcurve(times, counts, err=err)
+
+    @raises(AssertionError)
     def test_init_with_nan_data(self):
         dt = 0.5
         mean_counts = 2.0
         times = np.arange(0 + dt/2, 5 - dt/2, dt)
         counts = np.array([np.nan for i in range(times.shape[0])])
         lc = Lightcurve(times, counts)
+
+    @raises(AssertionError)
+    def test_init_with_nan_errors(self):
+        dt = 0.5
+        mean_counts = 2.0
+        times = np.arange(0 + dt/2, 5 - dt/2, dt)
+        counts = np.zeros_like(times) + mean_counts
+        err = np.array([np.nan for i in range(times.shape[0])])
+        lc = Lightcurve(times, counts, err=err)
 
 
 class TestLightcurveRebin(object):
@@ -115,9 +151,12 @@ class TestLightcurveRebin(object):
         dt = 0.0001220703125
         n = 1384132
         mean_counts = 2.0
+        mean_error = 0.05
         times = np.arange(dt/2, dt/2 + n*dt, dt)
         counts = np.zeros_like(times) + mean_counts
+        err = np.zeros_like(times) + mean_error
         cls.lc = Lightcurve(times, counts)
+        cls.lc_e = Lightcurve(times, counts, err=err)
 
     def test_rebin_even(self):
         dt_new = 2.0
@@ -126,15 +165,42 @@ class TestLightcurveRebin(object):
         counts_test = np.zeros_like(lc_binned.time) + \
             self.lc.counts[0]*dt_new/self.lc.dt
         assert np.allclose(lc_binned.counts, counts_test)
+        assert np.allclose(lc_binned.counts_err, np.sqrt(counts_test))
+        assert np.allclose(lc_binned.countrate_err,
+                           np.sqrt(counts_test)/dt_new)
 
     def test_rebin_odd(self):
         dt_new = 1.5
         lc_binned = self.lc.rebin_lightcurve(dt_new)
         assert np.isclose(lc_binned.dt, dt_new)
-
         counts_test = np.zeros_like(lc_binned.time) + \
             self.lc.counts[0]*dt_new/self.lc.dt
         assert np.allclose(lc_binned.counts, counts_test)
+        assert np.allclose(lc_binned.counts_err, np.sqrt(counts_test))
+        assert np.allclose(lc_binned.countrate_err,
+                           np.sqrt(counts_test)/dt_new)
+
+    def test_rebin_even_uniform_uncertainties(self):
+        dt_new = 2.0
+        mean_error = 0.05
+        lc_binned = self.lc_e.rebin_lightcurve(dt_new)
+        assert np.isclose(lc_binned.dt, dt_new)
+        error_test = np.sqrt(
+            (np.full(dt_new/self.lc_e.dt, mean_error)**2).sum()
+        )
+        assert np.allclose(lc_binned.counts_err, error_test)
+        assert np.allclose(lc_binned.countrate_err, error_test/dt_new)
+
+    def test_rebin_odd_uniform_uncertainties(self):
+        dt_new = 1.5
+        mean_error = 0.05
+        lc_binned = self.lc_e.rebin_lightcurve(dt_new)
+        assert np.isclose(lc_binned.dt, dt_new)
+        error_test = np.sqrt(
+            (np.full(dt_new/self.lc_e.dt, mean_error)**2).sum()
+        )
+        assert np.allclose(lc_binned.counts_err, error_test)
+        assert np.allclose(lc_binned.countrate_err, error_test/dt_new)
 
     def rebin_several(self, dt):
         """

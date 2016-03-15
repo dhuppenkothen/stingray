@@ -53,7 +53,6 @@ def classical_pvalue(power, nspec):
         power spectrum.
 
     """
-
     assert np.isfinite(power), "power must be a finite floating point number!"
     assert power > 0, "power must be a positive real number!"
     assert np.isfinite(nspec), "nspec must be a finite integer number"
@@ -77,22 +76,17 @@ def _pavnosigfun(power, nspec):
     """
     sum = 0.0
     m = nspec - 1
-
     pn = power * nspec
 
     while m >= 0:
-
         s = 0.0
         for i in range(int(m)-1):
             s += np.log(float(m-i))
-
         logterm = m*np.log(pn/2) - pn/2 - s
         term = np.exp(logterm)
         ratio = sum / term
-
         if ratio > 1.0e15:
             return sum
-
         sum += term
         m -= 1
 
@@ -131,6 +125,9 @@ class Powerspectrum(object):
             The array of normalized squared absolute values of Fourier
             amplitudes
 
+        ps_err: numpy.ndarray
+            The uncertainties in the power (ps)
+
         df: float
             The frequency resolution
 
@@ -142,10 +139,7 @@ class Powerspectrum(object):
 
         nphots: float
             The total number of photons in the light curve
-
-
         """
-
         # TODO: One should be able to convert from rms to Leahy and do this
         # anyway!
         assert isinstance(norm, str), "norm is not a string!"
@@ -162,6 +156,7 @@ class Powerspectrum(object):
         else:
             self.freq = None
             self.ps = None
+            self.ps_err = None
             self.df = None
             self.nphots = None
             self.m = 1
@@ -196,6 +191,9 @@ class Powerspectrum(object):
         # normalize to either Leahy or rms normalization
         self.ps = self._normalize_periodogram(self.unnorm_powers, lc)
 
+        # uncertainties in the power is equal to the power for 1 realization
+        self.ps_err = self.ps / np.sqrt(self.m)
+
     def _fourier_modulus(self, lc):
         """
         Fourier transform the light curve, then square the
@@ -210,7 +208,6 @@ class Powerspectrum(object):
         -------
         fr: numpy.ndarray
             The squared absolute value of the Fourier amplitudes
-
         """
         fourier = scipy.fftpack.fft(lc.counts)  # do Fourier transform
         freqs = scipy.fftpack.fftfreq(lc.counts.shape[0], lc.dt)
@@ -236,7 +233,6 @@ class Powerspectrum(object):
 
         lc: lightcurve.Lightcurve object
             The input light curve
-
 
         Returns
         -------
@@ -272,9 +268,11 @@ class Powerspectrum(object):
         """
 
         # rebin power spectrum to new resolution
-        binfreq, binps, step_size = utils.rebin_data(self.freq[1:],
-                                                     self.ps[1:], df,
-                                                     method=method)
+        # an empty variable is required to hold the yerr value returned
+        binfreq, binps, _, step_size = utils.rebin_data(self.freq,
+                                                        self.ps,
+                                                        self.ps_err, df,
+                                                        method=method)
 
         # make an empty periodogram object
         bin_ps = Powerspectrum()
@@ -286,7 +284,8 @@ class Powerspectrum(object):
         bin_ps.df = df
         bin_ps.n = self.n
         bin_ps.nphots = self.nphots
-        bin_ps.m = int(step_size)
+        bin_ps.m = int(step_size) * self.m
+        bin_ps.ps_err = bin_ps.ps / np.sqrt(bin_ps.m)
 
         return bin_ps
 
@@ -312,6 +311,9 @@ class Powerspectrum(object):
         binps: numpy.ndarray
             the binned powers
 
+        binps_err: numpy.ndarray
+            the uncertainty of the binned powers
+
         nsamples: numpy.ndarray
             the samples of the original periodogramincluded in each
             frequency bin
@@ -336,6 +338,10 @@ class Powerspectrum(object):
         nsamples = np.array([len(binno[np.where(binno == i)[0]])
                              for i in range(np.max(binno))])
 
+        # compute the uncertainty for each binned power
+        number_of_combined_powers = self.m * nsamples
+        binps_err = binps / np.sqrt(number_of_combined_powers)
+
         # the frequency resolution
         df = np.diff(binfreq)
 
@@ -343,7 +349,7 @@ class Powerspectrum(object):
         # last right bin edge
         binfreq = binfreq[:-1] + df/2
 
-        return binfreq, binps, nsamples
+        return binfreq, binps, binps_err, nsamples
 
     def compute_rms(self, min_freq, max_freq):
         """
@@ -518,6 +524,9 @@ class AveragedPowerspectrum(Powerspectrum):
             The array of normalized squared absolute values of Fourier
             amplitudes
 
+        ps_err: numpy.ndarray
+            The uncertainties in the averaged power
+
         df: float
             The frequency resolution
 
@@ -593,6 +602,7 @@ class AveragedPowerspectrum(Powerspectrum):
         self.freq = ps_all[0].freq
         self.ps = ps_avg
         self.m = m
+        self.ps_err = self.ps/np.sqrt(self.m)
         self.df = ps_all[0].df
         self.n = ps_all[0].n
         self.nphots = nphots

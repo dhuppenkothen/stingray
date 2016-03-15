@@ -8,9 +8,7 @@ def _template_fun(phase, ph0, amplitude, baseline=0):
 
 
 class TestAll(unittest.TestCase):
-
     """Unit tests for the stingray.pulsar module."""
-
     def test_pulse_phase1(self):
         """Test pulse phase calculation, frequency only."""
         times = np.arange(0, 4, 0.5)

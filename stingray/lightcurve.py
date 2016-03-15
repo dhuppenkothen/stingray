@@ -12,7 +12,7 @@ __all__ = ["Lightcurve"]
 
 
 class Lightcurve(object):
-    def __init__(self, time, counts, input_counts=True):
+    def __init__(self, time, counts, err=False, input_counts=True):
         """
         Make a light curve object from an array of time stamps and an
         array of counts.
@@ -24,8 +24,14 @@ class Lightcurve(object):
 
         counts: iterable, optional, default None
             A list or array of the counts in each bin corresponding to the
-            bins defined in `time` (note: **not** the count rate, i.e.
-            counts/second, but the counts/bin).
+            bins defined in `time` (note: use input_counts=False to input the
+            count rate, i.e. counts/second, otherwise use counts/bin).
+
+        err: iterable, optional, default False
+            A list or array of the uncertainties (or standard deviation) in
+            each bin corresponding to the bins defined in `time`. In units of
+            counts/bin or counts/second (see `input_counts`).
+            If False (default), it assumes the data is Poisson distributed.
 
         input_counts: bool, optional, default True
             If True, the code assumes that the input data in 'counts'
@@ -40,8 +46,14 @@ class Lightcurve(object):
         counts: numpy.ndarray
             The counts per bin corresponding to the bins in `time`.
 
+        counts_err: numpy.ndarray
+            The uncertainties of the `counts` array
+
         countrate: numpy.ndarray
             The counts per second in each of the bins defined in `time`.
+
+        countrate_err: numpy.ndarray
+            The uncertainties of the `countrate` array
 
         ncounts: int
             The number of data points in the light curve.
@@ -56,12 +68,15 @@ class Lightcurve(object):
             The start time of the light curve.
 
         """
-
         assert np.all(np.isfinite(time)), "There are inf or NaN values in " \
                                           "your time array!"
-
         assert np.all(np.isfinite(counts)), "There are inf or NaN values in " \
                                             "your counts array!"
+        if err is not False:
+            assert np.all(np.isfinite(err)), "There are inf or NaN " \
+                                             "values in your err array!"
+        else:
+            err = np.sqrt(np.asarray(counts))
 
         self.time = np.asarray(time)
         self.dt = time[1] - time[0]
@@ -69,9 +84,13 @@ class Lightcurve(object):
         if input_counts:
             self.counts = np.asarray(counts)
             self.countrate = self.counts / self.dt
+            self.counts_err = np.asarray(err)
+            self.countrate_err = np.asarray(err) / self.dt
         else:
             self.countrate = np.asarray(counts)
             self.counts = self.countrate * self.dt
+            self.counts_err = np.asarray(err) * self.dt
+            self.countrate_err = np.asarray(err)
 
         self.ncounts = self.counts.shape[0]
         self.tseg = self.time[-1] - self.time[0] + self.dt
@@ -79,7 +98,6 @@ class Lightcurve(object):
 
     @staticmethod
     def make_lightcurve(toa, dt, tseg=None, tstart=None):
-
         """
         Make a light curve out of photon arrival times.
 
@@ -110,9 +128,7 @@ class Lightcurve(object):
         -------
         lc: :class:`Lightcurve` object
             A light curve object with the binned light curve
-
         """
-
         # tstart is an optional parameter to set a starting time for
         # the light curve in case this does not coincide with the first photon
         if tstart is None:
@@ -126,19 +142,15 @@ class Lightcurve(object):
             tseg = toa[-1] - toa[0]
 
         logging.info("make_lightcurve: tseg: " + str(tseg))
-
         timebin = np.int(tseg/dt)
-        logging.info("make_lightcurve: timebin:  " + str(timebin))
 
+        logging.info("make_lightcurve: timebin:  " + str(timebin))
         tend = tstart + timebin*dt
 
         counts, histbins = np.histogram(toa, bins=timebin,
                                         range=[tstart, tend])
-
         dt = histbins[1] - histbins[0]
-
         time = histbins[:-1] + 0.5*dt
-
         counts = np.asarray(counts)
 
         return Lightcurve(time, counts)
@@ -169,9 +181,10 @@ class Lightcurve(object):
         assert dt_new >= self.dt, "New time resolution must be larger than " \
                                   "old time resolution!"
 
-        bin_time, bin_counts, _ = utils.rebin_data(self.time,
-                                                   self.counts,
-                                                   dt_new, method)
+        bin_time, bin_counts, bin_err, _ = utils.rebin_data(self.time,
+                                                            self.counts,
+                                                            self.counts_err,
+                                                            dt_new, method)
 
-        lc_new = Lightcurve(bin_time, bin_counts)
+        lc_new = Lightcurve(bin_time, bin_counts, err=bin_err)
         return lc_new
