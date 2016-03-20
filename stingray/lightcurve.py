@@ -6,6 +6,7 @@ or to save existing light curves in a class that's easy to use.
 """
 import numpy as np
 import stingray.utils as utils
+from stingray.utils import simon
 import logging
 
 __all__ = ["Lightcurve"]
@@ -74,6 +75,15 @@ class Lightcurve(object):
             self.counts = self.countrate * self.dt
 
         self.ncounts = self.counts.shape[0]
+
+        # Issue a warning if the input time iterable isn't regularly spaced,
+        # i.e. the bin sizes aren't equal throughout.
+        dt_array = np.diff(self.time)
+        if not (np.allclose(dt_array, np.repeat(self.dt, dt_array.shape[0]))):
+            simon("Bin sizes in input time array aren't equal throughout! "
+                  "This could cause problems with Fourier transforms. "
+                  "Please make the input time evenly sampled.")
+
         self.tseg = self.time[-1] - self.time[0] + self.dt
         self.tstart = self.time[0] - 0.5*self.dt
 

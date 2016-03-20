@@ -6,12 +6,6 @@ X-Ray Timing Made Easy
 
 We are writing a general-purpose timing package for X-ray time series.
 
-Authors
---------
-* Abigail Stevens (UvA)
-* Daniela Huppenkothen (NYU CDS)
-* Matteo Bachetti (INAF/OACa)
-
 Contents
 --------
 
@@ -34,9 +28,9 @@ Documentation
 
 Is generated using `Sphinx`_. Try::
 
-   $ sphinx-build doc doc/_build
+   $ sphinx-build docs docs/_build
 
-Then open ``./doc/_build/index.html`` in the browser of your choice.
+Then open ``./docs/_build/index.html`` in the browser of your choice.
 
 .. _Sphinx: http://sphinx-doc.org
 

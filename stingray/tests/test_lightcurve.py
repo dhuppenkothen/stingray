@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 from nose.tools import raises
 from stingray import Lightcurve
 
@@ -18,6 +19,21 @@ class TestLightcurve(object):
         Demonstrate that we can create a trivial Lightcurve object.
         """
         lc = Lightcurve(self.times, self.counts)
+
+    def test_irregular_time_warning(self):
+        """
+        Check if inputting an irregularly spaced time iterable throws out
+        a warning.
+        """
+        times = [1, 2, 3, 5, 6]
+        counts = [2, 2, 2, 2, 2]
+        warn_str = ("SIMON says: Bin sizes in input time array aren't equal "
+                    "throughout! This could cause problems with Fourier "
+                    "transforms. Please make the input time evenly sampled.")
+
+        with warnings.catch_warnings(record=True) as w:
+            lc = Lightcurve(times, counts)
+            assert str(w[0].message) == warn_str
 
     def test_lightcurve_from_toa(self):
         lc = Lightcurve.make_lightcurve(self.times, self.dt)

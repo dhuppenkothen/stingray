@@ -21,7 +21,7 @@ def simon(message, **kwargs):
     is watching him/her.
 
     Parameters
-    ---------
+    ----------
     message : string
         The message that is thrown
     kwargs : dict
@@ -41,7 +41,7 @@ def rebin_data(x, y, dx_new, method='sum'):
     x: iterable
         The dependent variable with some resolution dx_old = x[1]-x[0]
 
-    y: interable
+    y: iterable
         The independent variable to be binned
 
     dx_new: float
@@ -60,6 +60,8 @@ def rebin_data(x, y, dx_new, method='sum'):
     ybin: numpy.ndarray
         The binned quantity y
     """
+
+    y = np.asarray(y)
 
     dx_old = x[1] - x[0]
 

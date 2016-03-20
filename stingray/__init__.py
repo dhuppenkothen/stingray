@@ -1,7 +1,7 @@
 # Licensed under MIT license - see LICENSE.rst
 
 """
-This is an Astropy affiliated package.
+Library of Time Series Methods For Astronomical X-ray Data.
 """
 
 # Affiliated packages may add whatever they like to this file, but
