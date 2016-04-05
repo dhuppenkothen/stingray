@@ -52,6 +52,18 @@ Getting help
 Reporting Issues
 ****************
 
+While using Stingray or going through its codebase, if you find any bug
+please report it. The preferred way to do that is to create a new issue on
+the Stingray `GitHub issue page
+<http://github.com/stingraysoftware/stingray/issues>`_.
+You can also the discuss the issue on our `mailing list
+<https://groups.google.com/forum/#!forum/spectraltiming-stingray>`_.
+Please include an example that demonstrates the issue that will allow the
+developers to reproduce and fix the problem. You may be asked to also provide
+information about your operating system and a full Python stack trace; the
+Stingray developers will walk you through obtaining a stack trace if it is
+necessary.
+
 ************
 Contributing
 ************
