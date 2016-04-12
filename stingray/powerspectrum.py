@@ -272,9 +272,9 @@ class Powerspectrum(object):
         """
 
         # rebin power spectrum to new resolution
-        binfreq, binps, step_size = utils.rebin_data(self.freq[1:],
-                                                     self.ps[1:], df,
-                                                     method=method)
+        binfreq, binps, step_size = utils.rebin_data_ps(self.freq[1:],
+                                                        self.ps[1:], df,
+                                                        method=method)
 
         # make an empty periodogram object
         bin_ps = Powerspectrum()
