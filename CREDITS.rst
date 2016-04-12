@@ -14,6 +14,7 @@ Stingray Project Coordinators
 Contributors
 ============
 
+* Evandro M. Ribeiro
 
 If you have contributed to Stingray and your name is missing,
 please send an email to the coordinators, or
