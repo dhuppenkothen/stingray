@@ -300,7 +300,7 @@ class Lightcurve(object):
 
         return Lightcurve(time, counts)
 
-    def rebin_lightcurve(self, dt_new, method='sum'):
+    def rebin(self, dt_new, method='sum'):
         """
         Rebin the light curve to a new time resolution. While the new
         resolution need not be an integer multiple of the lenght of the
