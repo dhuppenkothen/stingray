@@ -300,6 +300,49 @@ class Lightcurve(object):
 
         return Lightcurve(time, counts)
 
+    @staticmethod
+    def from_txt(filename, tte=True, dt=None, usecols=None, skiprows=0):
+        """
+        Load a light curve from an ascii file.
+
+        Parameters
+        ----------
+        filename: string
+            The path and file name with the data
+
+        usecols: sequence, optional
+            The columns to read, starting with zero. Same
+            syntax as in numpy.loadtxt. The default, None, means
+            that all columns will be read.
+
+        tte: boolean, optional
+            If True, the data is expected to be time-tagged events
+            (i.e. photon arrival times), if False, the data is a light
+            curve in counts/bin
+
+        skiprows: int, optional
+            The number of rows to skip when reading the file.
+            Default 0 (no rows will be skipped). Same as
+            numpy.loadtxt.
+        """
+
+        assert isinstance(filename, str), "filename must be string!"
+        if not usecols is None:
+            assert np.size(usecols) == 2, "Need to define two columns"
+
+        data = np.loadtxt(filename, usecols=usecols, skiprows=skiprows)
+
+        if tte:
+            if dt is None:
+                raise Exception("time resolution dt must be set!")
+
+            lc = Lightcurve.make_lightcurve(data, dt)
+
+        else:
+            lc = Lightcurve(data[:,0], data[:,1])
+
+        return lc
+
     def rebin_lightcurve(self, dt_new, method='sum'):
         """
         Rebin the light curve to a new time resolution. While the new
@@ -332,6 +375,17 @@ class Lightcurve(object):
 
         lc_new = Lightcurve(bin_time, bin_counts)
         return lc_new
+
+    def to_txt(self, filename, use_counts=True):
+
+        assert isinstance(filename, str), "Variable filename must be a string!"
+
+        if use_counts:
+            np.savetxt(filename, np.transpose(np.array([self.time,
+                                                        self.counts])))
+        else:
+            np.savetxt(filename, np.transpose(np.array([self.time,
+                                                        self.countrate])))
 
     def join(self, other):
         """
