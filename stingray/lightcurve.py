@@ -6,6 +6,7 @@ or to save existing light curves in a class that's easy to use.
 """
 import logging
 import numpy as np
+import stingray.io as io
 import stingray.utils as utils
 from stingray.utils import simon
 
@@ -595,3 +596,60 @@ class Lightcurve(object):
                 plt.savefig('out.png')
             else:
                 plt.savefig(filename)
+
+    def write(self, filename, format_='pickle', **kwargs):
+        """
+        Exports LightCurve object.
+
+        Parameters
+        ----------
+        filename: str
+            Name of the LightCurve object to be created.
+
+        format_: str
+            Available options are 'pickle', 'hdf5', 'ascii'
+
+        save_as_dict: boolean, default 'False'
+            Applies only when the format_ is pickle.
+        """
+
+        if format_ == 'ascii':
+            io.write(np.array([self.time, self.counts]).T,
+              filename, format_, fmt=["%s", "%s"])
+
+        elif format_ == 'pickle':
+            io.write(self, filename, format_, **kwargs)
+
+        elif format_ == 'hdf5':
+            io.write(self, filename, format_)
+
+        else:
+            utils.simon("Format not understood.")
+
+    def read(self, filename, format_='pickle'):
+        """
+        Imports LightCurve object.
+
+        Parameters
+        ----------
+        filename: str
+            Name of the LightCurve object to be read.
+
+        format_: str
+            Available options are 'pickle', 'hdf5', 'ascii'
+
+        Returns
+        --------
+        If format_ is 'ascii': astropy.table is returned.
+        If format_ is 'hdf5': dictionary with key-value pairs is returned.
+        If format_ is 'pickle': class object is set.
+        """
+
+        if format_ == 'ascii' or format_ == 'hdf5':
+            return io.read(filename, format_)
+
+        elif format_ == 'pickle':
+            self = io.read(filename, format_)
+
+        else:
+            utils.simon("Format not understood.")

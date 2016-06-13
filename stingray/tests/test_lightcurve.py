@@ -356,6 +356,27 @@ class TestLightcurve(object):
         lc.plot(title="Test Lightcurve")
         assert plt.fignum_exists(1)
 
+    def test_io_with_ascii(self):
+        lc = Lightcurve(self.times, self.counts)
+        lc.write('ascii_lc.txt',format_='ascii')
+        lc.read('ascii_lc.txt', format_='ascii')
+        os.remove('ascii_lc.txt')
+
+    def test_io_with_pickle(self):
+        lc = Lightcurve(self.times, self.counts)
+        lc.write('lc.pickle', format_='pickle')
+        lc.read('lc.pickle',format_='pickle')
+        assert np.all(lc.time == self.times)
+        assert np.all(lc.counts == self.counts)
+        os.remove('lc.pickle')
+
+    def test_io_with_hdf5(self):
+        lc = Lightcurve(self.times, self.counts)
+        lc.write('lc.hdf5', format_='hdf5')
+        data = lc.read('lc.hdf5',format_='hdf5')
+        assert np.all(data['time'] == self.times)
+        assert np.all(data['counts'] == self.counts)
+        os.remove('lc.hdf5')
 
 class TestLightcurveRebin(object):
 
