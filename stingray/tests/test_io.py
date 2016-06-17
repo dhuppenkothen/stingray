@@ -5,7 +5,6 @@ import os
 
 from astropy.tests.helper import pytest
 
-
 from ..io import read, write
 from ..io import ref_mjd
 from ..io import high_precision_keyword_read
@@ -16,7 +15,6 @@ import warnings
 
 curdir = os.path.abspath(os.path.dirname(__file__))
 datadir = os.path.join(curdir, 'data')
-
 
 class TestIO(object):
 
@@ -70,58 +68,64 @@ class TestIO(object):
 class TestIOReadWrite(object):
     """A class to test all the read and write functions."""
     def __init__(self):
-        self.x = 10
-        self.y = np.array([1,2,3])
+        self.number = 10
+        self.str = 'Test'
+        self.list = [1,2,3]
+        self.array = np.array([1,2,3])
+        self.long_number = np.longdouble(1)
+        self.long_array = np.longdouble([1,2,3])
 
     def test_operation(self):
-        return self.x * 10
+        return self.number * 10
 
+_H5PY_INSTALLED = True
+
+try:
+    import h5py
+except ImportError:
+    _H5PY_INSTALLED = False
+
+skip_condition = pytest.mark.skipif(not _H5PY_INSTALLED,
+    reason = "H5PY not installed.")
 
 class TestFileFormats(object):
 
-    def test_pickle_with_class_objects(self):
+    def test_pickle_read_write(self):
         """Test pickle object writing and reading."""
         test_object = TestIOReadWrite()
         write(test_object, filename='test.pickle', format_='pickle')
         assert read('test.pickle', 'pickle') is not None
         os.remove('test.pickle')
 
-    def test_pickle_with_dict_objects(self):
-        """Test pickle object writing and reading."""
-        test_object = TestIOReadWrite()
-        write(test_object, filename='test.pickle', format_='pickle', save_as_dict=True)
-        assert read('test.pickle', 'pickle') is not None
-        os.remove('test.pickle')
-
-    def test_pickle_attributes_with_class_objects(self):
+    def test_pickle_attributes(self):
         """Test if pickle maintains class object attributes."""
         test_object = TestIOReadWrite()
         write(test_object, filename='test.pickle', format_='pickle')
-        assert read('test.pickle', 'pickle').x == test_object.x
-        assert (read('test.pickle', 'pickle').y == test_object.y).all()
-        os.remove('test.pickle')
-
-    def test_pickle_attributes_with_dict_objects(self):
-        """Test if pickle maintains class object attributes."""
-        test_object = TestIOReadWrite()
-        write(test_object, 'test.pickle', 'pickle', save_as_dict=True)
-        assert read('test.pickle', 'pickle').x == test_object.x
-        assert (read('test.pickle', 'pickle').y == test_object.y).all()
+        rec_object = read('test.pickle', 'pickle')
+        assert rec_object.number == test_object.number
+        assert rec_object.str == test_object.str
+        assert rec_object.list == test_object.list
+        assert (rec_object.array == test_object.array).all()
+        assert rec_object.long_number == test_object.long_number
+        assert (rec_object.long_array == test_object.long_array).all()
+        
         os.remove('test.pickle')
 
     def test_pickle_functions(self):
         """Test if pickle maintains class methods."""
         test_object = TestIOReadWrite()
         write(test_object,'test.pickle', 'pickle')
-        assert read('test.pickle', 'pickle').test_operation() == test_object.x * 10
+        assert read('test.pickle', 'pickle').test_operation() == test_object.number * 10
         os.remove('test.pickle')
 
+    @skip_condition
     def test_hdf5_write(self):
         """Test write functionality of hdf5."""
         test_object = TestIOReadWrite()
         write(test_object, 'test.hdf5', 'hdf5')
         os.remove('test.hdf5')
 
+    @skip_condition
     def test_hdf5_read(self):
         """Test read functionality of hdf5."""
         test_object = TestIOReadWrite()
@@ -129,13 +133,20 @@ class TestFileFormats(object):
         read('test.hdf5','hdf5')
         os.remove('test.hdf5')
 
+    @skip_condition
     def test_hdf5_data_recovery(self):
         """Test if hdf5 stored data is properly recovered."""
         test_object = TestIOReadWrite()
         write(test_object, 'test.hdf5', 'hdf5')
-        data = read('test.hdf5','hdf5')
-        assert data['x'] == test_object.x
-        assert (data['y'] == np.array(test_object.y)).all()
+        rec_object = read('test.hdf5','hdf5')
+
+        assert rec_object['number'] == test_object.number
+        assert rec_object['str'] == test_object.str
+        assert (rec_object['list'] == test_object.list).all()
+        assert (rec_object['array'] == np.array(test_object.array)).all()
+        assert rec_object['long_number'] == np.double(test_object.long_number)
+        assert (rec_object['long_array'] == np.double(np.array(test_object.long_array))).all()
+        
         os.remove('test.hdf5')
 
     def test_save_ascii(self):

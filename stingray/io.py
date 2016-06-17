@@ -1,7 +1,6 @@
 from __future__ import (absolute_import, division,
                         print_function)
 
-import h5py
 import numpy as np
 import logging
 import warnings
@@ -20,11 +19,16 @@ from .gti import  _get_gti_from_extension, load_gtis
 try:
     # Python 2
     import cPickle as pickle
-
 except:
     # Python 3
     import pickle
 
+_H5PY_INSTALLED = True
+
+try:
+    import h5py 
+except:
+    _H5PY_INSTALLED = False
 
 def get_file_extension(fname):
     """Get the extension from the file name."""
@@ -302,7 +306,7 @@ def common_name(str1, str2, default='common'):
     logging.debug('common_name: %s %s -> %s' % (str1, str2, common_str))
     return common_str
 
-def _save_pickle_object(object, filename, **kwargs):
+def _save_pickle_object(object, filename):
     """
     Save a class object in pickle format.
 
@@ -314,15 +318,9 @@ def _save_pickle_object(object, filename, **kwargs):
     filename: str
         The file name to save to
     """
-    if 'save_as_dict' in locals():
-        # Get all object's attributes and its values in a dictionary format
-        items = vars(object)
-        with open(filename, "wb" ) as f:
-            pickle.dump(items, f)
 
-    else:
-        with open(filename, "wb" ) as f:
-            pickle.dump(object, f)
+    with open(filename, "wb" ) as f:
+        pickle.dump(object, f)
 
 def _retrieve_pickle_object(filename):
     """
@@ -335,8 +333,7 @@ def _retrieve_pickle_object(filename):
 
     Returns
     -------
-    data: class object or dictionary
-        Depends on the value of `save_as_dict`
+    data: class object
     """
     with open(filename, "rb" ) as f:
         return pickle.load(f)
@@ -359,11 +356,21 @@ def _save_hdf5_object(object, filename):
     with h5py.File(filename, 'w') as hf:   
         for attr in attrs:
             data = items[attr]
+            
             # If data is a single number, store as an attribute.
             if _isattribute(data):
+
+                if isinstance(data, np.longdouble):
+                    data = np.double(data) 
+                    utils.simon("Casting data as double instead of longdouble.")
                 hf.attrs[attr] = data
+            
             # If data is a numpy array, create a dataset.
             else:
+
+                if isinstance(data[0], np.longdouble):
+                    data = np.double(data) 
+                    utils.simon("Casting data as double instead of longdouble.")
                 hf.create_dataset(attr, data=data) 
 
 def _retrieve_hdf5_object(filename):
@@ -492,10 +499,14 @@ def _retrieve_ascii_object(filename, **kwargs):
         return data[cols]
 
 def _isattribute(data):
+    """
+    Check if data is a single number or an array.
+    """
 
-    return isinstance(data, int) or isinstance(data, float) \
-        or isinstance(data, str) or isinstance(data, bool) \
-        or isinstance(data, long)
+    try:
+        return len(data) < 0
+    except:
+        return True
 
 def write(input_, filename, format_='pickle', **kwargs):
     """
@@ -509,16 +520,18 @@ def write(input_, filename, format_='pickle', **kwargs):
         name of the file to be created.
     format_: str
         pickle, hdf5, ascii ...
-
-    save_as_dict: boolean
-        Set to 'False' if intention is to store input as class object.
     """
 
     if format_ == 'pickle':
-        _save_pickle_object(input_, filename, **kwargs)
+        _save_pickle_object(input_, filename)
 
     elif format_ == 'hdf5':
-        _save_hdf5_object(input_, filename)
+        if _H5PY_INSTALLED:
+            _save_hdf5_object(input_, filename)
+
+        else:
+            utils.simon('h5py not installed, using pickle instead to save object.')
+            _save_pickle_object(input_, filename)
 
     elif format_ == 'ascii':
         _save_ascii_object(input_, filename, **kwargs)
@@ -542,7 +555,10 @@ def read(filename, format_='pickle', **kwargs):
         return _retrieve_pickle_object(filename)
 
     elif format_ == 'hdf5':
-        return _retrieve_hdf5_object(filename, **kwargs)
+        if _H5PY_INSTALLED:
+            return _retrieve_hdf5_object(filename)
+        else:
+            utils.simon('h5py not installed, cannot read an hdf5 object.')
 
     elif format_ == 'ascii':
         return _retrieve_ascii_object(filename, **kwargs)

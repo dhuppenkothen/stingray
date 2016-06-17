@@ -10,7 +10,7 @@ environment:
         PYTHON_ARCH: "64" # needs to be set for CMD_IN_ENV to succeed. If a mix
                           # of 32 bit and 64 bit builds are needed, move this
                           # to the matrix section.
-        CONDA_DEPENDENCIES: "scipy h5py numpy nose astropy matplotlib"
+        CONDA_DEPENDENCIES: "scipy numpy nose h5py astropy matplotlib"
         PIP_DEPENDENCIES: ""
 
     matrix:

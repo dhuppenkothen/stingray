@@ -1,12 +1,12 @@
 import os
 import warnings
 import matplotlib.pyplot as plt
+from astropy.tests.helper import pytest
 import numpy as np
 from nose.tools import raises
 from stingray import Lightcurve
 
 np.random.seed(20150907)
-
 
 class TestLightcurve(object):
 
@@ -366,6 +366,17 @@ class TestLightcurve(object):
         assert np.all(lc.counts == self.counts)
         os.remove('lc.pickle')
 
+    _H5PY_INSTALLED = True
+
+    try:
+        import h5py
+    except ImportError:
+        _H5PY_INSTALLED = False
+
+    skip_condition = pytest.mark.skipif(not _H5PY_INSTALLED,
+        reason = "H5PY not installed.")
+
+    @skip_condition
     def test_io_with_hdf5(self):
         lc = Lightcurve(self.times, self.counts)
         lc.write('lc.hdf5', format_='hdf5')

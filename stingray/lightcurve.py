@@ -608,9 +608,6 @@ class Lightcurve(object):
 
         format_: str
             Available options are 'pickle', 'hdf5', 'ascii'
-
-        save_as_dict: boolean, default 'False'
-            Applies only when the format_ is pickle.
         """
 
         if format_ == 'ascii':
@@ -618,7 +615,7 @@ class Lightcurve(object):
               filename, format_, fmt=["%s", "%s"])
 
         elif format_ == 'pickle':
-            io.write(self, filename, format_, **kwargs)
+            io.write(self, filename, format_)
 
         elif format_ == 'hdf5':
             io.write(self, filename, format_)
