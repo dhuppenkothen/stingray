@@ -53,9 +53,9 @@ Then open ``./docs/_build/index.html`` in the browser of your choice.
 Test suite
 ----------
 
-Try::
+Stingray uses `py.test` for testing. To run the tests, try::
 
-   $ nosetests
+   $ python setup.py test 
 
 Copyright
 ---------

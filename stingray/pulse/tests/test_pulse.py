@@ -1,13 +1,11 @@
 from __future__ import division, print_function, absolute_import
 from ..pulsar import *
-import unittest
-
 
 def _template_fun(phase, ph0, amplitude, baseline=0):
     return baseline + amplitude * np.cos((phase - ph0) * 2 * np.pi)
 
 
-class TestAll(unittest.TestCase):
+class TestAll(object):
 
     """Unit tests for the stingray.pulsar module."""
 

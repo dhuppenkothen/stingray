@@ -568,31 +568,31 @@ class AveragedPowerspectrum(Powerspectrum):
 
         # chop light curves into segments
         if isinstance(lc, lightcurve.Lightcurve):
-            ps_all, nphots_all = self._make_segment_psd(lc,
+            self.ps_all, nphots_all = self._make_segment_psd(lc,
                                                         self.segment_size)
         else:
-            ps_all, nphots_all = [], []
+            self.ps_all, nphots_all = [], []
             for lc_seg in lc:
                 ps_sep, nphots_sep = self._make_segment_psd(lc_seg,
                                                             self.segment_size)
 
-                ps_all.append(ps_sep)
+                self.ps_all.append(ps_sep)
                 nphots_all.append(nphots_sep)
 
-            ps_all = np.hstack(ps_all)
+            self.ps_all = np.hstack(self.ps_all)
             nphots_all = np.hstack(nphots_all)
 
-        m = len(ps_all)
+        m = len(self.ps_all)
         nphots = np.mean(nphots_all)
-        ps_avg = np.zeros_like(ps_all[0].ps)
-        for ps in ps_all:
+        ps_avg = np.zeros_like(self.ps_all[0].ps)
+        for ps in self.ps_all:
             ps_avg += ps.ps
 
         ps_avg /= np.float(m)
 
-        self.freq = ps_all[0].freq
+        self.freq = self.ps_all[0].freq
         self.ps = ps_avg
         self.m = m
-        self.df = ps_all[0].df
-        self.n = ps_all[0].n
+        self.df = self.ps_all[0].df
+        self.n = self.ps_all[0].n
         self.nphots = nphots

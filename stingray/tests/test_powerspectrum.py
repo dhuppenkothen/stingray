@@ -1,6 +1,8 @@
 
 import numpy as np
-from nose.tools import raises
+
+from astropy.tests.helper import pytest
+
 from stingray import Lightcurve
 from stingray import Powerspectrum, AveragedPowerspectrum
 from stingray.powerspectrum import classical_pvalue
@@ -53,24 +55,24 @@ class TestPowerspectrum(object):
     def test_init_with_lightcurve(self):
         assert Powerspectrum(self.lc)
 
-    @raises(AssertionError)
     def test_init_without_lightcurve(self):
-        assert Powerspectrum(self.lc.counts)
+        with pytest.raises(AssertionError):
+            assert Powerspectrum(self.lc.counts)
 
-    @raises(AssertionError)
     def test_init_with_nonsense_data(self):
         nonsense_data = [None for i in range(100)]
-        assert Powerspectrum(nonsense_data)
+        with pytest.raises(AssertionError):
+            assert Powerspectrum(nonsense_data)
 
-    @raises(AssertionError)
     def test_init_with_nonsense_norm(self):
         nonsense_norm = "bla"
-        assert Powerspectrum(self.lc, norm=nonsense_norm)
+        with pytest.raises(AssertionError):
+            assert Powerspectrum(self.lc, norm=nonsense_norm)
 
-    @raises(AssertionError)
     def test_init_with_wrong_norm_type(self):
         nonsense_norm = 1.0
-        assert Powerspectrum(self.lc, norm=nonsense_norm)
+        with pytest.raises(AssertionError):
+            assert Powerspectrum(self.lc, norm=nonsense_norm)
 
     def test_total_variance(self):
         """
@@ -195,10 +197,10 @@ class TestPowerspectrum(object):
         ps = Powerspectrum(lc=self.lc, norm="Leahy")
         ps.classical_significances()
 
-    @raises(AssertionError)
     def test_classical_significances_fails_in_rms(self):
         ps = Powerspectrum(lc=self.lc, norm="rms")
-        ps.classical_significances()
+        with pytest.raises(AssertionError):
+            ps.classical_significances()
 
     def test_classical_significances_threshold(self):
         ps = Powerspectrum(lc=self.lc, norm="leahy")
@@ -245,6 +247,7 @@ class TestPowerspectrum(object):
 
 
 class TestAveragedPowerspectrum(object):
+
     @classmethod
     def setup_class(cls):
         tstart = 0.0
@@ -282,29 +285,29 @@ class TestAveragedPowerspectrum(object):
         assert np.isclose(ps.segment_size, segment_size)
         assert ps.m == 2
 
-    @raises(TypeError)
     def test_init_without_segment(self):
-        assert AveragedPowerspectrum(self.lc)
+        with pytest.raises(TypeError):
+            assert AveragedPowerspectrum(self.lc)
 
-    @raises(TypeError)
     def test_init_with_nonsense_segment(self):
         segment_size = "foo"
-        assert AveragedPowerspectrum(self.lc, segment_size)
+        with pytest.raises(TypeError):
+            assert AveragedPowerspectrum(self.lc, segment_size)
 
-    @raises(TypeError)
     def test_init_with_none_segment(self):
         segment_size = None
-        assert AveragedPowerspectrum(self.lc, segment_size)
+        with pytest.raises(TypeError):
+            assert AveragedPowerspectrum(self.lc, segment_size)
 
-    @raises(AssertionError)
     def test_init_with_inf_segment(self):
         segment_size = np.inf
-        assert AveragedPowerspectrum(self.lc, segment_size)
+        with pytest.raises(AssertionError):
+            assert AveragedPowerspectrum(self.lc, segment_size)
 
-    @raises(AssertionError)
     def test_init_with_nan_segment(self):
         segment_size = np.nan
-        assert AveragedPowerspectrum(self.lc, segment_size)
+        with pytest.raises(AssertionError):
+            assert AveragedPowerspectrum(self.lc, segment_size)
 
     def test_list_of_light_curves(self):
         n_lcs = 10
@@ -329,7 +332,6 @@ class TestAveragedPowerspectrum(object):
         segment_size = 0.5
         assert AveragedPowerspectrum(lc_all, segment_size)
 
-    @raises(AssertionError)
     def test_list_with_nonsense_component(self):
         n_lcs = 10
 
@@ -353,7 +355,8 @@ class TestAveragedPowerspectrum(object):
         lc_all.append(1.0)
         segment_size = 0.5
 
-        assert AveragedPowerspectrum(lc_all, segment_size)
+        with pytest.raises(AssertionError):
+            assert AveragedPowerspectrum(lc_all, segment_size)
 
     def test_leahy_correct_for_multiple(self):
 
@@ -378,65 +381,65 @@ class TestClassicalSignificances(object):
         nspec = 1.0
         classical_pvalue(power, nspec)
 
-    @raises(AssertionError)
     def test_power_is_not_infinite(self):
         power = np.inf
         nspec = 1
-        classical_pvalue(power, nspec)
+        with pytest.raises(AssertionError):
+            classical_pvalue(power, nspec)
 
-    @raises(AssertionError)
     def test_power_is_not_infinite2(self):
         power = -np.inf
         nspec = 1
-        classical_pvalue(power, nspec)
+        with pytest.raises(AssertionError):
+            classical_pvalue(power, nspec)
 
-    @raises(AssertionError)
     def test_power_is_non_nan(self):
         power = np.nan
         nspec = 1
-        classical_pvalue(power, nspec)
+        with pytest.raises(AssertionError):
+            classical_pvalue(power, nspec)
 
-    @raises(AssertionError)
     def test_power_is_positive(self):
         power = -2.0
         nspec = 1.0
-        classical_pvalue(power, nspec)
+        with pytest.raises(AssertionError):
+            classical_pvalue(power, nspec)
 
-    @raises(AssertionError)
     def test_nspec_is_not_infinite(self):
         power = 2.0
         nspec = np.inf
-        classical_pvalue(power, nspec)
+        with pytest.raises(AssertionError):
+            classical_pvalue(power, nspec)
 
-    @raises(AssertionError)
     def test_nspec_is_not_infinite2(self):
         power = 2.0
         nspec = -np.inf
-        classical_pvalue(power, nspec)
+        with pytest.raises(AssertionError):
+            classical_pvalue(power, nspec)
 
-    @raises(AssertionError)
     def test_nspec_is_not_nan(self):
         power = 2.0
         nspec = np.nan
-        classical_pvalue(power, nspec)
+        with pytest.raises(AssertionError):
+            classical_pvalue(power, nspec)
 
-    @raises(AssertionError)
     def test_nspec_is_positive(self):
         power = 2.0
         nspec = -1.0
-        classical_pvalue(power, nspec)
+        with pytest.raises(AssertionError):
+            classical_pvalue(power, nspec)
 
-    @raises(AssertionError)
     def test_nspec_is_nonzero(self):
         power = 2.0
         nspec = 0.0
-        classical_pvalue(power, nspec)
+        with pytest.raises(AssertionError):
+            classical_pvalue(power, nspec)
 
-    @raises(AssertionError)
     def test_nspec_is_an_integer_number(self):
         power = 2.0
         nspec = 2.5
-        classical_pvalue(power, nspec)
+        with pytest.raises(AssertionError):
+            classical_pvalue(power, nspec)
 
     def test_nspec_float_type_okay(self):
         power = 2.0

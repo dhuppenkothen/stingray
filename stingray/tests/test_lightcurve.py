@@ -1,8 +1,10 @@
-import os
-import warnings
-import matplotlib.pyplot as plt
 import numpy as np
-from nose.tools import raises
+
+from astropy.tests.helper import pytest
+import warnings
+import os
+import matplotlib.pyplot as plt
+
 from stingray import Lightcurve
 
 np.random.seed(20150907)
@@ -101,55 +103,56 @@ class TestLightcurve(object):
         assert np.allclose(lc.counts, np.zeros_like(countrate) +
                            mean_counts*dt)
 
-    @raises(TypeError)
-    def test_init_with_none_data(self):
+    def test_creating_lightcurve_raises_type_error_when_input_is_none(self):
         dt = 0.5
         mean_counts = 2.0
         times = np.arange(0 + dt/2, 5 - dt/2, dt)
-        counts = np.array([None for i in range(times.shape[0])])
-        lc = Lightcurve(times, counts)
+        counts = np.array([None] * times.shape[0])
+        with pytest.raises(TypeError):
+            lc = Lightcurve(times, counts)
 
-    @raises(AssertionError)
-    def test_init_with_inf_data(self):
+    def test_creating_lightcurve_raises_type_error_when_input_is_inf(self):
         dt = 0.5
         mean_counts = 2.0
         times = np.arange(0 + dt/2, 5 - dt/2, dt)
-        counts = np.array([np.inf for i in range(times.shape[0])])
-        lc = Lightcurve(times, counts)
+        counts = np.array([np.inf] * times.shape[0])
+        with pytest.raises(AssertionError):
+            lc = Lightcurve(times, counts)
 
-    @raises(AssertionError)
-    def test_init_with_nan_data(self):
+    def test_creating_lightcurve_raises_type_error_when_input_is_nan(self):
         dt = 0.5
         mean_counts = 2.0
         times = np.arange(0 + dt/2, 5 - dt/2, dt)
-        counts = np.array([np.nan for i in range(times.shape[0])])
-        lc = Lightcurve(times, counts)
+        counts = np.array([np.nan] * times.shape[0])
+        with pytest.raises(AssertionError):
+            lc = Lightcurve(times, counts)
 
-    @raises(AssertionError)
     def test_init_with_diff_array_lengths(self):
         time = [1, 2, 3]
         counts = [2, 2, 2, 2]
+        
+        with pytest.raises(AssertionError):
+            lc = Lightcurve(time, counts)
 
-        lc = Lightcurve(time, counts)
-
-    @raises(AssertionError)
     def test_add_with_different_time_arrays(self):
         _times = [1, 2, 3, 4, 5]
         _counts = [2, 2, 2, 2, 2]
 
-        lc1 = Lightcurve(self.times, self.counts)
-        lc2 = Lightcurve(_times, _counts)
+        with pytest.raises(AssertionError):
 
-        lc = lc1 + lc2
+            lc1 = Lightcurve(self.times, self.counts)
+            lc2 = Lightcurve(_times, _counts)
 
-    @raises(AssertionError)
+            lc = lc1 + lc2
+
     def test_add_with_unequal_time_arrays(self):
         _times = [1, 3, 5, 7]
 
-        lc1 = Lightcurve(self.times, self.counts)
-        lc2 = Lightcurve(_times, self.counts)
+        with pytest.raises(AssertionError):
+            lc1 = Lightcurve(self.times, self.counts)
+            lc2 = Lightcurve(_times, self.counts)
 
-        lc = lc1 + lc2
+            lc = lc1 + lc2
 
     def test_add_with_equal_time_arrays(self):
         _counts = [1, 1, 1, 1]
@@ -162,15 +165,15 @@ class TestLightcurve(object):
         assert np.all(lc.counts == lc1.counts + lc2.counts)
         assert np.all(lc.countrate == lc1.countrate + lc2.countrate)
 
-    @raises(AssertionError)
     def test_sub_with_diff_time_arrays(self):
         _times = [1, 2, 3, 4, 5]
         _counts = [2, 2, 2, 2, 2]
 
-        lc1 = Lightcurve(self.times, self.counts)
-        lc2 = Lightcurve(_times, _counts)
+        with pytest.raises(AssertionError):
+            lc1 = Lightcurve(self.times, self.counts)
+            lc2 = Lightcurve(_times, _counts)
 
-        lc = lc1 - lc2
+            lc = lc1 - lc2
 
     def test_subtraction(self):
         _counts = [3, 4, 5, 6]
@@ -195,11 +198,11 @@ class TestLightcurve(object):
 
         assert len(lc) == 4
 
-    @raises(IndexError)
     def test_indexing_with_unexpected_type(self):
         lc = Lightcurve(self.times, self.counts)
 
-        count = lc['first']
+        with pytest.raises(IndexError):
+            count = lc['first']
 
     def test_indexing(self):
         lc = Lightcurve(self.times, self.counts)
@@ -214,11 +217,11 @@ class TestLightcurve(object):
         assert np.all(lc[2:].counts == np.array([2, 2]))
         assert np.all(lc[:].counts == np.array([2, 2, 2, 2]))
 
-    @raises(AssertionError)
     def test_slicing_index_error(self):
         lc = Lightcurve(self.times, self.counts)
 
-        lc_new = lc[1:2]
+        with pytest.raises(AssertionError):
+            lc_new = lc[1:2]
 
     def test_join_with_different_dt(self):
         _times = [5, 5.5, 6]
@@ -268,11 +271,11 @@ class TestLightcurve(object):
         assert np.all(lc2.time == np.array([1, 2]))
         assert np.all(lc2.counts == np.array([2, 2]))
 
-    @raises(AssertionError)
     def test_truncate_by_time_stop_less_than_start(self):
         lc = Lightcurve(self.times, self.counts)
-
-        lc1 = lc.truncate(start=2, stop=1, method='time')
+ 
+        with pytest.raises(AssertionError):
+            lc1 = lc.truncate(start=2, stop=1, method='time')
 
     def test_truncate_by_time(self):
         lc = Lightcurve(self.times, self.counts)
@@ -317,12 +320,13 @@ class TestLightcurve(object):
         lc.plot()
         assert plt.fignum_exists(1)
 
-    @raises(TypeError)
     def test_plot_wrong_label_type(self):
         lc = Lightcurve(self.times, self.counts)
-        with warnings.catch_warnings(record=True) as w:
-            lc.plot(labels=123)
-            assert "must be either a list or tuple" in str(w[0].message)
+
+        with pytest.raises(TypeError):
+            with warnings.catch_warnings(record=True) as w:
+                lc.plot(labels=123)
+                assert "must be either a list or tuple" in str(w[0].message)
 
     def test_plot_labels_index_error(self):
         lc = Lightcurve(self.times, self.counts)
