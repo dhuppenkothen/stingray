@@ -370,7 +370,7 @@ class TestLightcurveRebin(object):
 
     def test_rebin_even(self):
         dt_new = 2.0
-        lc_binned = self.lc.rebin_lightcurve(dt_new)
+        lc_binned = self.lc.rebin(dt_new)
         assert np.isclose(lc_binned.dt, dt_new)
         counts_test = np.zeros_like(lc_binned.time) + \
             self.lc.counts[0]*dt_new/self.lc.dt
@@ -378,7 +378,7 @@ class TestLightcurveRebin(object):
 
     def test_rebin_odd(self):
         dt_new = 1.5
-        lc_binned = self.lc.rebin_lightcurve(dt_new)
+        lc_binned = self.lc.rebin(dt_new)
         assert np.isclose(lc_binned.dt, dt_new)
 
         counts_test = np.zeros_like(lc_binned.time) + \
@@ -389,7 +389,7 @@ class TestLightcurveRebin(object):
         """
         TODO: Not sure how to write tests for the rebin method!
         """
-        lc_binned = self.lc.rebin_lightcurve(dt)
+        lc_binned = self.lc.rebin(dt)
         assert len(lc_binned.time) == len(lc_binned.counts)
 
     def test_rebin_equal_numbers(self):

@@ -272,17 +272,17 @@ class Powerspectrum(object):
         """
 
         # rebin power spectrum to new resolution
-        binfreq, binps, step_size = utils.rebin_data(self.freq[1:],
-                                                     self.ps[1:], df,
-                                                     method=method)
+        binfreq, binps, step_size = utils.rebin_data_ps(self.freq,
+                                                        self.ps, df,
+                                                        method=method)
 
         # make an empty periodogram object
         bin_ps = Powerspectrum()
 
         # store the binned periodogram in the new object
         bin_ps.norm = self.norm
-        bin_ps.freq = np.hstack([binfreq[0] - self.df, binfreq])
-        bin_ps.ps = np.hstack([self.ps[0], binps])
+        bin_ps.freq = binfreq
+        bin_ps.ps = binps
         bin_ps.df = df
         bin_ps.n = self.n
         bin_ps.nphots = self.nphots

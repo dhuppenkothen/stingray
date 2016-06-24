@@ -300,11 +300,11 @@ class Lightcurve(object):
 
         return Lightcurve(time, counts)
 
-    def rebin_lightcurve(self, dt_new, method='sum'):
+    def rebin(self, dt_new, method='sum'):
         """
         Rebin the light curve to a new time resolution. While the new
-        resolution need not be an integer multiple of the previous time
-        resolution, be aware that if it is not, the last bin will be cut
+        resolution need not be an integer multiple of the lenght of the
+        time array, be aware that if it is not, the last bin will be cut
         off by the fraction left over by the integer division.
 
         Parameters
@@ -326,9 +326,9 @@ class Lightcurve(object):
         assert dt_new >= self.dt, "New time resolution must be larger than " \
                                   "old time resolution!"
 
-        bin_time, bin_counts, _ = utils.rebin_data(self.time,
-                                                   self.counts,
-                                                   dt_new, method)
+        bin_time, bin_counts, _ = utils.rebin_data_lc(self.time,
+                                                      self.counts,
+                                                      dt_new, method)
 
         lc_new = Lightcurve(bin_time, bin_counts)
         return lc_new
