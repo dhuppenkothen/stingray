@@ -7,6 +7,7 @@ import sys
 
 import ah_bootstrap
 from setuptools import setup
+from six.moves import configparser
 
 #A dirty hack to get around some early import/configurations ambiguities
 if sys.version_info[0] >= 3:
@@ -22,7 +23,7 @@ from astropy_helpers.version_helpers import generate_version_py
 
 # Get some values from the setup.cfg
 from distutils import config
-conf = config.ConfigParser()
+conf = configparser.ConfigParser()
 conf.read(['setup.cfg'])
 metadata = dict(conf.items('metadata'))
 
