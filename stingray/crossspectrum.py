@@ -303,7 +303,8 @@ class Crossspectrum(object):
 
         # compute the mean of the powers that fall into each new frequency bin
         binpower, bin_edges, binno = scipy.stats.binned_statistic(
-            self.freq, self.power, statistic="mean", bins=binfreq)
+            self.freq.astype(np.float), self.power.astype(np.float),
+            statistic="mean", bins=binfreq)
 
         # compute the number of powers in each frequency bin
         nsamples = np.array([len(binno[np.where(binno == i)[0]])
