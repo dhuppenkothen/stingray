@@ -286,7 +286,7 @@ class Crossspectrum(object):
             the binned powers
 
         nsamples: numpy.ndarray
-            the samples of the original periodogramincluded in each
+            the samples of the original periodogram included in each
             frequency bin
         """
 
