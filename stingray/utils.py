@@ -14,11 +14,6 @@ except:
     def jit(fun):
         return fun
 
-
-class UnrecognizedMethod(Exception):
-    pass
-
-
 def simon(message, **kwargs):
     """The Statistical Interpretation MONitor.
 
@@ -71,8 +66,9 @@ def rebin_data(x, y, dx_new, method='sum'):
 
     dx_old = x[1] - x[0]
 
-    assert dx_new >= dx_old, "New frequency resolution must be larger than " \
-                             "old frequency resolution."
+    if dx_new < dx_old:
+        raise ValueError("New frequency resolution must be larger than "
+                         "old frequency resolution.")
 
     step_size = dx_new / dx_old
 
@@ -103,8 +99,8 @@ def rebin_data(x, y, dx_new, method='sum'):
         ybin = output
 
     else:
-        raise UnrecognizedMethod("Method for summing or averaging not recognized. "
-                                 "Please enter either 'sum' or 'mean'.")
+        raise ValueError("Method for summing or averaging not recognized. "
+                         "Please enter either 'sum' or 'mean'.")
 
     tseg = x[-1] - x[0] + dx_old
 
@@ -196,3 +192,4 @@ def contiguous_regions(condition):
     # Reshape the result into two columns
     idx.shape = (-1, 2)
     return idx
+

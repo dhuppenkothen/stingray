@@ -267,9 +267,17 @@ class EventList(object):
 
         ev_new = EventList()
 
-        if (self.time is None) or (other.time is None):
-            raise ValueError('Times of both event lists must be set before joining.')
-        
+        if (self.time is None) and (other.time is None):
+            raise ValueError('Times of at least one event list must be set before joining.')
+
+        elif (self.time is None):
+            simon("One of the event lists you are concatenating is empty.")
+            self.time = []
+
+        elif (other.time is None):
+            simon("One of the event lists you are concatenating is empty.")
+            other.time = []
+
         ev_new.time = np.concatenate([self.time, other.time])
         order = np.argsort(ev_new.time)
         ev_new.time = ev_new.time[order] 

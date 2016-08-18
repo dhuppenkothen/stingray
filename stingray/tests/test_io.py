@@ -226,7 +226,7 @@ class TestFileFormats(object):
     def test_savefig_without_plot(self):
         import matplotlib.pyplot as plt
         from ..io import savefig
-        plt.close()
+        plt.close("all")
         with warnings.catch_warnings(record=True) as w:
             savefig('test.png')
             assert "plot the image first" in str(w[0].message)

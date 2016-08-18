@@ -1,30 +1,78 @@
-X-Ray Timing Made Easy
-=======================
+X-Ray Spectral Timing Made Easy
+===============================
 +------------------+-------------------------+----------------------------+
 | Master           | |Build Status Master|   | |Coverage Status Master|   |
 +------------------+-------------------------+----------------------------+
 
-We are writing a general-purpose timing package for X-ray time series.
+Stingray is an in-development spectral-timing software package for astrophysical X-ray (and more) data.
+Stingray merges existing efforts for a (spectral-)timing package in Python, and is 
+structured with the best guidelines for modern open-source programming, following the example of `Astropy`_ .
+
+It is composed of:
+
+1. a library of time series methods, including power spectra, cross spectra, covariance spectra, lags, and so on; 
+2. a set of scripts to load FITS data files from different missions;
+3. a simulator of light curves and event lists, that includes different kinds of variability and more complicated phenomena based on the impulse response of given physical events (e.g. reverberation);
+4. finally, an in-development GUI to ease the learning curve for new users.
+
+There are a number of official software packages for X-ray spectral fitting (Xspec, ISIS, Sherpa, ...).
+Such a widely used and standard software package does not exist for X-ray timing, 
+that remains for now mostly done with custom software. 
+Stingray aims not only at becoming a standard timing package, 
+but at extending the implementation to the most advanced spectral timing techniques available in the literature. 
+The ultimate goal of this project is to provide the community with a package that eases 
+the learning curve for the advanced spectral timing techniques with a correct statistical framework.
+
+
+Note to Users
+-------------
+
+Stingray is currently in **development phase**. Some of the code is not in
+its final stage, and might change before our first release. There might also
+still be bugs we are working on fixing and features that are not finished.
+
+We encourage you to download it and try it out, but please be aware of
+the caveats of working with in-development code.
+At the same time, we welcome contributions and we need your help!
+If you have your own code duplicating any part of the methods implemented in
+Stingray, please try out Stingray and compare to your own results.
+
+We do welcome any sort of feedback: if something breaks, please report it via
+the `issues`_ page. Similarly,
+please open an issue if any functionality is missing, the API is not intuitive
+or if you have suggestions for additional functionality that would be useful to
+have.
+
+If you have code you might want to contribute, we'd love to hear from you,
+either via a `pull request`_ or via an `issue`_.
 
 Contents
 --------
-
-The contents will be:
-
 - make a light curve from event data
 - make periodograms in Leahy and rms normalization
 - average periodograms
 - cross spectra and lags (time vs energy, time vs frequency)
+- coherence
+- simulate a light curve with a given power spectrum
+- simulate a light curve from another light curve and a 1-d (time) or 2-d (time-energy) impulse response
+- simulate an event list from a given light curve _and_ with a given energy spectrum
+- load event lists from fits files of a few missions (*RXTE*/PCA, *NuSTAR*/FPM, *XMM-Newton*/EPIC)
+
+Future Additions
+----------------
+- cross correlation functions, 
 - maximum likelihood fitting of periodograms/parametric models
 - bispectra (?)
-- cross correlation functions, coherence
 - spectral-timing functionality
 - Bayesian QPO searches
 - power colours
 - rms spectra
+- full HEASARC-compatible mission support
+- graphical interface
+- (...) Feel free to propose! Use the `Issues`_ page!
 
 Installation
--------------
+------------
 
 1. Clone our project from github (remember about including --recursive flag due to our submodule(s))::
 
@@ -70,3 +118,7 @@ this project, please `get in touch via the issues
     :target: https://travis-ci.org/StingraySoftware/stingray
 .. |Coverage Status Master| image:: https://coveralls.io/repos/github/StingraySoftware/stingray/badge.svg?branch=master
     :target: https://coveralls.io/github/StingraySoftware/stingray?branch=master
+.. _Astropy: https://www.github.com/astropy/astropy
+.. _Issues: https://www.github.com/stingraysoftware/stingray/issues
+.. _Issue: https://www.github.com/stingraysoftware/stingray/issues
+.. _pull request: https://github.com/StingraySoftware/stingray/pulls

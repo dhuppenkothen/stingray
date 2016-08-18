@@ -537,12 +537,12 @@ def _retrieve_ascii_object(filename, **kwargs):
     Example
     -------
     """
-
-    assert isinstance(filename, six.string_types), \
-        "filename must be string!"
+    if not isinstance(filename, six.string_types):
+        raise TypeError("filename must be string!")
 
     if 'usecols' in list(kwargs.keys()):
-        assert np.size(kwargs['usecols']) == 2, "Need to define two columns"
+        if np.size(kwargs['usecols']) != 2:
+            raise ValueError("Need to define two columns")
         usecols = kwargs["usecols"]
     else:
         usecols = None

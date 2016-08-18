@@ -7,7 +7,7 @@ import logging
 from astropy.io import fits
 from .io import assign_value_if_none
 from .utils import contiguous_regions
-
+from stingray.exceptions import StingrayError
 
 def load_gtis(fits_file, gtistring=None):
     """Load GTI from HDU EVENTS of file fits_file."""
@@ -48,21 +48,39 @@ def _get_gti_from_extension(lchdulist, accepted_gtistrings=['GTI']):
     return gti_list
 
 def check_gtis(gti):
-    """Check if GTIs are well-behaved. No start>end, no overlaps.
+    """Check if GTIs are well-behaved.
+
+    Check that:
+    1) the shape of the GTI array is correct;
+    2) No start>end
+    3) no overlaps.
 
     Raises
     ------
-    AssertionError
-        If GTIs are not well-behaved.
+    TypeError
+        If GTIs are of the wrong shape
+    ValueError
+        If GTIs have overlapping or displaced values
     """
+    gti = np.asarray(gti)
+    if len(gti) != gti.shape[0] or len(gti.shape) != 2 or \
+                    len(gti) != gti.shape[0]:
+        raise TypeError("Please check formatting of GTIs. They need to be"
+                        " provided as [[gti00, gti01], [gti10, gti11], ...]")
+
     gti_start = gti[:, 0]
     gti_end = gti[:, 1]
 
     logging.debug('-- GTI: ' + repr(gti))
     # Check that GTIs are well-behaved
-    assert np.all(gti_end >= gti_start), 'This GTI is incorrect'
+    if not np.all(gti_end >= gti_start):
+        raise ValueError('This GTI end times must be larger than '
+                         'GTI start times')
+
     # Check that there are no overlaps in GTIs
-    assert np.all(gti_start[1:] >= gti_end[:-1]), 'This GTI has overlaps'
+    if not np.all(gti_start[1:] >= gti_end[:-1]):
+        raise ValueError('This GTI has overlaps')
+
     logging.debug('-- Correct')
 
     return
@@ -152,8 +170,10 @@ def create_gti_from_condition(time, condition,
     """
     import collections
 
-    assert len(time) == len(condition), \
-        'The length of the condition and time arrays must be the same.'
+    if len(time) != len(condition):
+        raise StingrayError('The length of the condition and '
+                            'time arrays must be the same.')
+
     idxs = contiguous_regions(condition)
 
     if not isinstance(safe_interval, collections.Iterable):
@@ -194,8 +214,8 @@ def cross_two_gtis(gti0, gti1):
     cross_gtis : From multiple GTI lists, extract common intervals *EXACTLY*
 
     """
-    gti0 = np.array(gti0, dtype=np.longdouble)
-    gti1 = np.array(gti1, dtype=np.longdouble)
+    gti0 = np.asarray(gti0)
+    gti1 = np.asarray(gti1)
     # Check GTIs
     check_gtis(gti0)
     check_gtis(gti1)
@@ -260,7 +280,7 @@ def cross_two_gtis(gti0, gti1):
             final_gti.append([s, e])
             last_end = e
 
-    return np.array(final_gti, dtype=np.longdouble)
+    return np.array(final_gti)
 
 
 def cross_gtis(gti_list):
@@ -274,13 +294,18 @@ def cross_gtis(gti_list):
 
     Returns
     -------
-    gtis : [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
+    gti0: 2-d float array
+        [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
         The newly created GTIs
 
     See Also
     --------
     cross_two_gtis : Extract the common intervals from two GTI lists *EXACTLY*
     """
+    gti_list = np.asarray(gti_list)
+    for g in gti_list:
+        check_gtis(g)
+
     ninst = len(gti_list)
     if ninst == 1:
         return gti_list[0]
@@ -301,10 +326,11 @@ def get_btis(gtis, start_time=None, stop_time=None):
     """
     # Check GTIs
     if len(gtis) == 0:
-        assert start_time is not None and stop_time is not None, \
-            'Empty GTI and no valid start_time and stop_time. BAD!'
+        if not start_time or not stop_time:
+            raise ValueError('Empty GTI and no valid start_time '
+                             'and stop_time. BAD!')
 
-        return np.array([[start_time, stop_time]], dtype=np.longdouble)
+        return np.asarray([[start_time, stop_time]])
     check_gtis(gtis)
 
     start_time = assign_value_if_none(start_time, gtis[0][0])
@@ -322,7 +348,7 @@ def get_btis(gtis, start_time=None, stop_time=None):
     if stop_time - gtis[-1][1] > 0:
         btis.extend([[gtis[0][0] - stop_time]])
 
-    return np.array(btis, dtype=np.longdouble)
+    return np.asarray(btis)
 
 
 def gti_len(gti):
@@ -336,7 +362,7 @@ def check_separate(gti0, gti1):
     ----------
     gti0: 2-d float array
         [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
-    
+
     gti1: 2-d float array
         [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
 
@@ -346,31 +372,33 @@ def check_separate(gti0, gti1):
         True if GTIs are mutually exclusive, False if not
     """
 
-    gti0 = np.array(gti0, dtype=np.longdouble)
-    gti1 = np.array(gti1, dtype=np.longdouble)
+    gti0 = np.asarray(gti0)
+    gti1 = np.asarray(gti1)
+    if len(gti0) == 0 or len(gti1) == 0:
+        return True
 
     # Check if independently GTIs are well behaved
     check_gtis(gti0)
     check_gtis(gti1)
-    
+
     gti0_start = gti0[:, 0][0]
     gti0_end = gti0[:, 1][-1]
     gti1_start = gti1[:, 0][0]
     gti1_end = gti1[:, 1][-1]
 
-    if (gti0_end < gti1_start) or (gti1_end < gti0_start):
+    if (gti0_end <= gti1_start) or (gti1_end <= gti0_start):
         return True
     else:
         return False
 
 def append_gtis(gti0, gti1):
-    """Merge two non-overlapping GTIs.
+    """Union of two non-overlapping GTIs.
 
     Parameters
     ----------
     gti0: 2-d float array
         [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
-    
+
     gti1: 2-d float array
         [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
 
@@ -380,8 +408,8 @@ def append_gtis(gti0, gti1):
         The newly created GTI
     """
 
-    gti0 = np.array(gti0, dtype=np.longdouble)
-    gti1 = np.array(gti1, dtype=np.longdouble)
+    gti0 = np.asarray(gti0)
+    gti1 = np.asarray(gti1)
 
     # Check if independently GTIs are well behaved.
     check_gtis(gti0)
@@ -393,3 +421,234 @@ def append_gtis(gti0, gti1):
             'exclusive.')
 
     return np.concatenate([gti0, gti1])
+
+
+def join_gtis(gti0, gti1):
+    """Union of two GTIs.
+
+    If GTIs are mutually exclusive, it calls `append_gtis`. Otherwise we put the
+    extremes of partially overlapping GTIs on an ideal line and look at the
+    number of opened and closed intervals. When the number of closed and opened
+    intervals is the same, the full GTI is complete and we close it.
+
+    In practice, we assign to each opening time of a GTI the value -1, and
+    the value 1 to each closing time; when the cumulative sum is zero, the
+    GTI has ended. The timestamp after each closed GTI is the start of a new
+    one.
+
+    (cumsum)   -1   -2         -1   0   -1 -2           -1  -2  -1        0
+    GTI A      |-----:----------|   :    |--:------------|   |---:--------|
+    FINAL GTI  |-----:--------------|    |--:--------------------:--------|
+    GTI B            |--------------|       |--------------------|
+
+    Parameters
+    ----------
+    gti0: 2-d float array
+        [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
+
+    gti1: 2-d float array
+        [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
+
+    Returns
+    -------
+    gti: 2-d float array
+        The newly created GTI
+    """
+
+    gti0 = np.asarray(gti0)
+    gti1 = np.asarray(gti1)
+
+    # Check if independently GTIs are well behaved.
+    check_gtis(gti0)
+    check_gtis(gti1)
+
+    if check_separate(gti0, gti1):
+        return append_gtis(gti0, gti1)
+
+    g0 = gti0.flatten()
+    # Opening GTI: type = 1; Closing: type = -1
+    g0_type = np.asarray(list(zip(-np.ones(len(g0) / 2),
+                                  np.ones(len(g0) / 2))))
+    g1 = gti1.flatten()
+    g1_type = np.asarray(list(zip(-np.ones(len(g1) / 2),
+                                  np.ones(len(g1) / 2))))
+
+    g_all = np.append(g0, g1)
+    g_type_all = np.append(g0_type, g1_type)
+    order = np.argsort(g_all)
+    g_all = g_all[order]
+    g_type_all = g_type_all[order]
+
+    sums = np.cumsum(g_type_all)
+
+    # Where the cumulative sum is zero, we close the GTI
+    closing_bins = sums == 0
+    # The next element in the sequence is the start of the new GTI. In the case
+    # of the last element, the next is the first. Numpy.roll gives this for
+    # free.
+    starting_bins = np.roll(closing_bins, 1)
+
+    starting_times = g_all[starting_bins]
+    closing_times = g_all[closing_bins]
+
+    final_gti = []
+    for start, stop in zip(starting_times, closing_times):
+        final_gti.append([start, stop])
+
+    return np.sort(final_gti, axis=0)
+
+
+def time_intervals_from_gtis(gtis, chunk_length):
+    """Returns equal time intervals compatible with GTIs.
+
+    Used to start each FFT/PDS/cospectrum from the start of a GTI,
+    and stop before the next gap in data (end of GTI).
+
+    Parameters
+    ----------
+    gtis : 2-d float array
+        [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
+    chunk_length : float
+        Length of the chunks
+
+    Returns
+    -------
+    spectrum_start_times : array-like
+        List of starting times to use in the spectral calculations.
+
+    spectrum_stop_times : array-like
+        List of end times to use in the spectral calculations.
+
+    """
+    spectrum_start_times = np.array([], dtype=np.longdouble)
+    for g in gtis:
+        if g[1] - g[0] < chunk_length:
+            continue
+
+        newtimes = np.arange(g[0], g[1] - chunk_length,
+                             np.longdouble(chunk_length),
+                             dtype=np.longdouble)
+        spectrum_start_times = \
+            np.append(spectrum_start_times,
+                      newtimes)
+
+    assert len(spectrum_start_times) > 0, \
+        ("No GTIs are equal to or longer than chunk_length.")
+    return spectrum_start_times, spectrum_start_times + chunk_length
+
+
+def bin_intervals_from_gtis(gtis, chunk_length, time):
+    """Similar to intervals_from_gtis, but given an input time array.
+
+    Used to start each FFT/PDS/cospectrum from the start of a GTI,
+    and stop before the next gap in data (end of GTI).
+    In this case, it is necessary to specify the time array containing the
+    times of the light curve bins.
+    Returns start and stop bins of the intervals to use for the PDS
+
+    Parameters
+    ----------
+    gtis : 2-d float array
+        [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
+    chunk_length : float
+        Length of the chunks
+    time : array-like
+        Times of light curve bins
+
+    Returns
+    -------
+    spectrum_start_bins : array-like
+        List of starting bins in the original time array to use in spectral
+        calculations.
+
+    spectrum_stop_bins : array-like
+        List of end bins to use in the spectral calculations.
+    """
+    bintime = time[1] - time[0]
+    nbin = np.long(chunk_length / bintime)
+
+    spectrum_start_bins = np.array([], dtype=np.long)
+    for g in gtis:
+        if g[1] - g[0] < chunk_length:
+            continue
+        good = (time - bintime / 2 > g[0])&(time + bintime / 2 < g[1])
+        t_good = time[good]
+        if len(t_good) == 0:
+            continue
+        startbin = np.argmin(np.abs(time - bintime / 2 - g[0]))
+        stopbin = np.argmin(np.abs(time + bintime / 2 - g[1]))
+
+        if time[startbin] < g[0]: startbin += 1
+        if time[stopbin] < g[1] + bintime/2: stopbin += 1
+
+        newbins = np.arange(startbin, stopbin - nbin + 1, nbin,
+                            dtype=np.long)
+        spectrum_start_bins = \
+            np.append(spectrum_start_bins,
+                      newbins)
+    assert len(spectrum_start_bins) > 0, \
+        ("No GTIs are equal to or longer than chunk_length.")
+    return spectrum_start_bins, spectrum_start_bins + nbin
+
+
+def gti_border_bins(gtis, time):
+    """Find the bins in a time array corresponding to the borders of GTIs.
+
+    GTIs shorter than the bin time are not returned.
+
+    Parameters
+    ----------
+    gtis : 2-d float array
+        [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
+    time : array-like
+        Times of light curve bins
+
+    Returns
+    -------
+    spectrum_start_bins : array-like
+        List of starting bins of each GTI
+
+    spectrum_stop_bins : array-like
+        List of stop bins of each GTI. The elements corresponding to these bins
+        should *not* be included.
+
+    Examples
+    --------
+    >>> times = np.arange(0.5, 13.5)
+
+    >>> start_bins, stop_bins = gti_border_bins(
+    ...    [[0, 5], [6, 8]], times)
+
+    >>> np.all(start_bins == [0, 6])
+    True
+    >>> np.all(stop_bins == [5, 8])
+    True
+    >>> np.all(times[start_bins[0]:stop_bins[0]] == [ 0.5, 1.5, 2.5, 3.5, 4.5])
+    True
+    >>> np.all(times[start_bins[1]:stop_bins[1]] == [6.5, 7.5])
+    True
+    """
+    bintime = time[1] - time[0]
+
+    spectrum_start_bins = np.array([], dtype=np.long)
+    spectrum_stop_bins = np.array([], dtype=np.long)
+    for g in gtis:
+        good = (time - bintime / 2 >= g[0])&(time + bintime / 2 <= g[1])
+        t_good = time[good]
+        if len(t_good) == 0:
+            continue
+        startbin = np.argmin(np.abs(time - bintime / 2 - g[0]))
+        stopbin = np.argmin(np.abs(time + bintime / 2 - g[1]))
+
+        if time[startbin] < g[0]: startbin += 1
+        if time[stopbin] < g[1] + bintime/2: stopbin += 1
+
+        spectrum_start_bins = \
+            np.append(spectrum_start_bins,
+                      [startbin])
+        spectrum_stop_bins = \
+            np.append(spectrum_stop_bins,
+                      [stopbin])
+    assert len(spectrum_start_bins) > 0, \
+        ("No GTIs are equal to or longer than chunk_length.")
+    return spectrum_start_bins, spectrum_stop_bins

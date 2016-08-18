@@ -121,6 +121,18 @@ class TestEvents(object):
         with pytest.raises(ValueError):
             ev.join(ev_other)
 
+    def test_join_empty_lists(self):
+        """Test if an empty event list can be concatenated
+        with a non-empty event list.
+        """
+        ev = EventList(time=[1,2,3])
+        ev_other = EventList()
+        ev.join(ev_other)
+
+        ev = EventList()
+        ev_other = EventList(time=[1,2,3])
+        ev.join(ev_other)
+
     def test_join_without_pha(self):
         ev = EventList(time=[1,2,3])
         ev_other = EventList(time=[2,3])

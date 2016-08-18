@@ -6,6 +6,7 @@ import os
 import matplotlib.pyplot as plt
 
 from stingray import Lightcurve
+from stingray.exceptions import StingrayError
 
 np.random.seed(20150907)
 
@@ -23,6 +24,7 @@ class TestLightcurve(object):
         cls.times = [1, 2, 3, 4]
         cls.counts = [2, 2, 2, 2]
         cls.dt = 1.0
+        cls.gti = [[0.5, 4.5]]
 
     def test_create(self):
         """
@@ -122,7 +124,7 @@ class TestLightcurve(object):
         mean_counts = 2.0
         times = np.arange(0 + dt/2, 5 - dt/2, dt)
         counts = np.array([np.inf] * times.shape[0])
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             lc = Lightcurve(times, counts)
 
     def test_creating_lightcurve_raises_type_error_when_input_is_nan(self):
@@ -130,31 +132,44 @@ class TestLightcurve(object):
         mean_counts = 2.0
         times = np.arange(0 + dt/2, 5 - dt/2, dt)
         counts = np.array([np.nan] * times.shape[0])
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             lc = Lightcurve(times, counts)
 
     def test_init_with_diff_array_lengths(self):
         time = [1, 2, 3]
         counts = [2, 2, 2, 2]
         
-        with pytest.raises(AssertionError):
+        with pytest.raises(StingrayError):
             lc = Lightcurve(time, counts)
 
     def test_add_with_different_time_arrays(self):
         _times = [1, 2, 3, 4, 5]
         _counts = [2, 2, 2, 2, 2]
 
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
 
             lc1 = Lightcurve(self.times, self.counts)
             lc2 = Lightcurve(_times, _counts)
 
             lc = lc1 + lc2
 
+    def test_add_with_same_gtis(self):
+        lc1 = Lightcurve(self.times, self.counts, gti=self.gti)
+        lc2 = Lightcurve(self.times, self.counts, gti=self.gti)
+        lc = lc1 + lc2
+        np.testing.assert_almost_equal(lc.gti, self.gti)
+
+    def test_add_with_different_gtis(self):
+        gti = [[0., 3.5]]
+        lc1 = Lightcurve(self.times, self.counts, gti=self.gti)
+        lc2 = Lightcurve(self.times, self.counts, gti=gti)
+        lc = lc1 + lc2
+        np.testing.assert_almost_equal(lc.gti, [[0.5, 3.5]])
+
     def test_add_with_unequal_time_arrays(self):
         _times = [1, 3, 5, 7]
 
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             lc1 = Lightcurve(self.times, self.counts)
             lc2 = Lightcurve(_times, self.counts)
 
@@ -175,7 +190,7 @@ class TestLightcurve(object):
         _times = [1, 2, 3, 4, 5]
         _counts = [2, 2, 2, 2, 2]
 
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             lc1 = Lightcurve(self.times, self.counts)
             lc2 = Lightcurve(_times, _counts)
 
@@ -226,7 +241,7 @@ class TestLightcurve(object):
     def test_slicing_index_error(self):
         lc = Lightcurve(self.times, self.counts)
 
-        with pytest.raises(AssertionError):
+        with pytest.raises(StingrayError):
             lc_new = lc[1:2]
 
     def test_join_with_different_dt(self):
@@ -267,32 +282,41 @@ class TestLightcurve(object):
         assert np.all(lc.counts == np.array([2, 2, 3, 3, 4, 4]))
 
     def test_truncate_by_index(self):
-        lc = Lightcurve(self.times, self.counts)
+        lc = Lightcurve(self.times, self.counts, gti=self.gti)
 
         lc1 = lc.truncate(start=1)
         assert np.all(lc1.time == np.array([2, 3, 4]))
         assert np.all(lc1.counts == np.array([2, 2, 2]))
+        np.testing.assert_almost_equal(lc1.gti[0][0], 1.5)
 
         lc2 = lc.truncate(stop=2)
         assert np.all(lc2.time == np.array([1, 2]))
         assert np.all(lc2.counts == np.array([2, 2]))
+        np.testing.assert_almost_equal(lc2.gti[-1][-1], 2.5)
 
     def test_truncate_by_time_stop_less_than_start(self):
         lc = Lightcurve(self.times, self.counts)
  
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError):
             lc1 = lc.truncate(start=2, stop=1, method='time')
 
-    def test_truncate_by_time(self):
+    def test_truncate_fails_with_incorrect_method(self):
         lc = Lightcurve(self.times, self.counts)
+        with pytest.raises(ValueError):
+            lc1 = lc.truncate(start=1, method="wrong")
+
+    def test_truncate_by_time(self):
+        lc = Lightcurve(self.times, self.counts, gti=self.gti)
 
         lc1 = lc.truncate(start=1, method='time')
         assert np.all(lc1.time == np.array([1, 2, 3, 4]))
         assert np.all(lc1.counts == np.array([2, 2, 2, 2]))
+        np.testing.assert_almost_equal(lc1.gti[0][0], 0.5)
 
         lc2 = lc.truncate(stop=3, method='time')
         assert np.all(lc2.time == np.array([1, 2]))
         assert np.all(lc2.counts == np.array([2, 2]))
+        np.testing.assert_almost_equal(lc2.gti[-1][-1], 2.5)
 
     def test_sort(self):
         _times = [1, 2, 3, 4]
@@ -374,6 +398,7 @@ class TestLightcurve(object):
         lc.read('lc.pickle',format_='pickle')
         assert np.all(lc.time == self.times)
         assert np.all(lc.counts == self.counts)
+        assert np.all(lc.gti == self.gti)
         os.remove('lc.pickle')
 
     def test_io_with_hdf5(self):
@@ -384,15 +409,48 @@ class TestLightcurve(object):
             data = lc.read('lc.hdf5',format_='hdf5')
             assert np.all(data['time'] == self.times)
             assert np.all(data['counts'] == self.counts)
+            assert np.all(data['gti'] == self.gti)
             os.remove('lc.hdf5')
 
         else:
             lc.read('lc.pickle',format_='pickle')
             assert np.all(lc.time == self.times)
             assert np.all(lc.counts == self.counts)
+            assert np.all(lc.gti == self.gti)
             os.remove('lc.pickle')
 
-        
+    def test_split_lc_by_gtis(self):
+        times = [1, 2, 3, 4, 5, 6, 7, 8]
+        counts = [1, 1, 1, 1, 2, 3, 3, 2]
+        gti = [[0.5, 4.5], [5.5, 7.5]]
+
+        lc = Lightcurve(times, counts, gti=gti)
+        list_of_lcs = lc.split_by_gti()
+        lc0 = list_of_lcs[0]
+        lc1 = list_of_lcs[1]
+        assert np.all(lc0.time == [1, 2, 3, 4])
+        assert np.all(lc1.time == [6, 7])
+        assert np.all(lc0.counts == [1, 1, 1, 1])
+        assert np.all(lc1.counts == [3, 3])
+        assert np.all(lc0.gti == [[0.5, 4.5]])
+        assert np.all(lc1.gti == [[5.5, 7.5]])
+
+    def test_shift(self):
+        times = [1, 2, 3, 4, 5, 6, 7, 8]
+        counts = [1, 1, 1, 1, 2, 3, 3, 2]
+        lc = Lightcurve(times, counts, input_counts=True)
+        lc2 = lc.shift(1)
+        assert np.all(lc2.time - 1 == times)
+        lc2 = lc.shift(-1)
+        assert np.all(lc2.time + 1 == times)
+        assert np.all(lc2.counts == lc.counts)
+        assert np.all(lc2.countrate == lc.countrate)
+        lc = Lightcurve(times, counts, input_counts=False)
+        lc2 = lc.shift(1)
+        assert np.all(lc2.counts == lc.counts)
+        assert np.all(lc2.countrate == lc.countrate)
+
+
 class TestLightcurveRebin(object):
 
     @classmethod

@@ -8,6 +8,7 @@ import logging
 
 import stingray.lightcurve as lightcurve
 import stingray.utils as utils
+from stingray.gti import bin_intervals_from_gtis, check_gtis
 from stingray.utils import simon
 from stingray.crossspectrum import Crossspectrum, AveragedCrossspectrum
 
@@ -61,12 +62,20 @@ def classical_pvalue(power, nspec):
         the null hypothesis of white noise
 
     """
+    if not np.isfinite(power):
+        raise ValueError("power must be a finite floating point number!")
 
-    assert np.isfinite(power), "power must be a finite floating point number!"
-    assert power > 0, "power must be a positive real number!"
-    assert np.isfinite(nspec), "nspec must be a finite integer number"
-    assert nspec >= 1, "nspec must be larger or equal to 1"
-    assert np.isclose(nspec % 1, 0), "nspec must be an integer number!"
+    if power < 0:
+        raise ValueError("power must be a positive real number!")
+
+    if not np.isfinite(nspec):
+        raise ValueError("nspec must be a finite integer number")
+
+    if nspec < 1:
+        raise ValueError("nspec must be larger or equal to 1")
+
+    if not np.isclose(nspec % 1, 0):
+        raise ValueError("nspec must be an integer number!")
 
     # If the power is really big, it's safe to say it's significant,
     # and the p-value will be nearly zero
@@ -109,7 +118,7 @@ def _pavnosigfun(power, nspec):
 
 class Powerspectrum(Crossspectrum):
 
-    def __init__(self, lc=None, norm='frac'):
+    def __init__(self, lc=None, norm='frac', gti=None):
         """
         Make a Periodogram (power spectrum) from a (binned) light curve.
         Periodograms can be Leahy normalized or fractional rms normalized.
@@ -126,6 +135,12 @@ class Powerspectrum(Crossspectrum):
             The normaliation of the periodogram to be used. Options are
             "leahy" or "rms", default is "rms".
 
+        Other Parameters
+        ----------------
+        gti: 2-d float array
+            [[gti0_0, gti0_1], [gti1_0, gti1_1], ...] -- Good Time intervals.
+            This choice overrides the GTIs in the single light curves. Use with
+            care!
 
         Attributes
         ----------
@@ -152,7 +167,7 @@ class Powerspectrum(Crossspectrum):
             The total number of photons in the light curve
 
         """
-        Crossspectrum.__init__(self, lc1=lc, lc2=lc, norm=norm)
+        Crossspectrum.__init__(self, lc1=lc, lc2=lc, norm=norm, gti=gti)
         self.nphots = self.nphots1
 
     def rebin(self, df, method="mean"):
@@ -181,24 +196,17 @@ class Powerspectrum(Crossspectrum):
             max_freq
 
         """
-        # assert min_freq >= self.freq[0], "Lower frequency bound must be " \
-        #                                 "larger or equal the minimum " \
-        #                                 "frequency in the periodogram!"
-
-        # assert max_freq <= self.freq[-1], "Upper frequency bound must be " \
-        #                                 "smaller or equal the maximum " \
-        #                                 "frequency in the periodogram!"
-
         minind = self.freq.searchsorted(min_freq)
         maxind = self.freq.searchsorted(max_freq)
         powers = self.power[minind:maxind]
+
         if self.norm.lower() == 'leahy':
             rms = np.sqrt(np.sum(powers)/self.nphots)
 
         elif self.norm.lower() == "frac":
             rms = np.sqrt(np.sum(powers*self.df))
         else:
-            raise Exception("Normalization not recognized!")
+            raise TypeError("Normalization not recognized!")
 
         rms_err = self._rms_error(powers)
 
@@ -275,8 +283,9 @@ class Powerspectrum(Crossspectrum):
             lower than the threshold specified in `threshold`.
 
         """
-        assert self.norm == "leahy", "This method only works on " \
-                                     "Leahy-normalized power spectra!"
+        if not self.norm == "leahy":
+            raise ValueError("This method only works on "
+                             "Leahy-normalized power spectra!")
 
         # calculate p-values for all powers
         # leave out zeroth power since it just encodes the number of photons!
@@ -299,7 +308,7 @@ class Powerspectrum(Crossspectrum):
 
 class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
 
-    def __init__(self, lc, segment_size, norm="frac"):
+    def __init__(self, lc, segment_size, norm="frac", gti=None):
         """
         Make an averaged periodogram from a light curve by segmenting the light
         curve, Fourier-transforming each segment and then averaging the
@@ -321,6 +330,13 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
             The normaliation of the periodogram to be used. Options are
             "leahy" or "rms", default is "rms".
 
+
+        Other Parameters
+        ----------------
+        gti: 2-d float array
+            [[gti0_0, gti0_1], [gti1_0, gti1_1], ...] -- Good Time intervals.
+            This choice overrides the GTIs in the single light curves. Use with
+            care!
 
         Attributes
         ----------
@@ -351,42 +367,35 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
 
         self.type = "powerspectrum"
 
-
-        assert isinstance(norm, str), "norm is not a string!"
-
-        assert norm.lower() in ["frac", "abs", "leahy", "none"], \
-                "norm must be 'frac', 'abs', 'leahy', or 'none'!"
-
-        self.norm = norm.lower()
-
-        assert np.isfinite(segment_size), "segment_size must be finite!"
+        if not np.isfinite(segment_size):
+            raise ValueError("segment_size must be finite!")
 
         self.segment_size = segment_size
 
-        Powerspectrum.__init__(self, lc, norm)
+        Powerspectrum.__init__(self, lc, norm, gti=gti)
 
         return
 
     def _make_segment_spectrum(self, lc, segment_size):
 
-        assert isinstance(lc, lightcurve.Lightcurve)
+        if not isinstance(lc, lightcurve.Lightcurve):
+            raise TypeError("lc must be a lightcurve.Lightcurve object")
 
-        # number of bins per segment
-        nbins = int(segment_size/lc.dt)
+        if self.gti is None:
+            self.gti = lc.gti
+        check_gtis(self.gti)
 
-        start_ind = 0
-        end_ind = nbins
+        start_inds, end_inds = \
+            bin_intervals_from_gtis(self.gti, segment_size, lc.time)
 
         power_all = []
         nphots_all = []
-        while end_ind <= lc.counts.shape[0]:
+        for start_ind, end_ind in zip(start_inds, end_inds):
             time = lc.time[start_ind:end_ind]
             counts = lc.counts[start_ind:end_ind]
             lc_seg = lightcurve.Lightcurve(time, counts)
             power_seg = Powerspectrum(lc_seg, norm=self.norm)
             power_all.append(power_seg)
             nphots_all.append(np.sum(lc_seg.counts))
-            start_ind += nbins
-            end_ind += nbins
 
         return power_all, nphots_all

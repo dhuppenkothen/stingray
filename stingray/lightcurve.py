@@ -8,14 +8,16 @@ import logging
 import numpy as np
 import stingray.io as io
 import stingray.utils as utils
-from stingray.utils import simon
-
+from stingray.exceptions import StingrayError
+from stingray.utils import simon, assign_value_if_none
+from stingray.gti import cross_two_gtis, join_gtis, gti_border_bins
+from stingray.gti import check_gtis
 
 __all__ = ["Lightcurve"]
 
 
 class Lightcurve(object):
-    def __init__(self, time, counts, input_counts=True):
+    def __init__(self, time, counts, input_counts=True, gti=None):
         """
         Make a light curve object from an array of time stamps and an
         array of counts.
@@ -34,6 +36,12 @@ class Lightcurve(object):
             If True, the code assumes that the input data in 'counts'
             is in units of counts/bin. If False, it assumes the data
             in 'counts' is in counts/second.
+
+        gti: 2-d float array, default None
+            [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
+            Good Time Intervals. They are *not* applied to the data by default.
+            They will be used by other methods to have an indication of the 
+            "safe" time intervals to use during analysis. 
 
         Attributes
         ----------
@@ -58,19 +66,27 @@ class Lightcurve(object):
         tstart: float
             The start time of the light curve.
 
+        gti: 2-d float array
+            [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
+            Good Time Intervals. They indicate the "safe" time intervals
+            to be used during the analysis of the light curve.
+
         """
+        if not np.all(np.isfinite(time)):
+            raise ValueError( "There are inf or NaN values in "
+                              "your time array!")
 
-        assert np.all(np.isfinite(time)), "There are inf or NaN values in " \
-                                          "your time array!"
+        if not np.all(np.isfinite(counts)):
+            raise ValueError( "There are inf or NaN values in "
+                              "your counts array!")
 
-        assert np.all(np.isfinite(counts)), "There are inf or NaN values in " \
-                                            "your counts array!"
+        if len(time) != len(counts):
+            raise StingrayError("time are counts array are not "
+                                         "of the same length!")
 
-        assert len(time) == len(counts), "time are counts array are not " \
-                                         "of the same length!"
-
-        assert len(time) > 1, "A single or no data points can not create " \
-                              "a lightcurve!"
+        if len(time) <= 1:
+            raise StingrayError("A single or no data points can not create " \
+                              "a lightcurve!")
 
         self.time = np.asarray(time)
         self.dt = time[1] - time[0]
@@ -94,6 +110,25 @@ class Lightcurve(object):
 
         self.tseg = self.time[-1] - self.time[0] + self.dt
         self.tstart = self.time[0] - 0.5*self.dt
+        self.gti = \
+            np.asarray(assign_value_if_none(gti,
+                                            [[self.tstart,
+                                              self.tstart + self.tseg]]))
+        check_gtis(self.gti)
+
+    def shift(self, time_shift):
+        """Shift the light curve and the GTIs in time.
+
+        Parameters
+        ----------
+        time_shift: float
+            The amount of time that the light curve will be shifted
+        """
+        new_lc = Lightcurve(self.time + time_shift, self.counts,
+                            gti=self.gti + time_shift)
+        new_lc.countrate = self.countrate
+        new_lc.counts = self.counts
+        return new_lc
 
     def __add__(self, other):
         """
@@ -102,13 +137,17 @@ class Lightcurve(object):
         This magic method adds two Lightcurve objects having the same time
         array such that the corresponding counts arrays get summed up.
 
+        GTIs are crossed, so that only common intervals are saved.
+
         Example
         -------
         >>> time = [5, 10, 15]
         >>> count1 = [300, 100, 400]
         >>> count2 = [600, 1200, 800]
-        >>> lc1 = Lightcurve(time, count1)
-        >>> lc2 = Lightcurve(time, count2)
+        >>> gti1 = [[0, 20]]
+        >>> gti2 = [[0, 25]]
+        >>> lc1 = Lightcurve(time, count1, gti=gti1)
+        >>> lc2 = Lightcurve(time, count2, gti=gti2)
         >>> lc = lc1 + lc2
         >>> lc.counts
         array([ 900, 1300, 1200])
@@ -119,12 +158,13 @@ class Lightcurve(object):
         try:
             assert np.all(np.equal(self.time, other.time))
         except (ValueError, AssertionError):
-            raise AssertionError("Time arrays of both light curves must be "
+            raise ValueError("Time arrays of both light curves must be "
                                  "of same dimension and equal.")
 
         new_counts = np.add(self.counts, other.counts)
+        common_gti = cross_two_gtis(self.gti, other.gti)
 
-        lc_new = Lightcurve(self.time, new_counts)
+        lc_new = Lightcurve(self.time, new_counts, gti=common_gti)
 
         return lc_new
 
@@ -136,13 +176,17 @@ class Lightcurve(object):
         time array such that the corresponding counts arrays interferes with
         each other.
 
+        GTIs are crossed, so that only common intervals are saved.
+
         Example
         -------
         >>> time = [10, 20, 30]
         >>> count1 = [600, 1200, 800]
         >>> count2 = [300, 100, 400]
-        >>> lc1 = Lightcurve(time, count1)
-        >>> lc2 = Lightcurve(time, count2)
+        >>> gti1 = [[0, 20]]
+        >>> gti2 = [[0, 25]]
+        >>> lc1 = Lightcurve(time, count1, gti=gti1)
+        >>> lc2 = Lightcurve(time, count2, gti=gti2)
         >>> lc = lc1 - lc2
         >>> lc.counts
         array([ 300, 1100,  400])
@@ -153,12 +197,13 @@ class Lightcurve(object):
         try:
             assert np.all(np.equal(self.time, other.time))
         except (ValueError, AssertionError):
-            raise AssertionError("Time arrays of both light curves must be "
+            raise ValueError("Time arrays of both light curves must be "
                                  "of same dimension and equal.")
 
         new_counts = np.subtract(self.counts, other.counts)
+        common_gti = cross_two_gtis(self.gti, other.gti)
 
-        lc_new = Lightcurve(self.time, new_counts)
+        lc_new = Lightcurve(self.time, new_counts, gti=common_gti)
 
         return lc_new
 
@@ -180,7 +225,7 @@ class Lightcurve(object):
         >>> lc_new.counts
         array([100, 100, 100])
         """
-        lc_new = Lightcurve(self.time, -1*self.counts)
+        lc_new = Lightcurve(self.time, -1*self.counts, gti=self.gti)
 
         return lc_new
 
@@ -236,7 +281,7 @@ class Lightcurve(object):
                              "object !")
 
     @staticmethod
-    def make_lightcurve(toa, dt, tseg=None, tstart=None):
+    def make_lightcurve(toa, dt, tseg=None, tstart=None, gti=None):
 
         """
         Make a light curve out of photon arrival times.
@@ -263,6 +308,10 @@ class Lightcurve(object):
             The start time of the light curve.
             If this is None, the arrival time of the first photon will be used
             as the start time of the light curve.
+
+        gti: 2-d float array
+            [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
+            Good Time Intervals
 
         Returns
         -------
@@ -299,7 +348,7 @@ class Lightcurve(object):
 
         counts = np.asarray(counts)
 
-        return Lightcurve(time, counts)
+        return Lightcurve(time, counts, gti=gti)
 
     def rebin_lightcurve(self, dt_new, method='sum'):
         """
@@ -324,8 +373,10 @@ class Lightcurve(object):
         lc_new: :class:`Lightcurve` object
             The :class:`Lightcurve` object with the new, binned light curve.
         """
-        assert dt_new >= self.dt, "New time resolution must be larger than " \
-                                  "old time resolution!"
+
+        if dt_new < self.dt:
+            raise ValueError("New time resolution must be larger than " \
+                                  "old time resolution!")
 
         bin_time, bin_counts, _ = utils.rebin_data(self.time,
                                                    self.counts,
@@ -342,6 +393,8 @@ class Lightcurve(object):
         objects. The count per bin in the resulting object will be the
         individual count per bin, or the average in case of overlapping
         time arrays of both lightcurve objects.
+
+        Good Time intervals are also joined.
 
         Note : Time array of both lightcurves should not overlap each other.
 
@@ -409,7 +462,9 @@ class Lightcurve(object):
 
         new_counts = np.asarray(new_counts)
 
-        lc_new = Lightcurve(new_time, new_counts)
+        gti = join_gtis(self.gti, other.gti)
+
+        lc_new = Lightcurve(new_time, new_counts, gti=gti)
 
         return lc_new
 
@@ -459,11 +514,14 @@ class Lightcurve(object):
             The :class:`Lightcurve` object with truncated time and counts
             arrays.
         """
-        assert isinstance(method, str), "method key word argument is not " \
-                                        "a string !"
 
-        assert method.lower() in ['index', 'time'], "Unknown method type " + \
-                                                    method + "."
+        if not isinstance(method, str):
+            raise TypeError("method key word argument is not " \
+                                        "a string !")
+
+        if method.lower() not in ['index', 'time']:
+            raise ValueError("Unknown method type " + method + ".")
+
         if method.lower() == 'index':
             return self._truncate_by_index(start, stop)
         else:
@@ -473,13 +531,19 @@ class Lightcurve(object):
         """Private method for truncation using index values."""
         time_new = self.time[start:stop]
         counts_new = self.counts[start:stop]
+        gti = \
+            cross_two_gtis(self.gti,
+                           np.asarray([[self.time[start] - 0.5 * self.dt,
+                                        time_new[-1] + 0.5 * self.dt]]) )
 
-        return Lightcurve(time_new, counts_new)
+        return Lightcurve(time_new, counts_new, gti=gti)
 
     def _truncate_by_time(self, start, stop):
         """Private method for truncation using time values."""
+
         if stop is not None:
-            assert start < stop, "start time must be less than stop time!"
+            if start > stop:
+                raise ValueError("start time must be less than stop time!")
 
         if not start == 0:
             start = np.where(self.time == start)[0][0]
@@ -650,3 +714,17 @@ class Lightcurve(object):
 
         else:
             utils.simon("Format not understood.")
+
+    def split_by_gti(self):
+        """Splits the `LightCurve` into a list of `LightCurve`s , using GTIs."""
+        list_of_lcs = []
+
+        start_bins, stop_bins = gti_border_bins(self.gti, self.time)
+        for i in range(len(start_bins)):
+            start = start_bins[i]
+            stop = stop_bins[i]
+            # Note: GTIs are consistent with default in this case!
+            new_lc = Lightcurve(self.time[start:stop], self.counts[start:stop])
+            list_of_lcs.append(new_lc)
+
+        return list_of_lcs
