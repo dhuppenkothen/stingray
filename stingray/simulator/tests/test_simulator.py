@@ -78,6 +78,14 @@ class TestSimulator(object):
 
         self.simulator.delete_channels(['3.5-4.5', '4.5-5.5'])
 
+    def test_get_all_channels(self):
+        """ Retrieve all energy channels. """
+        self.simulator.simulate_channel('3.5-4.5', 2)
+        self.simulator.simulate_channel('4.5-5.5', 1)
+        lc = self.simulator.get_all_channels()
+
+        self.simulator.delete_channels(['3.5-4.5', '4.5-5.5'])
+
     def test_count_channels(self):
         """
         Count energy channels after they have been simulated.

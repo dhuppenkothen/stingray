@@ -190,6 +190,13 @@ class Simulator(object):
         
         return [lc[1] for lc in self.channels if lc[0] in channels]
 
+    def get_all_channels(self):
+        """
+        Get lightcurves belonging to all channels.
+        """
+
+        return [lc[1] for lc in self.channels]
+
     def delete_channel(self, channel):
         """
         Delete an energy channel.
