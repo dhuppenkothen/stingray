@@ -170,8 +170,11 @@ class Simulator(object):
         """
 
         # Check that channel name does not already exist.
-        assert channel not in [lc[0] for lc in self.channels]
-        self.channels.append((channel, self.simulate(*args)))
+        if channel not in [lc[0] for lc in self.channels]:
+            self.channels.append((channel, self.simulate(*args)))
+
+        else:
+            raise KeyError('A channel with this name already exists.')
 
     def get_channel(self, channel):
         """
