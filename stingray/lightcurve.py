@@ -596,7 +596,7 @@ class Lightcurve(object):
         self.counts = np.asarray(new_counts)
 
     def plot(self, labels=None, axis=None, title=None, marker='-', save=False,
-             filename=None):
+             show=False, filename=None):
         """
         Plot the Lightcurve using Matplotlib.
 

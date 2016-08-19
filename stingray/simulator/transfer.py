@@ -115,7 +115,7 @@ class TransferFunction(object):
         
         self.energy = np.mean(self.data, axis=1)
 
-    def plot(self, response='2d', save=False, filename=None):
+    def plot(self, response='2d', save=False, filename=None, show=False):
         """
         Plot 'time', 'energy' or 2-d response using matplotlib.
 
@@ -148,7 +148,6 @@ class TransferFunction(object):
             plt.xlabel('Time')
             plt.ylabel('Flux')
             plt.title('Time-resolved Response')
-            plt.show()
 
         elif response == 'energy':
             e = np.linspace(self.estart, len(self.data[:])*self.de, 
@@ -157,7 +156,6 @@ class TransferFunction(object):
             plt.xlabel('Energy')
             plt.ylabel('Flux')
             plt.title('Energy-resolved Response')
-            plt.show()
             
         elif response == '2d':
             figure = plt.imshow(self.data, interpolation='nearest', aspect='auto')
@@ -165,7 +163,6 @@ class TransferFunction(object):
             plt.ylabel('Energy')
             plt.title('2-d Transfer Function')
             plt.colorbar()
-            plt.show()
 
         else:
             raise ValueError("Response value is not recognized. Available"
@@ -176,6 +173,9 @@ class TransferFunction(object):
                 plt.savefig('out.png')
             else:
                 plt.savefig(filename)
+        
+        if show:
+            plt.show()
         
     @staticmethod
     def read(filename, format_='pickle'):
