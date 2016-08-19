@@ -222,7 +222,7 @@ Implementation of artificial methods to create energy-averaged
 responses for quick testing.
 """
 
-def simple_ir(dt, start=0, width=1000, intensity=1):
+def simple_ir(dt=0.125, start=0, width=1000, intensity=1):
     """
     Construct a simple impulse response using start time, 
     width and scaling intensity.
@@ -257,7 +257,7 @@ def simple_ir(dt, start=0, width=1000, intensity=1):
 
     return np.append(h_zeros, h_ones)
 
-def relativistic_ir(dt, t1=3, t2=4, t3=10, p1=1, p2=1.4, rise=0.6, decay=0.1):
+def relativistic_ir(dt=0.125, t1=3, t2=4, t3=10, p1=1, p2=1.4, rise=0.6, decay=0.1):
     """
     Construct a realistic impulse response considering the relativistic
     effects.
