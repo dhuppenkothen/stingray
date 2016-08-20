@@ -116,9 +116,9 @@ class EventList(object):
 
         return Lightcurve.make_lightcurve(self.time, dt, tstart=tstart, tseg=tseg)
 
-    def set_times(self, lc, use_spline=False, bin_time=None):
+    def simulate_times(self, lc, use_spline=False, bin_time=None):
         """
-        Assign photon arrival times to event list, using acceptance-rejection
+        Assign (simulate) photon arrival times to event list, using acceptance-rejection
         method.
 
         Parameters
@@ -210,9 +210,9 @@ class EventList(object):
         self.time = EventList(time).time
         self.ncounts = len(self.time)
 
-    def set_pha(self, spectrum):
+    def simulate_energies(self, spectrum):
         """
-        Assign energies to event list.
+        Assign (simulate) energies to event list.
 
         Parameters
         ----------

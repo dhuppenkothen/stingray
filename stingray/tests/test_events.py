@@ -37,21 +37,21 @@ class TestEvents(object):
         ev = EventList(self.time)
         lc = ev.to_lc(1)
 
-    def test_set_times(self):
-        """Set photon arrival times for an event list 
+    def test_simulate_times(self):
+        """Simulate photon arrival times for an event list 
         from light curve.
         """
         lc = Lightcurve(self.time, self.counts)
         ev = EventList()
-        ev.set_times(lc)
+        ev.simulate_times(lc)
 
-    def test_set_times_with_spline(self):
-        """Set photon arrival times, with use_spline option
+    def test_simulate_times_with_spline(self):
+        """Simulate photon arrival times, with use_spline option
         enabled.
         """
         lc = Lightcurve(self.time, self.counts)
         ev = EventList()
-        ev.set_times(lc, use_spline = True)
+        ev.simulate_times(lc, use_spline = True)
 
     def test_recover_lc(self):
         """Test that the original light curve can be recovered from 
@@ -59,43 +59,43 @@ class TestEvents(object):
         """
         lc = Lightcurve(self.time, self.counts)
         ev = EventList()
-        ev.set_times(lc)
+        ev.simulate_times(lc)
 
         lc_rcd = ev.to_lc(dt=1, tstart=0, tseg=4)
         assert np.all(np.abs(lc_rcd.counts - lc.counts) < 3 * np.sqrt(lc.counts))
 
-    def test_set_pha(self):
+    def test_simulate_energies(self):
         """Assign photon energies to an event list.
         """
         ev = EventList(ncounts=100)
-        ev.set_pha(self.spectrum)
+        ev.simulate_energies(self.spectrum)
 
-    def test_set_pha_with_1d_spectrum(self):
-        """Test that set_pha() method raises index
+    def test_simulate_energies_with_1d_spectrum(self):
+        """Test that simulate_energies() method raises index
         error exception is spectrum is 1-d. 
         """
         ev = EventList(ncounts=100)
         with pytest.raises(IndexError):
-            ev.set_pha(self.spectrum[0])
+            ev.simulate_energies(self.spectrum[0])
 
-    def test_set_pha_with_wrong_spectrum_type(self):
-        """Test that set_pha() method raises type error
+    def test_simulate_energies_with_wrong_spectrum_type(self):
+        """Test that simulate_energies() method raises type error
         exception when wrong sepctrum type is supplied.
         """
         ev = EventList(ncounts=100)
         with pytest.raises(TypeError):
-            ev.set_pha(1)
+            ev.simulate_energies(1)
 
-    def test_set_pha_with_counts_not_set(self):
+    def test_simulate_energies_with_counts_not_set(self):
         ev = EventList()
-        ev.set_pha(self.spectrum)
+        ev.simulate_energies(self.spectrum)
 
     def test_compare_pha(self):
         """Compare the simulated energy distribution to actual distribution.
         """
         fluxes = np.array(self.spectrum[1])
         ev = EventList(ncounts=1000)
-        ev.set_pha(self.spectrum)
+        ev.simulate_energies(self.spectrum)
         pha = [int(p) for p in ev.pha]
 
         # Histogram pha to get shape approximation
@@ -111,9 +111,9 @@ class TestEvents(object):
 
         assert np.all(np.abs(lc_prob - fluxes_prob) < 3 * np.sqrt(fluxes_prob))
 
-    def test_join_without_times_set(self):
+    def test_join_without_times_simulated(self):
         """Test if exception is raised when join method is
-        called before first setting times.
+        called before first simulating times.
         """
         ev = EventList()
         ev_other = EventList()
