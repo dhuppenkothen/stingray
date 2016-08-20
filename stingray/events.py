@@ -139,7 +139,6 @@ class EventList(object):
 
         return EventList(time=times)
 
-
     def simulate_times(self, lc, use_spline=False, bin_time=None):
         """
         Assign (simulate) photon arrival times to event list, using acceptance-rejection
@@ -391,7 +390,7 @@ class EventList(object):
             write(self, filename, format_)
 
         elif format_ == 'fits':
-            write(self, filename, format_, tnames=['EVENTS','GTI'], 
+            write(self, filename, format_, tnames=['EVENTS', 'GTI'], 
                 colsassign={'gti':'GTI'})
 
         else:
