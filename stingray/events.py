@@ -320,7 +320,8 @@ class EventList(object):
 
         return ev_new
 
-    def read(self, filename, format_='pickle'):
+    @staticmethod
+    def read(filename, format_='pickle'):
         """
         Imports EventList object.
 
