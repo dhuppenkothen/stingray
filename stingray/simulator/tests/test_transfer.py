@@ -2,7 +2,6 @@ import os
 import pytest
 
 from stingray.simulator import transfer
-from matplotlib import pyplot as plt
 
 class TestSimulator(object):
 
