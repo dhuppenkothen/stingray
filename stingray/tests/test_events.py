@@ -37,6 +37,13 @@ class TestEvents(object):
         ev = EventList(self.time)
         lc = ev.to_lc(1)
 
+    def test_from_lc(self):
+        """Load event list from lightcurve"""
+        lc = Lightcurve(time=[0.5, 1.5, 2.5], counts=[2, 1, 2])
+        ev = EventList.from_lc(lc)
+
+        assert (ev.time == np.array([0.5, 0.5, 1.5, 2.5, 2.5])).all()
+
     def test_simulate_times(self):
         """Simulate photon arrival times for an event list 
         from light curve.

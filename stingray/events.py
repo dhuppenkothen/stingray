@@ -116,6 +116,30 @@ class EventList(object):
 
         return Lightcurve.make_lightcurve(self.time, dt, tstart=tstart, tseg=tseg)
 
+    @staticmethod
+    def from_lc(lc):
+        """
+        Loads eventlist from light curve.
+
+        Parameters
+        ----------
+        lc: lightcurve.Lightcurve object
+            Light curve data to load from
+
+        Returns
+        -------
+        ev: events.EventList object
+            Event List
+        """
+
+        # Multiply times by number of counts
+        times = [[i] * j for i,j in zip(lc.time, lc.counts)]
+        # Concatenate all lists
+        times = [i for j in times for i in j]
+
+        return EventList(time=times)
+
+
     def simulate_times(self, lc, use_spline=False, bin_time=None):
         """
         Assign (simulate) photon arrival times to event list, using acceptance-rejection
