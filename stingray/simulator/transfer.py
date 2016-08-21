@@ -144,7 +144,7 @@ class TransferFunction(object):
         if response == 'time':
             t = np.linspace(self.tstart, len(self.data[0])*self.dt, 
                             len(self.data[0]))
-            figure = plt.plot(t, self.time, 'bo')
+            figure = plt.plot(t, self.time)
             plt.xlabel('Time')
             plt.ylabel('Flux')
             plt.title('Time-resolved Response')
@@ -152,13 +152,14 @@ class TransferFunction(object):
         elif response == 'energy':
             e = np.linspace(self.estart, len(self.data[:])*self.de, 
                             len(self.data[:]))
-            figure = plt.plot(e, self.energy, 'bo')
+            figure = plt.plot(e, self.energy)
             plt.xlabel('Energy')
             plt.ylabel('Flux')
             plt.title('Energy-resolved Response')
             
         elif response == '2d':
-            figure = plt.imshow(self.data, interpolation='nearest', aspect='auto')
+            figure = plt.imshow(self.data.transpose(), interpolation='nearest',
+                                cmap='Oranges')
             plt.xlabel('Time')
             plt.ylabel('Energy')
             plt.title('2-d Transfer Function')
