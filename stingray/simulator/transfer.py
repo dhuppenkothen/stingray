@@ -87,7 +87,7 @@ class TransferFunction(object):
             start = int(self.estart + e0/self.de)
         
         if e1 is None:
-            stop = len(self.data[0]) - 1
+            stop = len(self.data[:][0]) - 1
         else:
             stop = int(self.estart + e1/self.de)
 
