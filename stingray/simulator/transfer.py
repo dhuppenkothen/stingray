@@ -26,6 +26,9 @@ class TransferFunction(object):
             arr[1][5] defines a time of 5(s) and energy of 1(keV) [assuming
             'dt' and 'de' are 1 and 'tstart' and 'estart' are 0.]
 
+            Note that each row is a different energy channel starting from
+            the lowest to the highest.
+
         dt : float, default 1
             time interval
 
@@ -95,8 +98,8 @@ class TransferFunction(object):
         if (start < 0) or (stop < 0):
             raise ValueError('e0 and e1 must be positive.')
 
-        if (start > len(self.data[:])) or (stop > len(self.data[:])):
-            raise ValueError('One or both of the given energy values are out of range.')
+        if (start > len(self.data[:][0])) or (stop > len(self.data[:][0])):
+            raise ValueError('One or both energy values are out of range.')
 
         if start == stop:
             raise ValueError('e0 and e1 must be separated by at least de.')
@@ -158,8 +161,8 @@ class TransferFunction(object):
             plt.title('Energy-resolved Response')
             
         elif response == '2d':
-            figure = plt.imshow(self.data.transpose(), interpolation='nearest',
-                                cmap='Oranges')
+            figure = plt.imshow(self.data, interpolation='nearest',
+                                cmap='Oranges', origin='lower')
             plt.xlabel('Time')
             plt.ylabel('Energy')
             plt.title('2-d Transfer Function')
