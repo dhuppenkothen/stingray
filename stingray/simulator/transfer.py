@@ -180,6 +180,8 @@ class TransferFunction(object):
         
         if show:
             plt.show()
+        else:
+            plt.close()
         
     @staticmethod
     def read(filename, format_='pickle'):

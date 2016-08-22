@@ -31,7 +31,7 @@ class TestSimulator(object):
         self.transfer.time_response()
 
     def test_time_response_with_energy_ranges(self):
-        self.transfer.time_response(e0=3.3, e1=6.7)
+        self.transfer.time_response(e0=3.3, e1=4.7)
 
     def test_time_response_with_incorrect_ranges(self):
         """Test that incorrect energy ranges raises a 
