@@ -189,14 +189,15 @@ class _Bootstrapper(object):
 
         # If this is a release then the .git directory will not exist so we
         # should not use git.
-        git_dir_exists = os.path.exists(os.path.join(os.path.dirname(__file__), '.git'))
+        git_dir_exists = os.path.exists(os.path.join(os.path.dirname(__file__),
+                                                     '.git'))
         if use_git is None and not git_dir_exists:
             use_git = False
 
         self.use_git = use_git if use_git is not None else USE_GIT
-        # Declared as False by default--later we check if astropy-helpers can be
-        # upgraded from PyPI, but only if not using a source distribution (as in
-        # the case of import from a git submodule)
+        # Declared as False by default--later we check if astropy-helpers can
+        # be upgraded from PyPI, but only if not using a source distribution
+        # (as in the case of import from a git submodule)
         self.is_submodule = False
 
     @classmethod
@@ -473,9 +474,10 @@ class _Bootstrapper(object):
 
         # Annoyingly, setuptools will not handle other arguments to
         # Distribution (such as options) before handling setup_requires, so it
-        # is not straightforward to programmatically augment the arguments which
-        # are passed to easy_install
+        # is not straightforward to programmatically augment the arguments
+        # which are passed to easy_install
         class _Distribution(Distribution):
+
             def get_option_dict(self, command_name):
                 opts = Distribution.get_option_dict(self, command_name)
                 if command_name == 'easy_install':
@@ -501,8 +503,8 @@ class _Bootstrapper(object):
                 with _silence():
                     _Distribution(attrs=attrs)
 
-            # If the setup_requires succeeded it will have added the new dist to
-            # the main working_set
+            # If the setup_requires succeeded it will have added the new dist
+            # to the main working_set
             return pkg_resources.working_set.by_key.get(DIST_NAME)
         except Exception as e:
             if DEBUG:
@@ -552,12 +554,11 @@ class _Bootstrapper(object):
 
     def _check_submodule_using_git(self):
         """
-        Check if the given path is a git submodule.  If so, attempt to initialize
-        and/or update the submodule if needed.
-
-        This function makes calls to the ``git`` command in subprocesses.  The
-        ``_check_submodule_no_git`` option uses pure Python to check if the given
-        path looks like a git submodule, but it cannot perform updates.
+        Check if the given path is a git submodule. If so, attempt to
+        initialize and/or update the submodule if needed.
+        This function makes calls to the ``git`` command in subprocesses. The
+        ``_check_submodule_no_git`` option uses pure Python to check if the
+        given path looks like a git submodule, but it cannot perform updates.
         """
 
         cmd = ['git', 'submodule', 'status', '--', self.path]
@@ -578,12 +579,11 @@ class _Bootstrapper(object):
 
         if returncode != 0 and stderr:
             # Unfortunately the return code alone cannot be relied on, as
-            # earlier versions of git returned 0 even if the requested submodule
-            # does not exist
-
-            # This is a warning that occurs in perl (from running git submodule)
-            # which only occurs with a malformatted locale setting which can
-            # happen sometimes on OSX.  See again
+            # earlier versions of git returned 0 even if the requested
+            # submodule does not exist
+            # This is a warning that occurs in perl (from running git
+            # submodule) which only occurs with a malformatted locale setting
+            # which can happen sometimes on OSX.  See again
             # https://github.com/astropy/astropy/issues/2749
             perl_warning = ('perl: warning: Falling back to the standard locale '
                             '("C").')
@@ -628,13 +628,12 @@ class _Bootstrapper(object):
 
     def _check_submodule_no_git(self):
         """
-        Like ``_check_submodule_using_git``, but simply parses the .gitmodules file
-        to determine if the supplied path is a git submodule, and does not exec any
-        subprocesses.
-
-        This can only determine if a path is a submodule--it does not perform
-        updates, etc.  This function may need to be updated if the format of the
-        .gitmodules file is changed between git versions.
+        Like ``_check_submodule_using_git``, but simply parses the .gitmodules
+        file to determine if the supplied path is a git submodule, and does not
+        exec any subprocesses. This can only determine if a path is a
+        submodule--it does not perform updates, etc.  This function may need
+        to be updated if the format of the .gitmodules file is changed between
+        git versions.
         """
 
         gitmodules_path = os.path.abspath('.gitmodules')
@@ -642,17 +641,17 @@ class _Bootstrapper(object):
         if not os.path.isfile(gitmodules_path):
             return False
 
-        # This is a minimal reader for gitconfig-style files.  It handles a few of
-        # the quirks that make gitconfig files incompatible with ConfigParser-style
-        # files, but does not support the full gitconfig syntax (just enough
-        # needed to read a .gitmodules file).
+        # This is a minimal reader for gitconfig-style files. It handles a few
+        # of the quirks that make gitconfig files incompatible with
+        # ConfigParser-style files, but does not support the full gitconfig
+        # syntax (just enough needed to read a .gitmodules file).
         gitmodules_fileobj = io.StringIO()
 
         # Must use io.open for cross-Python-compatible behavior wrt unicode
         with io.open(gitmodules_path) as f:
             for line in f:
-                # gitconfig files are more flexible with leading whitespace; just
-                # go ahead and remove it
+                # gitconfig files are more flexible with leading whitespace;
+                # just go ahead and remove it
                 line = line.lstrip()
 
                 # comments can start with either # or ;
@@ -734,6 +733,7 @@ class _Bootstrapper(object):
                      '{0!r}:\n{1}\n{2}'.format(submodule, err_msg,
                                                _err_help_msg))
 
+
 class _CommandNotFound(OSError):
     """
     An exception raised when a command run with run_cmd is not found on the
@@ -766,7 +766,6 @@ def run_cmd(cmd):
             raise _AHBoostrapSystemExit(
                 'An unexpected error occurred when running the '
                 '`{0}` command:\n{1}'.format(' '.join(cmd), str(e)))
-
 
     # Can fail of the default locale is not configured properly.  See
     # https://github.com/astropy/astropy/issues/2749.  For the purposes under
@@ -867,6 +866,7 @@ root of the extracted source code.
 
 
 class _AHBootstrapSystemExit(SystemExit):
+
     def __init__(self, *args):
         if not args:
             msg = 'An unknown problem occurred bootstrapping astropy_helpers.'
@@ -885,6 +885,7 @@ if sys.version_info[:2] < (2, 7):
     import distutils
 
     class log(object):
+
         def __getattr__(self, attr):
             return getattr(distutils.log, attr)
 
