@@ -17,7 +17,7 @@ __all__ = ["Lightcurve"]
 
 
 class Lightcurve(object):
-    def __init__(self, time, counts, input_counts=True, gti=None):
+    def __init__(self, time, counts, input_counts=True, gti=None, validate_dt = True):
         """
         Make a light curve object from an array of time stamps and an
         array of counts.
@@ -120,11 +120,19 @@ class Lightcurve(object):
 
         # Issue a warning if the input time iterable isn't regularly spaced,
         # i.e. the bin sizes aren't equal throughout.
-        #dt_array = np.diff(self.time)
-        #if not (np.allclose(dt_array, np.repeat(self.dt, dt_array.shape[0]))):
-        #    simon("Bin sizes in input time array aren't equal throughout! "
-        #          "This could cause problems with Fourier transforms. "
-        #          "Please make the input time evenly sampled.")
+        if(validate_dt):
+           # new check
+           for i in range (len(self.time)-1):
+                   if( self.dt != (self.time[i+1] - self.time[i]) ):
+                       simon("Bin sizes in input time array aren't equal throughout! "
+                             "This could cause problems with Fourier transforms. "
+                             "Please make the input time evenly sampled.")
+                       break
+           #dt_array = np.diff(self.time)
+           #if not (np.allclose(dt_array, np.repeat(self.dt, dt_array.shape[0]))):
+           #    simon("Bin sizes in input time array aren't equal throughout! "
+           #          "This could cause problems with Fourier transforms. "
+           #          "Please make the input time evenly sampled.")
 
         self.tseg = self.time[-1] - self.time[0] + self.dt
         self.tstart = self.time[0] - 0.5*self.dt
