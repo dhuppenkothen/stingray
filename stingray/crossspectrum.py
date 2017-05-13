@@ -499,7 +499,7 @@ class AveragedCrossspectrum(Crossspectrum):
 
         check_gtis(self.gti)
 
-        cs_all = []
+        self.cs_all = []
         nphots1_all = []
         nphots2_all = []
 
