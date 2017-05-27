@@ -4,6 +4,7 @@ from scipy import signal
 
 from stingray import lightcurve
 from stingray.exceptions import StingrayError
+import stingray.utils as utils
 
 
 class CrossCorrelation(object):
@@ -114,5 +115,67 @@ class CrossCorrelation(object):
         self.time_lags = x_lags * self.dt
         # time_shift is the time lag for max. correlation
         self.time_shift = self.time_lags[np.argmax(self.corr)]
-        
+
         return self.time_shift, self.time_lags
+
+    def plot(self, labels=None, axis=None, title=None, marker='-', save=False, filename=None):
+        """
+        Plot the :class:`Crosscorrelation` as function using Matplotlib.
+
+        Plot the Crosscorrelation object on a graph ``self.time_lags`` on x-axis and
+        ``self.corr`` on y-axis
+        
+        Parameters
+        ----------
+        labels : iterable, default None
+            A list of tuple with xlabel and ylabel as strings.
+        axis : list, tuple, string, default None
+            Parameter to set axis properties of Matplotlib figure. For example
+            it can be a list like ``[xmin, xmax, ymin, ymax]`` or any other
+            acceptable argument for `matplotlib.pyplot.axis()` function.
+        title : str, default None
+            The title of the plot.
+        marker : str, default '-'
+            Line style and color of the plot. Line styles and colors are
+            combined in a single format string, as in ``'bo'`` for blue
+            circles. See `matplotlib.pyplot.plot` for more options.
+        save : boolean, optional (default=False)
+            If True, save the figure with specified filename.
+        filename : str
+            File name of the image to save. Depends on the boolean ``save``.
+        """
+
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            raise ImportError("Matplotlib required for plot()")
+
+        fig = plt.figure()
+
+        fig = plt.plot(self.time_lags, self.corr, marker)
+
+        if labels is not None:
+            try:
+                plt.xlabel(labels[0])
+                plt.ylabel(labels[1])
+            except TypeError:
+                utils.simon("``labels`` must be either a list or tuple with "
+                            "x and y labels.")
+                raise
+            except IndexError:
+                utils.simon("``labels`` must have two labels for x and y "
+                            "axes.")
+                # Not raising here because in case of len(labels)==1, only
+                # x-axis will be labelled.
+
+        if axis is not None:
+            plt.axis(axis)
+
+        if title is not None:
+            plt.title(title)
+
+        if save:
+            if filename is None:
+                plt.savefig('corr.png')
+            else:
+                plt.savefig(filename)
