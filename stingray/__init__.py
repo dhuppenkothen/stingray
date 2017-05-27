@@ -15,3 +15,4 @@ if not _ASTROPY_SETUP_:
     from stingray import *
     from stingray.exceptions import *
     from stingray.covariancespectrum import *
+    from stingray.crosscorrelation import *
