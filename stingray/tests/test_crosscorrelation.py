@@ -2,6 +2,8 @@ import numpy as np
 
 import pytest
 import matplotlib.pyplot as plt
+import warnings
+import os
 
 from stingray import Lightcurve
 from stingray import CrossCorrelation
@@ -26,6 +28,12 @@ class TestCrossCorrelation(object):
         assert cr.time_lags is None
         assert cr.dt is None
 
+    def test_empty_cross_correlation_with_dt(self):
+        cr = CrossCorrelation()
+        with pytest.raises(StingrayError):
+            cr.cal_timeshift(dt = 2.0)
+        assert cr.dt == 2.0
+
     def test_cross_correlation_with_unequal_lc(self):
         with pytest.raises(StingrayError):
             cr = CrossCorrelation(self.lc1,self.lc_s)
@@ -43,6 +51,7 @@ class TestCrossCorrelation(object):
     def test_init_with_diff_time_bin(self):
         with pytest.raises(StingrayError):
             cr = CrossCorrelation(self.lc_u, self.lc2)
+
 
     def test_corr_is_correct(self):
         result = np.array([22, 51, 51, 81, 81, 41, 41, 24, 4])
@@ -70,3 +79,39 @@ class TestCrossCorrelation(object):
         cr = CrossCorrelation(self.lc1, self.lc2)
         cr.plot()
         assert plt.fignum_exists(1)
+
+    def test_plot_wrong_label_type(self):
+        cr = CrossCorrelation(self.lc1, self.lc2)
+
+        with pytest.raises(TypeError):
+            with warnings.catch_warnings(record=True) as w:
+                cr.plot(labels=123)
+                assert "must be either a list or tuple" in str(w[0].message)
+
+    def test_plot_labels_index_error(self):
+        cr = CrossCorrelation(self.lc1, self.lc2)
+        with warnings.catch_warnings(record=True) as w:
+            cr.plot(labels=('x'))
+            assert "must have two labels" in str(w[0].message)
+
+    def test_plot_axis(self):
+        cr = CrossCorrelation(self.lc1, self.lc2)
+        cr.plot(axis=[0, 1, 0, 100])
+        assert plt.fignum_exists(1)
+
+    def test_plot_title(self):
+        cr = CrossCorrelation(self.lc1, self.lc2)
+        cr.plot(title="Test for Cross Correlation")
+        assert plt.fignum_exists(1)
+
+    def test_plot_default_filename(self):
+        cr = CrossCorrelation(self.lc1, self.lc2)
+        cr.plot(save=True)
+        assert os.path.isfile('corr.png')
+        os.unlink('corr.png')
+
+    def test_plot_custom_filename(self):
+        cr = CrossCorrelation(self.lc1, self.lc2)
+        cr.plot(save=True, filename='cr.png')
+        assert os.path.isfile('cr.png')
+        os.unlink('cr.png')
