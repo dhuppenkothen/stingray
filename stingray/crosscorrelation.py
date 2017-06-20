@@ -113,6 +113,10 @@ class CrossCorrelation(object):
 
         if self.dt is None:
             self.dt = dt
+
+        if self.corr is None:
+            raise StingrayError('Time Shift cannot be calculated without correlation data')
+
         self.n = len(self.corr)
         dur = int(self.n / 2)
         # Correlation against all possible lags, positive as well as negative lags are stored
