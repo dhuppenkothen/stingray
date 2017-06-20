@@ -71,14 +71,14 @@ class CrossCorrelation(object):
         None
         """
 
-        # Sizes of both light curves are assumed to be equal for now
-        if lc1.size != lc2.size:
-            raise StingrayError('Both lightcurves should be of same length')
-
         if not isinstance(lc1, lightcurve.Lightcurve):
             raise TypeError("lc1 must be a lightcurve.Lightcurve object")
         if not isinstance(lc2, lightcurve.Lightcurve):
             raise TypeError("lc2 must be a lightcurve.Lightcurve object")
+
+        # Sizes of both light curves are assumed to be equal for now
+        if lc1.n != lc2.n:
+            raise StingrayError('Both lightcurves should be of same length')
 
         if lc1.dt != lc2.dt:
             raise StingrayError("Light curves do not have "
@@ -90,7 +90,7 @@ class CrossCorrelation(object):
         self.corr = signal.correlate(lc1.counts, lc2.counts)
         self.n = len(self.corr)
 
-        self.time_shift, self.time_lags = self.cal_timeshift(dt=self.dt)
+        self.time_shift, self.time_lags, self.n = self.cal_timeshift(dt=self.dt)
 
     def cal_timeshift(self, dt=1.0):
         """
