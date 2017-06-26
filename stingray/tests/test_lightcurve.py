@@ -616,3 +616,8 @@ class TestLightcurveRebin(object):
         lc = Lightcurve(times, counts, gti=gti)
         baseline = lc.baseline(10000, 0.01)
         assert np.all(lc.counts - baseline < 1)
+
+    def test_change_mjdref(self):
+        lc_new = self.lc.change_mjdref(57000)
+        assert lc_new.mjdref == 57000
+    
