@@ -554,7 +554,7 @@ class AveragedCrossspectrum(Crossspectrum):
 
         check_gtis(self.gti)
 
-        cs_all = []
+        self.cs_all = []
         nphots1_all = []
         nphots2_all = []
 
@@ -573,11 +573,11 @@ class AveragedCrossspectrum(Crossspectrum):
             lc2_seg = Lightcurve(time_2, counts_2, err=counts_2_err,
                                  err_dist=lc2.err_dist)
             cs_seg = Crossspectrum(lc1_seg, lc2_seg, norm=self.norm)
-            cs_all.append(cs_seg)
+            self.cs_all.append(cs_seg)
             nphots1_all.append(np.sum(lc1_seg.counts))
             nphots2_all.append(np.sum(lc2_seg.counts))
 
-        return cs_all, nphots1_all, nphots2_all
+        return self.cs_all, nphots1_all, nphots2_all
 
     def _make_crossspectrum(self, lc1, lc2):
 
