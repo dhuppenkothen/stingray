@@ -133,6 +133,7 @@ class Crossspectrum(object):
         self.gti = gti
         self.lc1 = lc1
         self.lc2 = lc2
+
         self._make_crossspectrum(lc1, lc2)
 
     def _make_crossspectrum(self, lc1, lc2):
@@ -143,6 +144,9 @@ class Crossspectrum(object):
 
         if not isinstance(lc2, Lightcurve):
             raise TypeError("lc2 must be a lightcurve.Lightcurve object")
+
+        if self.lc2.mjdref != self.lc1.mjdref:
+            raise ValueError("MJDref is different in the two light curves")
 
         # Then check that GTIs make sense
         if self.gti is None:
@@ -171,9 +175,14 @@ class Crossspectrum(object):
             raise StingrayError("Light curves do not have same number "
                                 "of time bins per segment.")
 
-        if lc1.dt != lc2.dt:
-            raise StingrayError("Light curves do not have "
-                                "same time binning dt.")
+        # If dt differs slightly, its propagated error must not be more than
+        # 1/100th of the bin
+        if not np.isclose(lc1.dt, lc2.dt, rtol=0.01 * lc1.dt/lc1.tseg):
+            raise StingrayError("Light curves do not have same time binning "
+                                "dt.")
+
+        # In case a small difference exists, ignore it
+        lc1.dt = lc2.dt
 
         self.n = lc1.n
 
@@ -286,7 +295,7 @@ class Crossspectrum(object):
             else:
                 raise AttributeError('Spectrum has no attribute named nphots2.')
 
-        bin_cs.m = int(step_size)*self.m
+        bin_cs.m = np.rint(step_size*self.m)
 
         return bin_cs
 
@@ -539,11 +548,16 @@ class AveragedCrossspectrum(Crossspectrum):
         assert isinstance(lc1, Lightcurve)
         assert isinstance(lc2, Lightcurve)
 
-        if lc1.dt != lc2.dt:
-            raise ValueError("Light curves do not have same time binning dt.")
-
         if lc1.tseg != lc2.tseg:
             raise ValueError("Lightcurves do not have same tseg.")
+
+        # If dt differs slightly, its propagated error must not be more than
+        # 1/100th of the bin
+        if not np.isclose(lc1.dt, lc2.dt, rtol=0.01 * lc1.dt/lc1.tseg):
+            raise ValueError("Light curves do not have same time binning dt.")
+
+        # In case a small difference exists, ignore it
+        lc1.dt = lc2.dt
 
         if self.gti is None:
             self.gti = cross_two_gtis(lc1.gti, lc2.gti)
@@ -555,7 +569,8 @@ class AveragedCrossspectrum(Crossspectrum):
         nphots2_all = []
 
         start_inds, end_inds = \
-            bin_intervals_from_gtis(self.gti, segment_size, lc1.time)
+            bin_intervals_from_gtis(self.gti, segment_size, lc1.time,
+                                    dt=lc1.dt)
 
         for start_ind, end_ind in zip(start_inds, end_inds):
             time_1 = lc1.time[start_ind:end_ind]
@@ -565,14 +580,19 @@ class AveragedCrossspectrum(Crossspectrum):
             counts_2 = lc2.counts[start_ind:end_ind]
             counts_2_err = lc2.counts_err[start_ind:end_ind]
             lc1_seg = Lightcurve(time_1, counts_1, err=counts_1_err,
-                                 err_dist=lc1.err_dist)
+                                 err_dist=lc1.err_dist,
+                                 gti=[[time_1[0] - lc1.dt/2,
+                                       time_1[-1] + lc1.dt / 2]],
+                                 dt=lc1.dt)
             lc2_seg = Lightcurve(time_2, counts_2, err=counts_2_err,
-                                 err_dist=lc2.err_dist)
+                                 err_dist=lc2.err_dist,
+                                 gti=[[time_2[0] - lc2.dt/2,
+                                       time_2[-1] + lc2.dt / 2]],
+                                 dt=lc2.dt)
             cs_seg = Crossspectrum(lc1_seg, lc2_seg, norm=self.norm)
             cs_all.append(cs_seg)
             nphots1_all.append(np.sum(lc1_seg.counts))
             nphots2_all.append(np.sum(lc2_seg.counts))
-
         return cs_all, nphots1_all, nphots2_all
 
     def _make_crossspectrum(self, lc1, lc2):

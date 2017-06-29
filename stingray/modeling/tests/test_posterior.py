@@ -1,3 +1,4 @@
+from __future__ import division, print_function
 import numpy as np
 import scipy.stats
 import copy
@@ -11,8 +12,32 @@ from stingray.modeling import Posterior, PSDPosterior, PoissonPosterior, Gaussia
 from stingray.modeling import set_logprior
 from stingray.modeling.posterior import logmin
 from stingray.modeling.posterior import IncorrectParameterError
+from stingray.modeling.posterior import LogLikelihood
 
 np.random.seed(20150907)
+
+class TestMeta(object):
+    def test_use_loglikelihood_class_directly(self):
+        with pytest.raises(TypeError):
+            a = LogLikelihood(1, 2, models.Lorentz1D)
+
+    def test_inherit_loglikelihood_improperly(self):
+        class a(LogLikelihood):
+            def __init__(self, *args, **kwargs):
+                LogLikelihood.__init__(self, *args, **kwargs)
+
+        with pytest.raises(TypeError):
+            a(1, 2, models.Lorentz1D)
+
+    def test_inherit_loglikelihood_properly(self):
+        class a(LogLikelihood):
+            def __init__(self, *args, **kwargs):
+                LogLikelihood.__init__(self, *args, **kwargs)
+            def evaluate(self, parameters):
+                pass
+
+        a(1, 2, models.Lorentz1D)
+
 
 class TestSetPrior(object):
 

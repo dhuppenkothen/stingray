@@ -86,7 +86,7 @@ def check_gtis(gti):
     return
 
 def create_gti_mask(time, gtis, safe_interval=0, min_length=0,
-                    return_new_gtis=False, dt=None):
+                    return_new_gtis=False, dt=None, epsilon=0.001):
     """Create GTI mask.
 
     Assumes that no overlaps are present between GTIs
@@ -109,13 +109,16 @@ def create_gti_mask(time, gtis, safe_interval=0, min_length=0,
     min_length : float
     return_new_gtis : bool
     dt : float
+    epsilon : float
+        fraction of dt that is tolerated at the borders of a GTI
     """
     import collections
 
     check_gtis(gtis)
 
     dt = assign_value_if_none(dt,
-                              np.zeros_like(time) + (time[1] - time[0]) / 2)
+                              np.zeros_like(time) +
+                              np.median(np.diff(time)) / 2)
 
     mask = np.zeros(len(time), dtype=bool)
 
@@ -132,8 +135,8 @@ def create_gti_mask(time, gtis, safe_interval=0, min_length=0,
         limmax -= safe_interval[1]
         if limmax - limmin >= min_length:
             newgtis[ig][:] = [limmin, limmax]
-            cond1 = time - dt >= limmin
-            cond2 = time + dt <= limmax
+            cond1 = time - dt + epsilon*dt >= limmin
+            cond2 = time + dt - epsilon*dt <= limmax
             good = np.logical_and(cond1, cond2)
             mask[good] = True
             newgtimask[ig] = True
@@ -537,7 +540,7 @@ def time_intervals_from_gtis(gtis, chunk_length):
     return spectrum_start_times, spectrum_start_times + chunk_length
 
 
-def bin_intervals_from_gtis(gtis, chunk_length, time):
+def bin_intervals_from_gtis(gtis, chunk_length, time, dt=None, epsilon=0.001):
     """Similar to intervals_from_gtis, but given an input time array.
 
     Used to start each FFT/PDS/cospectrum from the start of a GTI,
@@ -555,34 +558,68 @@ def bin_intervals_from_gtis(gtis, chunk_length, time):
     time : array-like
         Times of light curve bins
 
+    Other Parameters
+    ----------------
+    dt : float, default median(diff(time))
+        Time resolution of the light curve.
+    epsilon : float, default 0.001
+        The tolerance, in fraction of dt, for the comparisons at the borders
+
+    Examples
+    --------
+    >>> time = np.arange(0.5, 13.5)
+
+    >>> gtis = [[0, 5], [6, 8]]
+
+    >>> chunk_length = 2
+
+    >>> start_bins, stop_bins = bin_intervals_from_gtis(gtis,chunk_length,time)
+
+    >>> np.all(start_bins == [0, 2, 6])
+    True
+    >>> np.all(stop_bins == [2, 4, 8])
+    True
+    >>> np.all(time[start_bins[0]:stop_bins[0]] == [0.5, 1.5])
+    True
+    >>> np.all(time[start_bins[1]:stop_bins[1]] == [2.5, 3.5])
+    True
+
     Returns
     -------
     spectrum_start_bins : array-like
         List of starting bins in the original time array to use in spectral
         calculations.
-
     spectrum_stop_bins : array-like
         List of end bins to use in the spectral calculations.
     """
-    bintime = time[1] - time[0]
-    nbin = np.long(chunk_length / bintime)
+    if dt is None:
+        dt = np.median(np.diff(time))
+    nbin = np.long(chunk_length / dt)
 
     if time[-1] < np.min(gtis) or time[0] > np.max(gtis):
         raise ValueError("Invalid time interval for the given GTIs")
 
     spectrum_start_bins = np.array([], dtype=np.long)
     for g in gtis:
-        if g[1] - g[0] < chunk_length:
+        if g[1] - g[0] + epsilon * dt < chunk_length:
             continue
-        good = (time - bintime / 2 > g[0])&(time + bintime / 2 < g[1])
+        good_low = time - dt / 2 >= g[0] - epsilon * dt
+        good_up = time + dt / 2 <= g[1] + epsilon * dt
+        good = good_low & good_up
         t_good = time[good]
         if len(t_good) == 0:
             continue
-        startbin = np.argmin(np.abs(time - bintime / 2 - g[0]))
-        stopbin = np.argmin(np.abs(time + bintime / 2 - g[1]))
+        startbin = np.argmin(np.abs(time - dt / 2 - g[0]))
+        stopbin = np.searchsorted(time + dt / 2, g[1], 'right') + 1
+        if stopbin > len(time):
+            stopbin = len(time)
 
-        if time[startbin] < g[0]: startbin += 1
-        if time[stopbin] < g[1] + bintime/2: stopbin += 1
+        if time[startbin] < g[0] + dt/2 - epsilon*dt:
+            startbin += 1
+        # Would be g[1] - dt/2, but stopbin is the end of an interval
+        # so one has to add one bin
+        if time[stopbin - 1] > g[1] - dt/2 + epsilon*dt:
+            stopbin -= 1
 
         newbins = np.arange(startbin, stopbin - nbin + 1, nbin,
                             dtype=np.long)
@@ -594,7 +631,7 @@ def bin_intervals_from_gtis(gtis, chunk_length, time):
     return spectrum_start_bins, spectrum_start_bins + nbin
 
 
-def gti_border_bins(gtis, time):
+def gti_border_bins(gtis, time, dt=None, epsilon=0.001):
     """Find the bins in a time array corresponding to the borders of GTIs.
 
     GTIs shorter than the bin time are not returned.
@@ -631,21 +668,27 @@ def gti_border_bins(gtis, time):
     >>> np.all(times[start_bins[1]:stop_bins[1]] == [6.5, 7.5])
     True
     """
-    bintime = time[1] - time[0]
+    if dt is None:
+        dt = np.median(np.diff(time))
 
     spectrum_start_bins = np.array([], dtype=np.long)
     spectrum_stop_bins = np.array([], dtype=np.long)
     for g in gtis:
-        good = (time - bintime / 2 >= g[0])&(time + bintime / 2 <= g[1])
+        good = (time - dt / 2 >= g[0])&(time + dt / 2 <= g[1])
         t_good = time[good]
         if len(t_good) == 0:
             continue
-        startbin = np.argmin(np.abs(time - bintime / 2 - g[0]))
-        stopbin = np.argmin(np.abs(time + bintime / 2 - g[1]))
+        startbin = np.argmin(np.abs(time - dt / 2 - g[0]))
+        stopbin = np.searchsorted(time + dt / 2, g[1], 'right') + 1
+        if stopbin > len(time):
+            stopbin = len(time)
 
-        if time[startbin] < g[0]: startbin += 1
-        if time[stopbin] < g[1] + bintime/2: stopbin += 1
-
+        if time[startbin] < g[0] + dt/2 - epsilon*dt:
+            startbin += 1
+        # Would be g[1] - dt/2, but stopbin is the end of an interval
+        # so one has to add one bin
+        if time[stopbin - 1] > g[1] - dt/2 + epsilon*dt:
+            stopbin -= 1
         spectrum_start_bins = \
             np.append(spectrum_start_bins,
                       [startbin])

@@ -18,7 +18,7 @@ class TestPowerspectrum(object):
         tend = 1.0
         dt = 0.0001
 
-        time = np.linspace(tstart, tend, int((tend-tstart)/dt))
+        time = np.arange(tstart + 0.5*dt, tend + 0.5*dt, dt)
 
         mean_count_rate = 100.0
         mean_counts = mean_count_rate * dt
@@ -26,7 +26,8 @@ class TestPowerspectrum(object):
         poisson_counts = np.random.poisson(mean_counts,
                                            size=time.shape[0])
 
-        cls.lc = Lightcurve(time, counts=poisson_counts)
+        cls.lc = Lightcurve(time, counts=poisson_counts, dt=dt,
+                            gti=[[tstart, tend]])
 
     def test_make_empty_periodogram(self):
         ps = Powerspectrum()
@@ -172,7 +173,7 @@ class TestPowerspectrum(object):
         ps = Powerspectrum(lc=self.lc, norm="Leahy")
         # replace powers
         ps.power = np.ones_like(ps.power) * 2.0
-        rebin_factor = 2.0
+        rebin_factor = 2
         bin_ps = ps.rebin(rebin_factor*ps.df)
 
         assert bin_ps.freq is not None
@@ -194,7 +195,8 @@ class TestPowerspectrum(object):
         ps = Powerspectrum(lc=self.lc, norm="Leahy")
         assert ps.rebin.__defaults__[0] == "mean"
 
-    def rebin_several(self, df):
+    @pytest.mark.parametrize('df', [2, 3, 5, 1.5, 1, 85])
+    def test_rebin(self, df):
         """
         TODO: Not sure how to write tests for the rebin method!
         """
@@ -204,11 +206,6 @@ class TestPowerspectrum(object):
                           atol=1e-4, rtol=1e-4)
         assert np.isclose(bin_ps.freq[0], (ps.freq[0]-ps.df*0.5+bin_ps.df*0.5),
                           atol=1e-4, rtol=1e-4)
-
-    def test_rebin(self):
-        df_all = [2, 3, 5, 1.5, 1, 85]
-        for df in df_all:
-            yield self.rebin_several, df
 
     def test_classical_significances_runs(self):
         ps = Powerspectrum(lc=self.lc, norm="Leahy")
@@ -271,7 +268,7 @@ class TestAveragedPowerspectrum(object):
         tend = 10.0
         dt = 0.0001
 
-        time = np.linspace(tstart, tend, int((tend-tstart)/dt))
+        time = np.arange(tstart + 0.5*dt, tend + 0.5*dt, dt)
 
         mean_count_rate = 1000.0
         mean_counts = mean_count_rate*dt
@@ -279,19 +276,17 @@ class TestAveragedPowerspectrum(object):
         poisson_counts = np.random.poisson(mean_counts,
                                            size=time.shape[0])
 
-        cls.lc = Lightcurve(time, counts=poisson_counts)
+        cls.lc = Lightcurve(time, counts=poisson_counts, gti=[[tstart, tend]],
+                            dt=dt)
 
     def test_one_segment(self):
         segment_size = self.lc.tseg
+        print(segment_size, self.lc.tseg, self.lc.gti)
         ps = AveragedPowerspectrum(self.lc, segment_size)
         assert np.isclose(ps.segment_size, segment_size)
 
-    def test_n_segments(self):
-        nseg_all = [1, 2, 3, 5, 10, 20, 100]
-        for nseg in nseg_all:
-            yield self.check_segment_size, nseg
-
-    def check_segment_size(self, nseg):
+    @pytest.mark.parametrize('nseg', [1, 2, 3, 5, 10, 20, 100])
+    def test_n_segments(self, nseg):
         segment_size = self.lc.tseg/nseg
         ps = AveragedPowerspectrum(self.lc, segment_size)
         assert ps.m == nseg
@@ -333,7 +328,7 @@ class TestAveragedPowerspectrum(object):
         tend = 1.0
         dt = 0.0001
 
-        time = np.linspace(tstart, tend, int((tend-tstart)/dt))
+        time = np.arange(tstart + 0.5*dt, tend + 0.5*dt, dt)
 
         mean_count_rate = 1000.0
         mean_counts = mean_count_rate*dt
@@ -343,7 +338,8 @@ class TestAveragedPowerspectrum(object):
             poisson_counts = np.random.poisson(mean_counts,
                                                size=len(time))
 
-            lc = Lightcurve(time, counts=poisson_counts)
+            lc = Lightcurve(time, counts=poisson_counts, gti=[[tstart, tend]],
+                            dt=dt)
             lc_all.append(lc)
 
         segment_size = 0.5

@@ -66,13 +66,13 @@ class TestCrossspectrum(object):
         tend = 1.0
         dt = 0.0001
 
-        time = np.linspace(tstart, tend, int((tend - tstart)/dt))
+        time = np.arange(tstart + 0.5*dt, tend + 0.5*dt, dt)
 
         counts1 = np.random.poisson(0.01, size=time.shape[0])
         counts2 = np.random.negative_binomial(1, 0.09, size=time.shape[0])
 
-        self.lc1 = Lightcurve(time, counts1)
-        self.lc2 = Lightcurve(time, counts2)
+        self.lc1 = Lightcurve(time, counts1, gti=[[tstart, tend]], dt=dt)
+        self.lc2 = Lightcurve(time, counts2, gti=[[tstart, tend]], dt=dt)
 
         self.cs = Crossspectrum(self.lc1, self.lc2)
 
@@ -188,15 +188,15 @@ class TestAveragedCrossspectrum(object):
     def setup_class(self):
         tstart = 0.0
         tend = 1.0
-        dt = 0.0001
+        dt = np.longdouble(0.0001)
 
-        time = np.linspace(tstart, tend, int((tend - tstart)/dt))
+        time = np.arange(tstart + 0.5*dt, tend + 0.5*dt, dt)
 
         counts1 = np.random.poisson(0.01, size=time.shape[0])
         counts2 = np.random.negative_binomial(1, 0.09, size=time.shape[0])
 
-        self.lc1 = Lightcurve(time, counts1)
-        self.lc2 = Lightcurve(time, counts2)
+        self.lc1 = Lightcurve(time, counts1, gti=[[tstart, tend]], dt=dt)
+        self.lc2 = Lightcurve(time, counts2, gti=[[tstart, tend]], dt=dt)
 
         self.cs = AveragedCrossspectrum(self.lc1, self.lc2, segment_size=1)
 
@@ -317,11 +317,13 @@ class TestAveragedCrossspectrum(object):
 
     def test_timelag(self):
         from ..simulator.simulator import Simulator
-        simulator = Simulator(0.1, 10000, rms=0.4, mean=200)
+        dt = 0.1
+        simulator = Simulator(dt, 10000, rms=0.4, mean=200)
         test_lc1 = simulator.simulate(2)
         test_lc2 = Lightcurve(test_lc1.time,
                               np.array(np.roll(test_lc1.counts, 2)),
-                              err_dist=test_lc1.err_dist)
+                              err_dist=test_lc1.err_dist,
+                              dt=dt)
 
         cs = AveragedCrossspectrum(test_lc1, test_lc2, segment_size=10,
                                    norm="none")

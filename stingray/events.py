@@ -122,7 +122,8 @@ class EventList(object):
             tseg = self.gti[-1][1] - tstart
 
         return Lightcurve.make_lightcurve(self.time, dt, tstart=tstart,
-                                          gti=self.gti, tseg=tseg)
+                                          gti=self.gti, tseg=tseg,
+                                          mjdref=self.mjdref)
 
     @staticmethod
     def from_lc(lc):
@@ -145,7 +146,7 @@ class EventList(object):
         # Concatenate all lists
         times = [i for j in times for i in j]
 
-        return EventList(time=times)
+        return EventList(time=times, gti=lc.gti)
 
     def simulate_times(self, lc, use_spline=False, bin_time=None):
         """
@@ -160,7 +161,7 @@ class EventList(object):
         times = lc.time
         counts = lc.counts
 
-        bin_time = assign_value_if_none(bin_time, times[1] - times[0])
+        bin_time = assign_value_if_none(bin_time, np.median(np.diff(times)))
         n_bin = len(counts)
         bin_start = 0
         maxlc = np.max(counts)
@@ -171,10 +172,10 @@ class EventList(object):
         events_per_bin_predict = n_events_predict / n_bin
         
         if use_spline:
-            max_bin = np.max([4, 1000000 / events_per_bin_predict])
+            max_bin = np.long(np.max([4, 1000000 / events_per_bin_predict]))
             
         else:
-            max_bin = np.max([4, 5000000 / events_per_bin_predict])
+            max_bin = np.long(np.max([4, 5000000 / events_per_bin_predict]))
 
         ev_list = np.zeros(n_events_predict)
         nev = 0
@@ -232,6 +233,7 @@ class EventList(object):
         
         self.time = EventList(time).time
         self.ncounts = len(self.time)
+        self.gti = lc.gti
 
     def simulate_energies(self, spectrum):
         """

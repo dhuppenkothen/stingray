@@ -206,7 +206,7 @@ def contiguous_regions(condition):
 
     # NOQA
     # Find the indices of changes in "condition"
-    diff = np.diff(condition)
+    diff = np.logical_xor(condition[1:], condition[:-1])
     idx, = diff.nonzero()
     # We need to start things after the change in "condition". Therefore,
     # we'll shift the index by 1 to the right.
@@ -269,3 +269,42 @@ def baseline_als(y, lam, p, niter=10):
         z = sparse.linalg.spsolve(Z, w*y)
         w = p * (y > z) + (1-p) * (y < z)
     return z
+
+
+def excess_variance(lc, normalization='fvar'):
+    """Calculate the excess variance.
+
+    Vaughan+03
+
+    Parameters
+    ----------
+    lc : a :class:`Lightcurve` object
+    normalization : str
+        if 'fvar', return normalized square-root excess variance. If 'none',
+        return the unnormalized variance
+
+    Returns
+    -------
+    var_xs : float
+    var_xs_err : float
+    """
+    lc_mean_var = np.mean(lc.counts_err ** 2)
+    lc_actual_var = np.var(lc.counts)
+    var_xs = lc_actual_var - lc_mean_var
+    mean_lc = np.mean(lc.counts)
+    mean_ctvar = np.mean(mean_lc ** 2)
+
+    fvar = var_xs / mean_ctvar
+
+    N = len(lc.counts)
+    var_xs_err_A = np.sqrt(2 / N) * lc_mean_var / mean_lc ** 2
+    var_xs_err_B = np.sqrt(mean_lc ** 2 / N) * 2 * fvar / mean_lc
+    var_xs_err = np.sqrt(var_xs_err_A ** 2 + var_xs_err_B ** 2)
+
+    fvar_err = var_xs_err / (2 * fvar)
+
+    if normalization == 'fvar':
+        return fvar, fvar_err
+    elif normalization == 'none' or normalization is None:
+        return var_xs, var_xs_err
+

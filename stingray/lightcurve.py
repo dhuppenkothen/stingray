@@ -21,7 +21,7 @@ valid_statistics = ["poisson", "gauss", None]
 
 class Lightcurve(object):
     def __init__(self, time, counts, err=None, input_counts=True,
-                 gti=None, err_dist='poisson'):
+                 gti=None, err_dist='poisson', mjdref=0, dt=None):
         """
         Make a light curve object from an array of time stamps and an
         array of counts.
@@ -62,6 +62,9 @@ class Lightcurve(object):
             uncertainties and other statistical values apropriately.
             Default makes no assumptions and keep errors equal to zero.
 
+        mjdref: float
+            MJD reference (useful in most high-energy mission data)
+
 
         Attributes
         ----------
@@ -97,6 +100,10 @@ class Lightcurve(object):
 
         dt: float
             The time resolution of the light curve.
+
+        mjdref: float
+            MJD reference date (tstart / 86400 gives the date in MJD at the
+            start of the observation)
 
         tseg: float
             The total duration of the light curve.
@@ -144,10 +151,13 @@ class Lightcurve(object):
                                     "Please select one of these: ",
                                     "{}".format(valid_statistics))
             if err_dist.lower() == 'poisson':
+                # Instead of the simple square root, we use confidence
+                # intervals (should be valid for low fluxes too)
                 err_low, err_high = poisson_conf_interval(np.asarray(counts),
                     interval='frequentist-confidence', sigma=1)
-                # calculate approximately symetric uncertainties
-                err = (np.absolute(err_low)+np.absolute(err_high))/2.0
+                # calculate approximately symmetric uncertainties
+                err = (np.absolute(err_low) + np.absolute(err_high) -
+                       2 * np.asarray(counts))/2.0
                 # other estimators can be implemented for other statistics
             else:
                 simon("Stingray only uses poisson err_dist at the moment, "
@@ -155,24 +165,40 @@ class Lightcurve(object):
                       "Sorry for the inconvenience.")
                 err = np.zeros_like(counts)
 
+        self.mjdref = mjdref
         self.time = np.asarray(time)
-        self.dt = time[1] - time[0]
+        if dt is None:
+            self.dt = np.median(self.time[1:] - self.time[:-1])
+        else:
+            self.dt = dt
 
         self.bin_lo = self.time - 0.5 * self.dt
         self.bin_hi = self.time + 0.5 * self.dt
 
         self.err_dist = err_dist
 
+        self.tstart = self.time[0] - 0.5*self.dt
+        self.tseg = self.time[-1] - self.time[0] + self.dt
+
+        self.gti = \
+            np.asarray(assign_value_if_none(gti,
+                                            [[self.tstart,
+                                              self.tstart + self.tseg]]))
+        check_gtis(self.gti)
+
+        good = create_gti_mask(self.time, self.gti)
+
+        self.time = self.time[good]
         if input_counts:
-            self.counts = np.asarray(counts)
+            self.counts = np.asarray(counts)[good]
             self.countrate = self.counts / self.dt
-            self.counts_err = np.asarray(err)
-            self.countrate_err = np.asarray(err) / self.dt
+            self.counts_err = np.asarray(err)[good]
+            self.countrate_err = np.asarray(err)[good] / self.dt
         else:
-            self.countrate = np.asarray(counts)
+            self.countrate = np.asarray(counts)[good]
             self.counts = self.countrate * self.dt
-            self.counts_err = np.asarray(err) * self.dt
-            self.countrate_err = np.asarray(err)
+            self.counts_err = np.asarray(err)[good] * self.dt
+            self.countrate_err = np.asarray(err)[good]
 
         self.meanrate = np.mean(self.countrate)
         self.meancounts = np.mean(self.counts)
@@ -186,13 +212,22 @@ class Lightcurve(object):
                   "This could cause problems with Fourier transforms. "
                   "Please make the input time evenly sampled.")
 
-        self.tseg = self.time[-1] - self.time[0] + self.dt
-        self.tstart = self.time[0] - 0.5*self.dt
-        self.gti = \
-            np.asarray(assign_value_if_none(gti,
-                                            [[self.tstart,
-                                              self.tstart + self.tseg]]))
-        check_gtis(self.gti)
+
+    def change_mjdref(self, new_mjdref):
+        """Change the MJDREF of the light curve.
+
+        Times will be now referred to this new MJDREF
+
+        Parameters
+        ----------
+        new_mjdref : float
+            New MJDREF
+        """
+        time_shift = (new_mjdref - self.mjdref) * 86400
+
+        new_lc = self.shift(time_shift)
+        new_lc.mjdref = new_mjdref
+        return new_lc
 
     def shift(self, time_shift):
         """
@@ -204,13 +239,53 @@ class Lightcurve(object):
             The amount of time that the light curve will be shifted
         """
         new_lc = Lightcurve(self.time + time_shift, self.counts,
-                            gti=self.gti + time_shift)
+                            gti=self.gti + time_shift, mjdref=self.mjdref)
         new_lc.countrate = self.countrate
         new_lc.counts = self.counts
         new_lc.counts_err = self.counts_err
         new_lc.meanrate = np.mean(new_lc.countrate)
         new_lc.meancounts = np.mean(new_lc.counts)
         return new_lc
+
+    def _operation_with_other_lc(self, other, operation):
+        if self.mjdref != other.mjdref:
+            raise ValueError("MJDref is different in the two light curves")
+
+        common_gti = cross_two_gtis(self.gti, other.gti)
+        mask_self = create_gti_mask(self.time, common_gti)
+        mask_other = create_gti_mask(other.time, common_gti)
+
+        # ValueError is raised by Numpy while asserting np.equal over arrays
+        # with different dimensions.
+        try:
+            assert np.all(np.equal(self.time[mask_self],
+                                   other.time[mask_other]))
+        except (ValueError, AssertionError):
+            raise ValueError("GTI-filtered time arrays of both light curves "
+                             "must be of same dimension and equal.")
+
+        new_time = self.time[mask_self]
+        new_counts = operation(self.counts[mask_self],
+                               other.counts[mask_other])
+
+        if self.err_dist.lower() != other.err_dist.lower():
+            simon("Lightcurves have different statistics!"
+                  "We are setting the errors to zero to avoid complications.")
+            new_counts_err = np.zeros_like(new_counts)
+        elif self.err_dist.lower() in valid_statistics:
+                new_counts_err = np.sqrt(np.add(self.counts_err[mask_self]**2,
+                                                other.counts_err[mask_other]**2))
+            # More conditions can be implemented for other statistics
+        else:
+            raise StingrayError("Statistics not recognized."
+                                " Please use one of these: "
+                                "{}".format(valid_statistics))
+
+        lc_new = Lightcurve(new_time, new_counts,
+                            err=new_counts_err, gti=common_gti,
+                            mjdref=self.mjdref)
+
+        return lc_new
 
     def __add__(self, other):
         """
@@ -235,35 +310,7 @@ class Lightcurve(object):
         array([ 900, 1300, 1200])
         """
 
-        # ValueError is raised by Numpy while asserting np.equal over arrays
-        # with different dimensions.
-        try:
-            assert np.all(np.equal(self.time, other.time))
-        except (ValueError, AssertionError):
-            raise ValueError("Time arrays of both light curves must be "
-                             "of same dimension and equal.")
-
-        new_counts = np.add(self.counts, other.counts)
-
-        if self.err_dist.lower() != other.err_dist.lower():
-            simon("Lightcurves have different statistics!"
-                  "We are setting the errors to zero to avoid complications.")
-            new_counts_err = np.zeros_like(new_counts)
-        elif self.err_dist.lower() in valid_statistics:
-                new_counts_err = np.sqrt(np.add(self.counts_err**2,
-                                                other.counts_err**2))
-            # More conditions can be implemented for other statistics
-        else:
-            raise StingrayError("Statistics not recognized."
-                                " Please use one of these: "
-                                "{}".format(valid_statistics))
-
-        common_gti = cross_two_gtis(self.gti, other.gti)
-
-        lc_new = Lightcurve(self.time, new_counts,
-                            err=new_counts_err, gti=common_gti)
-
-        return lc_new
+        return self._operation_with_other_lc(other, np.add)
 
     def __sub__(self, other):
         """
@@ -280,8 +327,8 @@ class Lightcurve(object):
         >>> time = [10, 20, 30]
         >>> count1 = [600, 1200, 800]
         >>> count2 = [300, 100, 400]
-        >>> gti1 = [[0, 20]]
-        >>> gti2 = [[0, 25]]
+        >>> gti1 = [[0, 35]]
+        >>> gti2 = [[0, 40]]
         >>> lc1 = Lightcurve(time, count1, gti=gti1)
         >>> lc2 = Lightcurve(time, count2, gti=gti2)
         >>> lc = lc1 - lc2
@@ -289,35 +336,7 @@ class Lightcurve(object):
         array([ 300, 1100,  400])
         """
 
-        # ValueError is raised by Numpy while asserting np.equal over arrays
-        # with different dimensions.
-        try:
-            assert np.all(np.equal(self.time, other.time))
-        except (ValueError, AssertionError):
-            raise ValueError("Time arrays of both light curves must be "
-                             "of same dimension and equal.")
-
-        new_counts = np.subtract(self.counts, other.counts)
-
-        if self.err_dist.lower() != other.err_dist.lower():
-            simon("Lightcurves have different statistics!"
-                  "We are setting the errors to zero to avoid complications.")
-            new_counts_err = np.zeros_like(new_counts)
-        elif self.err_dist.lower() in valid_statistics:
-            new_counts_err = np.sqrt(np.add(self.counts_err**2,
-                                            other.counts_err**2))
-            # More conditions can be implemented for other statistics
-        else:
-            raise StingrayError("Statistics not recognized."
-                                " Please use one of these: "
-                                "{}".format(valid_statistics))
-
-        common_gti = cross_two_gtis(self.gti, other.gti)
-
-        lc_new = Lightcurve(self.time, new_counts,
-                            err=new_counts_err, gti=common_gti)
-
-        return lc_new
+        return self._operation_with_other_lc(other, np.subtract)
 
     def __neg__(self):
         """
@@ -338,7 +357,8 @@ class Lightcurve(object):
         array([100, 100, 100])
         """
         lc_new = Lightcurve(self.time, -1*self.counts,
-                            err=self.counts_err, gti=self.gti)
+                            err=self.counts_err, gti=self.gti,
+                            mjdref=self.mjdref)
 
         return lc_new
 
@@ -388,7 +408,7 @@ class Lightcurve(object):
         elif isinstance(index, slice):
             new_counts = self.counts[index.start:index.stop:index.step]
             new_time = self.time[index.start:index.stop:index.step]
-            return Lightcurve(new_time, new_counts)
+            return Lightcurve(new_time, new_counts, mjdref=self.mjdref)
         else:
             raise IndexError("The index must be either an integer or a slice "
                              "object !")
@@ -413,7 +433,7 @@ class Lightcurve(object):
         return baseline
 
     @staticmethod
-    def make_lightcurve(toa, dt, tseg=None, tstart=None, gti=None):
+    def make_lightcurve(toa, dt, tseg=None, tstart=None, gti=None, mjdref=0):
 
         """
         Make a light curve out of photon arrival times.
@@ -482,7 +502,7 @@ class Lightcurve(object):
 
         counts = np.asarray(counts)
 
-        return Lightcurve(time, counts, gti=gti)
+        return Lightcurve(time, counts, gti=gti, mjdref=mjdref, dt=dt)
 
     def rebin(self, dt_new, method='sum'):
         """
@@ -516,7 +536,8 @@ class Lightcurve(object):
             utils.rebin_data(self.time, self.counts, dt_new,
                              yerr=self.counts_err, method=method)
 
-        lc_new = Lightcurve(bin_time, bin_counts, err=bin_err)
+        lc_new = Lightcurve(bin_time, bin_counts, err=bin_err,
+                            mjdref=self.mjdref, dt=dt_new)
         return lc_new
 
     def join(self, other):
@@ -556,6 +577,9 @@ class Lightcurve(object):
         >>> lc.counts
         array([ 300,  100,  400,  600, 1200,  800])
         """
+        if self.mjdref != other.mjdref:
+            raise ValueError("MJDref is different in the two light curves")
+
         if self.dt != other.dt:
             utils.simon("The two light curves have different bin widths.")
 
@@ -618,7 +642,8 @@ class Lightcurve(object):
 
         gti = join_gtis(self.gti, other.gti)
 
-        lc_new = Lightcurve(new_time, new_counts, err=new_counts_err, gti=gti)
+        lc_new = Lightcurve(new_time, new_counts, err=new_counts_err, gti=gti,
+                            mjdref=self.mjdref, dt=self.dt)
 
         return lc_new
 
@@ -691,7 +716,8 @@ class Lightcurve(object):
                            np.asarray([[self.time[start] - 0.5 * self.dt,
                                         time_new[-1] + 0.5 * self.dt]]))
 
-        return Lightcurve(time_new, counts_new, err=counts_err_new, gti=gti)
+        return Lightcurve(time_new, counts_new, err=counts_err_new, gti=gti,
+                          dt=self.dt)
 
     def _truncate_by_time(self, start, stop):
         """Private method for truncation using time values."""
@@ -888,13 +914,19 @@ class Lightcurve(object):
         """
         list_of_lcs = []
 
-        start_bins, stop_bins = gti_border_bins(self.gti, self.time)
+        start_bins, stop_bins = gti_border_bins(self.gti, self.time, self.dt)
         for i in range(len(start_bins)):
             start = start_bins[i]
             stop = stop_bins[i]
             # Note: GTIs are consistent with default in this case!
             new_lc = Lightcurve(self.time[start:stop], self.counts[start:stop],
-                                err=self.counts_err[start:stop])
+                                err=self.counts_err[start:stop],
+                                mjdref=self.mjdref, gti=[self.gti[i]],
+                                dt=self.dt)
             list_of_lcs.append(new_lc)
 
         return list_of_lcs
+
+    def apply_gtis(self):
+        good = create_gti_mask(self.time, lc.gti)
+

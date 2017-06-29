@@ -8,7 +8,7 @@ import os
 from ..utils import contiguous_regions
 from ..gti import cross_gtis, append_gtis, load_gtis, get_btis, join_gtis
 from ..gti import check_separate, create_gti_mask, check_gtis
-from ..gti import create_gti_from_condition, gti_len
+from ..gti import create_gti_from_condition, gti_len, gti_border_bins
 from ..gti import time_intervals_from_gtis, bin_intervals_from_gtis
 
 curdir = os.path.abspath(os.path.dirname(__file__))
@@ -134,8 +134,22 @@ class TestGTI(object):
         start_bins, stop_bins = \
             bin_intervals_from_gtis([[0, 5], [6, 8]], 2, times)
 
-        assert np.all(start_bins == np.array([0, 2]))
-        assert np.all(stop_bins == np.array([2, 4]))
+        assert np.all(start_bins == np.array([0, 2, 6]))
+        assert np.all(stop_bins == np.array([2, 4, 8]))
+
+    def test_gti_border_bins(self):
+        times = np.arange(0.5, 2.5)
+
+        start_bins, stop_bins = gti_border_bins([[0, 2]], times)
+        assert start_bins == [0]
+        assert stop_bins == [2]
+
+    def test_gti_border_bins_many_bins(self):
+        times = np.arange(0, 2, 0.0001) + 0.00005
+
+        start_bins, stop_bins = gti_border_bins([[0, 2]], times)
+        assert start_bins == [0]
+        assert stop_bins == [len(times)]
 
     def test_decide_spectrum_lc_intervals_invalid(self):
         with pytest.raises(ValueError):

@@ -1,3 +1,4 @@
+from __future__ import print_function, division
 
 __all__ = ["OptimizationResults", "ParameterEstimation", "PSDParEst",
            "SamplingResults"]
@@ -38,8 +39,9 @@ try:
 except ImportError:
     comp_hessian = False
 
-from stingray.modeling.posterior import Posterior, PSDPosterior, LogLikelihood
-from astropy.modeling.fitting import _fitter_to_model_params
+from stingray.modeling.posterior import Posterior, LogLikelihood
+from astropy.modeling.fitting import _fitter_to_model_params, \
+    _model_to_fit_params, _validate_model, _convert_input
 
 
 class OptimizationResults(object):
@@ -132,11 +134,27 @@ class OptimizationResults(object):
         print("The best-fit model parameters plus errors are:")
 
         fixed = [lpost.model.fixed[n] for n in lpost.model.param_names]
-        parnames = [n for n, f in zip(lpost.model.param_names, fixed) \
+        tied = [lpost.model.tied[n] for n in lpost.model.param_names]
+        bounds = [lpost.model.bounds[n] for n in lpost.model.param_names]
+
+        parnames = [n for n, f in zip(lpost.model.param_names,
+                                      np.logical_or(fixed, tied)) \
                     if f is False]
 
-        for i, (x, y, p) in enumerate(zip(self.p_opt, self.err, parnames)):
-            print("%i) Parameter %s: %f.5 +/- %f.5f"%(i, p, x, y))
+        all_parnames = [n for n in lpost.model.param_names]
+        for i, par in enumerate(all_parnames):
+            print("{:3}) Parameter {:<20}: ".format(i, par), end="")
+
+            if par in parnames:
+                idx = parnames.index(par)
+                print("{:<20.5f} +/- {:<20.5f} ".format(self.p_opt[idx],
+                                                  self.err[idx]), end="")
+                print("[{:>10} {:>10}]".format(str(bounds[i][0]),
+                                               str(bounds[i][1])))
+            elif fixed[i]:
+                print("{:<20.5f} (Fixed) ".format(lpost.model.parameters[i]))
+            elif tied[i]:
+                print("{:<20.5f} (Tied) ".format(lpost.model.parameters[i]))
 
         print("\n")
 
@@ -233,7 +251,12 @@ class ParameterEstimation(object):
             raise TypeError("lpost must be a subclass of "
                             "Posterior or LogLikelihoood.")
 
-        if not len(t0) == lpost.npar:
+        newmod = lpost.model.copy()
+        newmod.parameters = t0
+        p0, _ = _model_to_fit_params(newmod)
+        # p0 will be shorter than t0, if there are any frozen/tied parameters
+        # this has to match with the npar attribute.
+        if not len(p0) == lpost.npar:
             raise ValueError("Parameter set t0 must be of right "
                              "length for model in lpost.")
 
@@ -249,19 +272,25 @@ class ParameterEstimation(object):
         # at least until scipy 0.11 is out
         funcval = 100.0
         i = 0
+
         while funcval == 100 or funcval == 200 or \
                 funcval == 0.0 or not np.isfinite(funcval):
 
             if i > 20:
                 raise Exception("Fitting unsuccessful!")
             # perturb parameters slightly
-            t0_p = np.random.multivariate_normal(t0, np.diag(np.abs(t0)/100.))
+            t0_p = np.random.multivariate_normal(p0, np.diag(np.abs(p0)/100.))
 
+            # print(lpost.model, dir(lpost.model), lpost.model.parameter_constraints, lpost.model.param_names)
+            params = [getattr(newmod,name) for name in newmod.param_names]
+            bounds = [p.bounds for p in params if not np.any([p.tied, p.fixed])]
+            # print(params, bounds)
             # if max_post is True, do the Maximum-A-Posteriori Fit
             if self.max_post:
                 opt = scipy.optimize.minimize(lpost, t0_p,
                                               method=self.fitmethod,
                                               args=args, tol=1.e-10,
+                                              bounds=bounds,
                                               **scipy_optimize_options)
 
             # if max_post is False, then do a Maximum Likelihood Fit
@@ -271,7 +300,8 @@ class ParameterEstimation(object):
                     opt = scipy.optimize.minimize(lpost.loglikelihood, t0_p,
                                                   method=self.fitmethod,
                                                   args=args, tol=1.e-10,
-                                                 **scipy_optimize_options)
+                                                  bounds=bounds,
+                                                  **scipy_optimize_options)
 
                 elif isinstance(lpost, LogLikelihood):
                     # Except this could be a `LogLikelihood object
@@ -280,10 +310,8 @@ class ParameterEstimation(object):
                     opt = scipy.optimize.minimize(lpost.evaluate, t0_p,
                                                   method=self.fitmethod,
                                                   args=args, tol=1.e-10,
+                                                  bounds=bounds,
                                                   **scipy_optimize_options)
-                else:
-                    raise TypeError("lpost must be a Posterior or LogLikelihood"
-                                    " object.")
 
             funcval = opt.fun
             i += 1
