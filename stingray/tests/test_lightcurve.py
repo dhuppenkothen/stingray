@@ -595,6 +595,8 @@ class TestLightcurveRebin(object):
             self.lc.counts[0]*dt_new/self.lc.dt
         assert np.allclose(lc_binned.counts, counts_test)
 
+
+    @pytest.mark.parametrize(("dt"), [2, 3, np.pi, 5])
     def rebin_several(self, dt):
         lc_binned = self.lc.rebin(dt)
         assert len(lc_binned.time) == len(lc_binned.counts)
@@ -618,4 +620,3 @@ class TestLightcurveRebin(object):
     def test_change_mjdref(self):
         lc_new = self.lc.change_mjdref(57000)
         assert lc_new.mjdref == 57000
-    

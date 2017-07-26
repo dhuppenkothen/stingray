@@ -285,8 +285,8 @@ class TestAveragedPowerspectrum(object):
         ps = AveragedPowerspectrum(self.lc, segment_size)
         assert np.isclose(ps.segment_size, segment_size)
 
-    @pytest.mark.parametrize('nseg', [1, 2, 3, 5, 10, 20, 100])
-    def test_n_segments(self, nseg):
+    @pytest.mark.parametrize(("nseg"), [1, 2, 3, 5, 10, 20, 100])
+    def check_segment_size(self, nseg):
         segment_size = self.lc.tseg/nseg
         ps = AveragedPowerspectrum(self.lc, segment_size)
         assert ps.m == nseg
@@ -345,6 +345,7 @@ class TestAveragedPowerspectrum(object):
         segment_size = 0.5
         assert AveragedPowerspectrum(lc_all, segment_size)
 
+        @pytest.mark.parametrize(("df"), [2, 3, 5, 1.5, 10, 45])
         def rebin_several_averagedps(self, df):
             """
             TODO: Not sure how to write tests for the rebin method!
@@ -358,11 +359,6 @@ class TestAveragedPowerspectrum(object):
             assert np.isclose(bin_aps.freq[0],
                               (aps.freq[0]-aps.df*0.5+bin_aps.df*0.5),
                               atol=1e-4, rtol=1e-4)
-
-        def test_rebin_averagedps(self):
-            df_all = [2, 3, 5, 1.5, 10, 45]
-            for df in df_all:
-                yield self.rebin_several, df
 
         def test_rebin_with_invalid_type_attribute(self):
             new_df = 2
