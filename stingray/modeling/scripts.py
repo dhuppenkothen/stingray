@@ -114,7 +114,8 @@ def fit_powerspectrum(ps, model, starting_pars, max_post=False, priors=None,
 
     """
     if priors:
-        lpost = PSDPosterior(ps, model, priors=priors)
+        lpost = PSDPosterior(ps.freq, ps.power, model, priors=priors,
+                             m=ps.m)
     else:
         lpost = PSDLogLikelihood(ps.freq, ps.power, model, m=ps.m)
 
@@ -242,4 +243,3 @@ def fit_lorentzians(ps, nlor, starting_pars, fit_whitenoise=True,
 
     return fit_powerspectrum(ps, model, starting_pars, max_post=max_post,
                              priors=priors, fitmethod=fitmethod)
-
