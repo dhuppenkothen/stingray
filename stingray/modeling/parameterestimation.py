@@ -147,18 +147,18 @@ class OptimizationResults(object):
 
         all_parnames = [n for n in lpost.model.param_names]
         for i, par in enumerate(all_parnames):
-            print("{:3}) Parameter {:<20}: ".format(i, par), end="")
+            logging.info("{:3}) Parameter {:<20}: ".format(i, par), end="")
 
             if par in parnames:
                 idx = parnames.index(par)
-                print("{:<20.5f} +/- {:<20.5f} ".format(self.p_opt[idx],
+                logging.info("{:<20.5f} +/- {:<20.5f} ".format(self.p_opt[idx],
                                                   self.err[idx]), end="")
-                print("[{:>10} {:>10}]".format(str(bounds[i][0]),
+                logging.info("[{:>10} {:>10}]".format(str(bounds[i][0]),
                                                str(bounds[i][1])))
             elif fixed[i]:
-                print("{:<20.5f} (Fixed) ".format(lpost.model.parameters[i]))
+                logging.info("{:<20.5f} (Fixed) ".format(lpost.model.parameters[i]))
             elif tied[i]:
-                print("{:<20.5f} (Tied) ".format(lpost.model.parameters[i]))
+                logging.info("{:<20.5f} (Tied) ".format(lpost.model.parameters[i]))
 
         logging.info("\n")
 
@@ -256,8 +256,16 @@ class ParameterEstimation(object):
                             "Posterior or LogLikelihoood.")
 
         newmod = lpost.model.copy()
-        newmod.parameters = t0
-        p0, _ = _model_to_fit_params(newmod)
+
+        #pars = np.zeros(len(newmod.parameters))
+
+        #newmod.parameters = t0
+#        _fitter_to_model_params(newmod, t0)
+
+        #p0, _ = _model_to_fit_params(newmod)
+
+        p0=t0
+
         # p0 will be shorter than t0, if there are any frozen/tied parameters
         # this has to match with the npar attribute.
         if not len(p0) == lpost.npar:
@@ -285,10 +293,9 @@ class ParameterEstimation(object):
             # perturb parameters slightly
             t0_p = np.random.multivariate_normal(p0, np.diag(np.abs(p0)/100.))
 
-            # print(lpost.model, dir(lpost.model), lpost.model.parameter_constraints, lpost.model.param_names)
             params = [getattr(newmod,name) for name in newmod.param_names]
             bounds = [p.bounds for p in params if not np.any([p.tied, p.fixed])]
-            # print(params, bounds)
+
             # if max_post is True, do the Maximum-A-Posteriori Fit
             if self.max_post:
                 opt = scipy.optimize.minimize(lpost, t0_p,
@@ -350,6 +357,17 @@ class ParameterEstimation(object):
         max_post: bool, optional, default False
             If True, set the internal state to do the optimization with the
             log-likelihood rather than the log-posterior.
+
+        Returns
+        -------
+        lrt : float
+            The likelihood ratio for model 2 and model 1
+
+        res1 : OptimizationResults object
+            Contains the result of fitting `lpost1`
+
+        res2 : OptimizationResults object
+            Contains the results of fitting `lpost2`
 
         """
 
@@ -864,7 +882,7 @@ class PSDParEst(ParameterEstimation):
 
         return res
 
-    def _generate_data(self, lpost, pars):
+    def _generate_data(self, lpost, pars, rng=None):
         """
         Generate a fake power spectrum from a model.
 
@@ -884,12 +902,15 @@ class PSDParEst(ParameterEstimation):
             The simulated Powerspectrum object
 
         """
+        # create own random state object
+        if rng is None:
+            rng = np.random.RandomState(None)
 
         model_spectrum = self._generate_model(lpost, pars)
 
         # use chi-square distribution to get fake data
         model_powers = model_spectrum * \
-                       np.random.chisquare(2 * self.ps.m,
+                       rng.chisquare(2 * self.ps.m,
                                            size=model_spectrum.shape[0]) \
                                                 / (2. * self.ps.m)
 
@@ -900,23 +921,70 @@ class PSDParEst(ParameterEstimation):
         return sim_ps
 
     def simulate_lrts(self, s_all, lpost1, t1, lpost2, t2, max_post=True,
-                       neg=False):
+                      seed=None):
+        """
+        Simulate likelihood ratios for two given models based on MCMC samples
+        for the simpler model (i.e. the null hypothesis).
+
+        Parameters
+        ----------
+        s_all : numpy.ndarray of shape (nsamples, lpost1.npar)
+            An array with MCMC samples derived from the null hypothesis model in
+            `lpost1`. Its second dimension must match the number of free
+             parameters in `lpost1.model`.
+
+        lpost1 : LogLikelihood or Posterior subclass object
+            Object containing the null hypothesis model
+
+        t1 : iterable of length `lpost1.npar`
+            A starting guess for fitting the model in `lpost1`
+
+        lpost2 : LogLikelihood or Posterior subclass object
+            Object containing the alternative hypothesis model
+
+        t2 : iterable of length `lpost2.npar`
+            A starting guess for fitting the model in `lpost2`
+
+        max_post : bool, optional, default True
+            If True, then `lpost1` and `lpost2` should be Posterior subclass
+            objects; if False, then `lpost1` and `lpost2` should be
+            LogLikelihood subclass objects
+
+        seed : int, optional default None
+            A seed to initialize the numpy.random.RandomState object to be
+            passed on to `_generate_data`. Useful for producing exactly
+            reproducible results
+
+        Returns
+        -------
+        lrt_sim : numpy.ndarray
+            An array with the simulated likelihood ratios for the simulated
+            data
+
+        """
+
+        assert lpost1.__class__ == lpost2.__class__, "Both LogLikelihood or " \
+                                                     "Posterior objects must be " \
+                                                     "of the same class!"
 
         nsim = s_all.shape[0]
         lrt_sim = np.zeros(nsim)
+
+        rng = np.random.RandomState(seed)
 
         # now I can loop over all simulated parameter sets to generate a PSD
         for i, s in enumerate(s_all):
 
             # generate fake PSD
-            sim_ps = self._generate_data(lpost1, s)
+            sim_ps = self._generate_data(lpost1, s, rng)
 
             # make LogLikelihood objects for both:
-            if not max_post:
+            if isinstance(lpost1, LogLikelihood):
                 sim_lpost1 = PSDLogLikelihood(sim_ps.freq, sim_ps.power,
                                               model=lpost1.model)
                 sim_lpost2 = PSDLogLikelihood(sim_ps.freq, sim_ps.power,
                                               model=lpost2.model, m=sim_ps.m)
+                neg = True
             else:
                 # make a Posterior object
                 sim_lpost1 = PSDPosterior(sim_ps.freq, sim_ps.power,
@@ -927,6 +995,7 @@ class PSDParEst(ParameterEstimation):
                                           lpost2.model, m=sim_ps.m)
 
                 sim_lpost2.logprior = lpost2.logprior
+                neg=False
 
             parest_sim = PSDParEst(sim_ps, max_post=max_post)
 
