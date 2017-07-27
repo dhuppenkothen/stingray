@@ -13,7 +13,7 @@ from stingray.utils import simon
 from stingray.crossspectrum import Crossspectrum, AveragedCrossspectrum
 
 
-__all__ = ["Powerspectrum", "AveragedPowerspectrum"]
+__all__ = ["Powerspectrum", "AveragedPowerspectrum", "DynamicalPowerspectrum"]
 
 
 def classical_pvalue(power, nspec):
@@ -131,9 +131,9 @@ class Powerspectrum(Crossspectrum):
         lc: lightcurve.Lightcurve object, optional, default None
             The light curve data to be Fourier-transformed.
 
-        norm: {"leahy" | "rms"}, optional, default "rms"
+        norm: {"leahy" | "frac" | "abs" | "none" }, optional, default "frac"
             The normaliation of the periodogram to be used. Options are
-            "leahy" or "rms", default is "rms".
+            "leahy", "frac", "abs" and "none", default is "frac".
 
         Other Parameters
         ----------------
@@ -144,7 +144,7 @@ class Powerspectrum(Crossspectrum):
 
         Attributes
         ----------
-        norm: {"leahy" | "rms"}
+        norm: {"leahy" | "frac" | "abs" | "none"}
             the normalization of the periodogram
 
         freq: numpy.ndarray
@@ -334,9 +334,9 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
             of the segment_size, then any fraction left-over at the end of the
             time series will be lost.
 
-        norm: {"leahy" | "rms"}, optional, default "rms"
+        norm: {"leahy" | "frac" | "abs" | "none" }, optional, default "frac"
             The normaliation of the periodogram to be used. Options are
-            "leahy" or "rms", default is "rms".
+            "leahy", "frac", "abs" and "none", default is "frac".
 
 
         Other Parameters
@@ -348,7 +348,7 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
 
         Attributes
         ----------
-        norm: {"leahy" | "rms"}
+        norm: {"leahy" | "frac" | "abs" | "none"}
             the normalization of the periodogram
 
         freq: numpy.ndarray
@@ -386,6 +386,12 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
             if not np.isfinite(segment_size):
                 raise ValueError("segment_size must be finite!")
 
+        assert isinstance(norm, str), "norm is not a string!"
+
+        assert norm.lower() in ["frac", "abs", "leahy", "none"], \
+            "norm must be 'frac', 'abs', 'leahy', or 'none'!"
+
+        self.norm = norm.lower()
         self.segment_size = segment_size
 
         Powerspectrum.__init__(self, lc, norm, gti=gti)
@@ -417,3 +423,141 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
             nphots_all.append(np.sum(lc_seg.counts))
 
         return power_all, nphots_all
+
+
+class DynamicalPowerspectrum(AveragedPowerspectrum):
+    def __init__(self, lc, segment_size, norm="frac", gti=None):
+        """
+        Parameters
+        ----------
+        lc : lightcurve.Lightcurve object
+            The time series of which the Dynamical powerspectrum is
+            to be calculated.
+
+        segment_size : float, default 1
+             Length of the segment of light curve, default value is 1 second.
+
+        norm: {"leahy" | "frac" | "abs" | "none" }, optional, default "frac"
+            The normaliation of the periodogram to be used. Options are
+            "leahy", "frac", "abs" and "none", default is "frac".
+
+        Attributes
+        ----------
+        dyn_ps : np.ndarray
+            The matrix with fourier frequencies in the first column and time
+            in the second column.
+        time: np.ndarray
+            The timestamps of the segments that correspond to each line of the
+             `dyn_ps` matrix
+       freq: np.ndarray
+            The frequency bins` label for the frequency axis of `dyn_ps`
+        """
+        if segment_size < 2*lc.dt:
+            raise ValueError("Length of the segment is too short to form a "
+                             "light curve!")
+        elif segment_size > lc.tseg:
+            raise ValueError("Length of the segment is too long to create "
+                             "any segments of the light curve!")
+        self.segment_size = segment_size
+        self.norm = norm
+        self.gti = gti
+        self.ps_all, _ = AveragedPowerspectrum._make_segment_spectrum(
+            self, lc, segment_size)
+        self._make_matrix(lc)
+
+    def _make_matrix(self, lc):
+        """Create the matrix with freq and time columns."""
+        self.freq = self.ps_all[0].freq
+        self.time = np.arange(lc.time[0] - 0.5*lc.dt + 0.5*self.segment_size,
+                              lc.time[-1] + 0.5*lc.dt, self.segment_size)
+
+        self.dyn_ps = np.array([ps.power for ps in self.ps_all]).T
+
+        # Assign zero resolution if only one value
+        if len(self.time) > 1:
+            self.dt = self.time[1] - self.time[0]
+        else:
+            self.dt = 0
+
+        # Assign Zero freq. resolution if only one value
+        if len(self.freq) > 1:
+            self.df = self.freq[1] - self.freq[0]
+        else:
+            self.df = 0
+
+    def trace_maximum(self, min_freq=None, max_freq=None):
+        """
+        Return the indices of the maximum powers in each segment Powerspectrum
+        between specified frequencies.
+
+        Parameters
+        ----------
+        min_freq: float, default None
+            The lower frequency bound.
+
+        max_freq: float, default None
+            The upper frequency bound.
+
+        Returns
+        -------
+        max_positions : np.array
+            The array of indices of the maximum power in each segment having
+            frequency between min_freq and max_freq.
+        """
+        if min_freq is None:
+            min_freq = np.min(self.ps_all[0].freq)
+        if max_freq is None:
+            max_freq = np.max(self.ps_all[0].freq)
+
+        max_positions = []
+        for ps in self.ps_all:
+            indices = np.logical_and(ps.freq <= max_freq, min_freq <= ps.freq)
+            max_power = np.max(ps.power[indices])
+            max_positions.append(np.where(ps.power == max_power)[0][0])
+
+        return np.array(max_positions)
+
+    def rebin_time(self, dt_new, method='sum'):
+
+	    """
+	    Rebin the Dynamic Power Spectrum to a new time resolution. While the new
+	    resolution need not be an integer multiple of the previous time
+	    resolution, be aware that if it is not, the last bin will be cut
+	    off by the fraction left over by the integer division.
+
+	    Parameters
+	    ----------
+	    dt_new: float
+	        The new time resolution of the Dynamica Power Spectrum. Must be larger than
+	        the time resolution of the old Dynamical Power Spectrum!
+
+	    method: {"sum" | "mean" | "average"}, optional, default "sum"
+	        This keyword argument sets whether the counts in the new bins
+	        should be summed or averaged.
+
+
+	    Returns
+	    -------
+	    time_new: numpy.ndarray
+	        Time axis with new rebinned time resolution.
+
+	    dynspec_new: numpy.ndarray
+	        New rebinned Dynamical Power Spectrum.
+	    """
+
+	    if dt_new < self.dt:
+	        raise ValueError("New time resolution must be larger than "
+	                         "old time resolution!")
+
+	    dynspec_new = []
+	    for data in self.dyn_ps:
+	        time_new, bin_counts, bin_err, _ = \
+	        utils.rebin_data(self.time, data, dt_new,
+	                         yerr=self.lc.counts_err, method=method)
+	        dynspec_new.append(bin_counts)
+
+	    self.time = time_new
+	    self.dyn_ps = np.array(dynspec_new)
+	    self.dt = dt_new
+
+	    return time_new, dynspec_new
