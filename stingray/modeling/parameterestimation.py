@@ -1051,7 +1051,8 @@ class PSDParEst(ParameterEstimation):
 
         return pval
 
-    def simulate_highest_outlier(self, s_all, lpost, t0, max_post=True):
+    def simulate_highest_outlier(self, s_all, lpost, t0, max_post=True,
+                                 seed=None):
 
         # the number of simulations
         nsim = s_all.shape[0]
@@ -1059,11 +1060,13 @@ class PSDParEst(ParameterEstimation):
         # empty array for the simulation results
         max_y_all = np.zeros(nsim)
 
+        rng = np.random.RandomState(seed)
+
         # now I can loop over all simulated parameter sets to generate a PSD
         for i, s in enumerate(s_all):
 
             # generate fake PSD
-            sim_ps = self._generate_data(lpost, s)
+            sim_ps = self._generate_data(lpost, s, rng=rng)
 
             # make LogLikelihood objects for both:
             if not max_post:

@@ -99,7 +99,7 @@ def fit_powerspectrum(ps, model, starting_pars, max_post=False, priors=None,
     Now we have to guess starting parameters. For each Lorentzian, we have
     amplitude, centroid position and fwhm, and this pattern repeats for each
     Lorentzian in the fit. The white noise level is the last parameter.
-    >>> t0 = [80, 1., 1.5, 2.5]
+    >>> t0 = [80, 1.5, 2.5]
 
     Let's also make a model to test:
     >>> model_to_test = models.PowerLaw1D() + models.Const1D()

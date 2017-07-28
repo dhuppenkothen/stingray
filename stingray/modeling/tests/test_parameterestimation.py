@@ -1084,8 +1084,9 @@ class TestPSDParEst(object):
     def test_calibrate_highest_outlier_works(self):
         m = 1
         nfreq = 100000
+        seed = 100
         freq = np.linspace(1, 10, nfreq)
-        rng = np.random.RandomState(100)
+        rng = np.random.RandomState(seed)
         noise = rng.exponential(size=nfreq)
         model = models.Const1D()
         model.amplitude = 2.0
@@ -1099,15 +1100,18 @@ class TestPSDParEst(object):
         ps.df = freq[1] - freq[0]
         ps.norm = "leahy"
 
+        nsim = 10
+
         loglike = PSDLogLikelihood(ps.freq, ps.power, model, m=1)
 
-        s_all = np.atleast_2d(np.ones(10) * 2.0).T
+        s_all = np.atleast_2d(np.ones(nsim) * 2.0).T
 
         pe = PSDParEst(ps)
 
         res = pe.fit(loglike, [2.0], neg=True)
 
         maxpow_sim = pe.simulate_highest_outlier(s_all, loglike, [2.0],
-                                                 max_post=False)
+                                                 max_post=False, seed=seed)
 
+        assert maxpow_sim.shape([0]) == nsim
         assert np.all(maxpow_sim > 20.00) and np.all(maxpow_sim < 31.0)
