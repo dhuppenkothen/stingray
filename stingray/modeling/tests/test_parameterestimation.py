@@ -1113,5 +1113,5 @@ class TestPSDParEst(object):
         maxpow_sim = pe.simulate_highest_outlier(s_all, loglike, [2.0],
                                                  max_post=False, seed=seed)
 
-        assert maxpow_sim.shape([0]) == nsim
+        assert maxpow_sim.shape[0] == nsim
         assert np.all(maxpow_sim > 20.00) and np.all(maxpow_sim < 31.0)
