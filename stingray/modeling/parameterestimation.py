@@ -143,16 +143,17 @@ class OptimizationResults(object):
 
         parnames = [n for n, f in zip(lpost.model.param_names,
                                       np.logical_or(fixed, tied)) \
-                    if f is False]
+                    if not f]
 
         all_parnames = [n for n in lpost.model.param_names]
         for i, par in enumerate(all_parnames):
-            logging.info("{:3}) Parameter {:<20}: ".format(i, par), end="")
+            logging.info("{:3}) Parameter {:<20}: ".format(i, par))
 
             if par in parnames:
                 idx = parnames.index(par)
+
                 logging.info("{:<20.5f} +/- {:<20.5f} ".format(self.p_opt[idx],
-                                                  self.err[idx]), end="")
+                                                  self.err[idx]))
                 logging.info("[{:>10} {:>10}]".format(str(bounds[i][0]),
                                                str(bounds[i][1])))
             elif fixed[i]:
@@ -550,10 +551,22 @@ class ParameterEstimation(object):
 
         return pval
 
+
+    def simulate_lrts(self, s_all, lpost1, t1, lpost2, t2, max_post=True,
+                      seed=None):
+        """
+        Simulate likelihood ratios.
+        For details, see definitions in the subclasses that implement this
+        task.
+        """
+        raise Exception("The behaviour of `simulate_lrts` should be defined "
+                        "in the subclass appropriate for your problem, not in "
+                        "this super class!")
+
     def calibrate_lrt(self, lpost1, t1, lpost2, t2, sample=None, neg=True,
                       max_post=False,
                       nsim=1000, niter=200, nwalkers=500, burnin=200,
-                      namestr="test"):
+                      namestr="test", seed=None):
 
         """
         Calibrate the outcome of a Likelihood Ratio Test via MCMC.
@@ -621,33 +634,36 @@ class ParameterEstimation(object):
                                                neg=neg,
                                                max_post=max_post)
 
-        # simulate parameter sets from the simpler model
-        if not max_post:
-            # using Maximum Likelihood, so I'm going to simulate parameters
-            # from a multivariate Gaussian
+        if sample is None:
+            # simulate parameter sets from the simpler model
+            if not max_post:
+                # using Maximum Likelihood, so I'm going to simulate parameters
+                # from a multivariate Gaussian
 
-            # set up the distribution
-            mvn = scipy.stats.multivariate_normal(mean=res1.p_opt,
-                                                  cov=res1.cov)
+                # set up the distribution
+                mvn = scipy.stats.multivariate_normal(mean=res1.p_opt,
+                                                      cov=res1.cov)
 
-            # sample parameters
-            s_all = mvn.rvs(size=nsim)
+                # sample parameters
+                s_all = mvn.rvs(size=nsim)
 
-        else:
-            if sample is None:
+            else:
                 # sample the posterior using MCMC
                 sample = self.sample(lpost1, res1.p_opt, cov=res1.cov,
                                        nwalkers=nwalkers, niter=niter,
                                        burnin=burnin, namestr=namestr)
 
-            # pick nsim samples out of the posterior sample
-            s_all = sample[
-                np.random.choice(sample.shape[0], nsim, replace=False)]
+                # pick nsim samples out of the posterior sample
+                s_all = sample[
+                    np.random.choice(sample.shape[0], nsim, replace=False)]
 
+        else:
+            s_all = sample
+        print("s_all: " + str(s_all))
         # simulate LRTs
         # this method is defined in the subclasses!
         lrt_sim = self.simulate_lrts(s_all, lpost1, t1, lpost2, t2,
-                                      max_post=max_post, neg=neg)
+                                      max_post=max_post, seed=seed)
 
         # now I can compute the p-value:
         pval = ParameterEstimation._compute_pvalue(lrt_obs, lrt_sim)

@@ -2,8 +2,7 @@ from __future__ import division, print_function
 import numpy as np
 import scipy.stats
 import os
-import re
-import copy
+import logging
 
 from astropy.tests.helper import pytest
 from astropy.modeling import models
@@ -460,6 +459,37 @@ class TestOptimizationResultInternalFunctions(object):
             assert np.all(optres.cov == hess_inv)
             assert np.all(optres.err == np.sqrt(np.diag(np.abs(hess_inv))))
 
+    def test_print_summary_works(self, logger, caplog):
+
+        fitmethod = "powell"
+        opt = scipy.optimize.minimize(self.lpost, self.t0,
+                                      method=fitmethod,
+                                      args=self.neg, tol=1.e-10)
+
+        optres = OptimizationResultsSubclassDummy(self.lpost, opt,
+                                                  neg=True)
+
+        optres._compute_covariance(self.lpost, self.opt)
+
+        optres.print_summary(self.lpost)
+
+        assert 'Parameter amplitude_0' in caplog.text
+        assert "Parameter x_0_0" in caplog.text
+        assert "Parameter alpha_0" in caplog.text
+        assert "Parameter amplitude_1" in caplog.text
+        assert "(Fixed)" in caplog.text
+        assert "Fitting statistics" in caplog.text
+        assert "number of data points" in caplog.text
+        assert "Deviance [-2 log L] D =" in caplog.text
+        assert "The Akaike Information Criterion of " \
+               "the model is" in caplog.text
+        assert "The Bayesian Information Criterion of " \
+               "the model is" in caplog.text
+        assert "The figure-of-merit function for this model" in caplog.text
+        assert "Summed Residuals S =" in caplog.text
+        assert "Expected S" in caplog.text
+        assert "merit function" in caplog.text
+
 
 if can_sample:
     class SamplingResultsDummy(SamplingResults):
@@ -530,6 +560,10 @@ if can_sample:
 
             _, _, _ = cls.sampler.run_mcmc(p0, cls.niter)
 
+
+        def test_can_sample_is_true(self):
+            assert can_sample
+
         def test_sample_results_object_initializes(self):
             SamplingResults(self.sampler)
 
@@ -576,6 +610,14 @@ if can_sample:
             assert np.isclose(test_mean, s.mean[0], atol=0.01, rtol=0.01)
             assert np.isclose(test_std, s.std[0], atol=0.01, rtol=0.01)
             assert np.all(np.isclose(test_ci, s.ci, atol=0.01, rtol=0.01))
+
+
+@pytest.fixture()
+def logger():
+    logger = logging.getLogger('Some.Logger')
+    logger.setLevel(logging.INFO)
+
+    return logger
 
 
 class TestPSDParEst(object):
@@ -681,20 +723,11 @@ class TestPSDParEst(object):
 
         res = pe.fit(llike, true_pars, neg=True)
 
-        #res.print_summary(llike)
-        #out, err = capsys.readouterr()
-        #assert "100.00000            (Fixed)" in out
-        #pattern = \
-        #    re.compile(r"5\) Parameter x_0_2\s+: [0-9]\.[0-9]{5}\s+\(Tied\)")
-        #assert pattern.search(out)
-
         compare_pars = [self.x_0_0, self.fwhm_0,
                         self.amplitude_1,
                         model.amplitude_2.value,
                         model.fwhm_2.value]
 
-        print("compare_pars: " + str(compare_pars))
-        print("res.popt: " + str(res.p_opt))
         assert np.allclose(compare_pars, res.p_opt, rtol=0.5)
 
     def test_par_est_initializes(self):
@@ -885,16 +918,10 @@ class TestPSDParEst(object):
     def test_generate_model_data(self):
         pe = PSDParEst(self.ps)
 
-        print("lpost.model: " + str(self.lpost.model.parameters))
-        print("lpost.model type: " + str(self.lpost.model))
-
         m = self.model
         _fitter_to_model_params(m, self.t0)
 
         model = m(self.ps.freq)
-
-        print("len(t0): " + str(len(self.t0)))
-        print("lpost.npar: " + str(self.lpost.npar))
 
         pe_model = pe._generate_model(self.lpost, [2.0, 0.1, 100, 2.0])
 
@@ -1025,6 +1052,45 @@ class TestPSDParEst(object):
         with pytest.raises(ValueError):
             pval = pe.calibrate_lrt(self.lpost, [1, 2, 3, 4],
                                     self.lpost, [1, 2, 3])
+
+    def test_calibrate_lrt_works_as_expected(self):
+
+        m = 1
+        nfreq = 100000
+        freq = np.linspace(1, 10, nfreq)
+        rng = np.random.RandomState(100)
+        noise = rng.exponential(size=nfreq)
+        model = models.Const1D()
+        model.amplitude = 2.0
+        p = model(freq)
+        power = noise * p
+
+        ps = Powerspectrum()
+        ps.freq = freq
+        ps.power = power
+        ps.m = m
+        ps.df = freq[1] - freq[0]
+        ps.norm = "leahy"
+
+        loglike = PSDLogLikelihood(ps.freq, ps.power, model, m=1)
+
+        s_all = np.atleast_2d(np.ones(10) * 2.0).T
+
+        model2 = models.PowerLaw1D() + models.Const1D()
+        model2.x_0_0.fixed = True
+        loglike2 = PSDLogLikelihood(ps.freq, ps.power, model2, 1)
+
+        pe = PSDParEst(ps)
+
+        lrt_obs, res1, res2 = pe.compute_lrt(loglike, [2.0], loglike2,
+                                             [2.0, 1.0, 2.0], neg=True)
+        pval = pe.calibrate_lrt(loglike, [2.0], loglike2,
+                                [2.0, 1.0, 2.0], sample=s_all,
+                                max_post=False, nsim=10,
+                                seed=100)
+
+        assert pval > 0.001
+
 
     def test_find_highest_outlier_works_as_expected(self):
 
