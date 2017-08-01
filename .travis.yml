@@ -45,10 +45,10 @@ matrix:
     fast_finish: true
     include:
         - python: 3.5
-          env: PIP_DEPENDENCIES='git+https://git@github.com/nanograv/pint.git jplephem emcee statsmodels corner' SETUP_CMD='test --remote-data --coverage'
+          env: PIP_DEPENDENCIES='git+https://git@github.com/nanograv/pint.git jplephem emcee statsmodels corner  pytest-catchlog' SETUP_CMD='test --remote-data --coverage'
 
         - python: 2.7
-          env: PIP_DEPENDENCIES='git+https://git@github.com/nanograv/pint.git jplephem emcee statsmodels corner' SETUP_CMD='test --remote-data'
+          env: PIP_DEPENDENCIES='git+https://git@github.com/nanograv/pint.git jplephem emcee statsmodels corner  pytest-catchlog' SETUP_CMD='test --remote-data'
 
         #Try without importing h5py but importing numba
         - python: 2.7
