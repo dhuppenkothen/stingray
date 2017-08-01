@@ -275,8 +275,12 @@ class OptimizationResultsSubclassDummy(OptimizationResults):
 
     def __init__(self, lpost, res, neg):
         self.neg = neg
-        self.result = res.fun
-        self.p_opt = res.x
+        if res is not None:
+            self.result = res.fun
+            self.p_opt = res.x
+        else:
+            self.result = None
+            self.p_opt = None
         self.model = lpost.model
 
 
@@ -458,6 +462,9 @@ class TestOptimizationResultInternalFunctions(object):
 
             assert np.all(optres.cov == hess_inv)
             assert np.all(optres.err == np.sqrt(np.diag(np.abs(hess_inv))))
+        else:
+            assert optres.cov is None
+            assert optres.err is None
 
     def test_print_summary_works(self, logger, caplog):
 
