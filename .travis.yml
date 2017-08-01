@@ -61,6 +61,14 @@ matrix:
         - python: 3.5
           env: PIP_DEPENDENCIES='emcee statsmodels pytest-catchlog' SETUP_CMD='test --coverage'
 
+        # Try without using emcee
+        - python: 3.5
+          env: PIP_DEPENDENCIES='statsmodels pytest-catchlog' SETUP_CMD='test --coverage'
+
+        # Try without using statsmodels
+        - python: 3.5
+          env: PIP_DEPENDENCIES='emcee pytest-catchlog' SETUP_CMD='test --coverage'
+
         - python: 3.4
           env: NUMPY_VERSION=1.11
 
