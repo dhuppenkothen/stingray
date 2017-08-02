@@ -175,6 +175,13 @@ class TestParameterEstimation(object):
         with pytest.raises(ImportError):
             sample_res = pe.sample(self.lpost, [2.0])
 
+
+    def test_simulate_lrt_fails_in_superclass(self):
+
+        pe = ParameterEstimation()
+        with pytest.raises(NotImplementedError):
+            pe.simulate_lrts(None, None, None, None, None)
+
 class TestOptimizationResults(object):
 
     @classmethod
@@ -1089,8 +1096,6 @@ class TestPSDParEst(object):
 
         pe = PSDParEst(ps)
 
-        lrt_obs, res1, res2 = pe.compute_lrt(loglike, [2.0], loglike2,
-                                             [2.0, 1.0, 2.0], neg=True)
         pval = pe.calibrate_lrt(loglike, [2.0], loglike2,
                                 [2.0, 1.0, 2.0], sample=s_all,
                                 max_post=False, nsim=10,
@@ -1098,6 +1103,95 @@ class TestPSDParEst(object):
 
         assert pval > 0.001
 
+    def test_calibrate_lrt_works_with_mvn(self):
+
+        m = 1
+        nfreq = 100000
+        freq = np.linspace(1, 10, nfreq)
+        rng = np.random.RandomState(100)
+        noise = rng.exponential(size=nfreq)
+        model = models.Const1D()
+        model.amplitude = 2.0
+        p = model(freq)
+        power = noise * p
+
+        ps = Powerspectrum()
+        ps.freq = freq
+        ps.power = power
+        ps.m = m
+        ps.df = freq[1] - freq[0]
+        ps.norm = "leahy"
+
+        loglike = PSDLogLikelihood(ps.freq, ps.power, model, m=1)
+
+        model2 = models.PowerLaw1D() + models.Const1D()
+        model2.x_0_0.fixed = True
+        loglike2 = PSDLogLikelihood(ps.freq, ps.power, model2, 1)
+
+        pe = PSDParEst(ps)
+
+        pval = pe.calibrate_lrt(loglike, [2.0], loglike2,
+                                [2.0, 1.0, 2.0], sample=None,
+                                max_post=False, nsim=10,
+                                seed=100)
+
+        assert pval > 0.001
+
+    @pytest.mark.skipif("not can_sample")
+    def test_calibrate_lrt_works_with_sampling(self):
+        m = 1
+        nfreq = 100000
+        freq = np.linspace(1, 10, nfreq)
+        rng = np.random.RandomState(100)
+        noise = rng.exponential(size=nfreq)
+        model = models.Const1D()
+        model.amplitude = 2.0
+        p = model(freq)
+        power = noise * p
+
+        ps = Powerspectrum()
+        ps.freq = freq
+        ps.power = power
+        ps.m = m
+        ps.df = freq[1] - freq[0]
+        ps.norm = "leahy"
+
+        lpost = PSDPosterior(ps.freq, ps.power, model, m=1)
+
+        p_amplitude_1 = lambda amplitude: \
+            scipy.stats.norm(loc=2.0, scale=1.0).pdf(amplitude)
+
+        p_alpha_0 = lambda alpha: \
+            scipy.stats.uniform(0.0, 5.0).pdf(alpha)
+
+        p_amplitude_0 = lambda amplitude: \
+            scipy.stats.norm(loc=self.a2_mean, scale=self.a2_var).pdf(
+                amplitude)
+
+
+        priors = {"amplitude": p_amplitude_1}
+
+        priors2 = {"amplitude_1": p_amplitude_1,
+                      "amplitude_0": p_amplitude_0,
+                      "alpha_0": p_alpha_0}
+
+
+        lpost.logprior = set_logprior(lpost, priors)
+
+        model2 = models.PowerLaw1D() + models.Const1D()
+        model2.x_0_0.fixed = True
+        lpost2 = PSDPosterior(ps.freq, ps.power, model2, 1)
+        lpost2.logprior = set_logprior(lpost2, priors2)
+
+        pe = PSDParEst(ps)
+
+        pval = pe.calibrate_lrt(lpost, [2.0], lpost2,
+                                [2.0, 1.0, 2.0], sample=None,
+                                max_post=True, nsim=10, nwalkers=100,
+                                burnin=100, niter=20,
+                                seed=100)
+
+        assert pval > 0.001
 
     def test_find_highest_outlier_works_as_expected(self):
 
@@ -1154,7 +1248,7 @@ class TestPSDParEst(object):
         assert np.isclose(max_x[0], ps.freq[mp_ind])
         assert max_ind == mp_ind
 
-    def test_calibrate_highest_outlier_works(self):
+    def test_simulate_highest_outlier_works(self):
         m = 1
         nfreq = 100000
         seed = 100
@@ -1188,3 +1282,106 @@ class TestPSDParEst(object):
 
         assert maxpow_sim.shape[0] == nsim
         assert np.all(maxpow_sim > 20.00) and np.all(maxpow_sim < 31.0)
+
+
+    def test_calibrate_highest_outlier_works(self):
+        m = 1
+        nfreq = 100000
+        seed = 100
+        freq = np.linspace(1, 10, nfreq)
+        rng = np.random.RandomState(seed)
+        noise = rng.exponential(size=nfreq)
+        model = models.Const1D()
+        model.amplitude = 2.0
+        p = model(freq)
+        power = noise * p
+
+        ps = Powerspectrum()
+        ps.freq = freq
+        ps.power = power
+        ps.m = m
+        ps.df = freq[1] - freq[0]
+        ps.norm = "leahy"
+
+        nsim = 10
+
+        loglike = PSDLogLikelihood(ps.freq, ps.power, model, m=1)
+
+        s_all = np.atleast_2d(np.ones(nsim) * 2.0).T
+
+        pe = PSDParEst(ps)
+
+        pval = pe.calibrate_highest_outlier(loglike, [2.0], sample=s_all,
+                                            max_post=False, seed=seed)
+
+        assert pval > 0.001
+
+    def test_calibrate_highest_outlier_works_with_mvn(self):
+        m = 1
+        nfreq = 100000
+        seed = 100
+        freq = np.linspace(1, 10, nfreq)
+        rng = np.random.RandomState(seed)
+        noise = rng.exponential(size=nfreq)
+        model = models.Const1D()
+        model.amplitude = 2.0
+        p = model(freq)
+        power = noise * p
+
+        ps = Powerspectrum()
+        ps.freq = freq
+        ps.power = power
+        ps.m = m
+        ps.df = freq[1] - freq[0]
+        ps.norm = "leahy"
+
+        nsim = 10
+
+        loglike = PSDLogLikelihood(ps.freq, ps.power, model, m=1)
+
+        pe = PSDParEst(ps)
+
+        pval = pe.calibrate_highest_outlier(loglike, [2.0], sample=None,
+                                            max_post=False, seed=seed,
+                                            nsim=nsim)
+
+        assert pval > 0.001
+
+    @pytest.mark.skipif("not can_sample")
+    def test_calibrate_highest_outlier_works_with_sampling(self):
+        m = 1
+        nfreq = 100000
+        seed = 100
+        freq = np.linspace(1, 10, nfreq)
+        rng = np.random.RandomState(seed)
+        noise = rng.exponential(size=nfreq)
+        model = models.Const1D()
+        model.amplitude = 2.0
+        p = model(freq)
+        power = noise * p
+
+        ps = Powerspectrum()
+        ps.freq = freq
+        ps.power = power
+        ps.m = m
+        ps.df = freq[1] - freq[0]
+        ps.norm = "leahy"
+
+        nsim = 10
+
+        lpost = PSDPosterior(ps.freq, ps.power, model, m=1)
+        p_amplitude = lambda amplitude: \
+            scipy.stats.norm(loc=1.0, scale=1.0).pdf(
+                amplitude)
+
+        priors = {"amplitude": p_amplitude}
+        lpost.logprior = set_logprior(lpost, priors)
+
+        pe = PSDParEst(ps)
+
+        pval = pe.calibrate_highest_outlier(lpost, [2.0], sample=None,
+                                            max_post=True, seed=seed,
+                                            nsim=nsim, niter=20, nwalkers=100,
+                                            burnin=100)
+
+        assert pval > 0.001

@@ -258,13 +258,6 @@ class ParameterEstimation(object):
 
         newmod = lpost.model.copy()
 
-        #pars = np.zeros(len(newmod.parameters))
-
-        #newmod.parameters = t0
-#        _fitter_to_model_params(newmod, t0)
-
-        #p0, _ = _model_to_fit_params(newmod)
-
         p0=t0
 
         # p0 will be shorter than t0, if there are any frozen/tied parameters
@@ -297,33 +290,72 @@ class ParameterEstimation(object):
             params = [getattr(newmod,name) for name in newmod.param_names]
             bounds = [p.bounds for p in params if not np.any([p.tied, p.fixed])]
 
+            if len(bounds) > 0 and self.fitmethod not in ["L-BFGS-B",
+                                                          "TNC",
+                                                          "SLSQP"]:
+                logging.warning("Fitting method %s "%self.fitmethod +
+                                "cannot incorporate the bounds you set!")
+
+            if len(bounds) == 0 or self.fitmethod not in ["L-BFGS-B",
+                                                          "TNC",
+                                                          "SLSQP"]:
+                use_bounds = False
+            else:
+                use_bounds = True
+
+
             # if max_post is True, do the Maximum-A-Posteriori Fit
             if self.max_post:
-                opt = scipy.optimize.minimize(lpost, t0_p,
-                                              method=self.fitmethod,
-                                              args=args, tol=1.e-10,
-                                              bounds=bounds,
-                                              **scipy_optimize_options)
+
+                if use_bounds:
+                    opt = scipy.optimize.minimize(lpost, t0_p,
+                                                  method=self.fitmethod,
+                                                  args=args, tol=1.e-10,
+                                                  bounds=bounds,
+                                                  **scipy_optimize_options)
+
+                else:
+                    opt = scipy.optimize.minimize(lpost, t0_p,
+                                                  method=self.fitmethod,
+                                                  args=args, tol=1.e-10,
+                                                  **scipy_optimize_options)
+
 
             # if max_post is False, then do a Maximum Likelihood Fit
             else:
                 if isinstance(lpost, Posterior):
-                    # This could be a `Posterior` object
-                    opt = scipy.optimize.minimize(lpost.loglikelihood, t0_p,
-                                                  method=self.fitmethod,
-                                                  args=args, tol=1.e-10,
-                                                  bounds=bounds,
-                                                  **scipy_optimize_options)
+                    if use_bounds:
+                        # This could be a `Posterior` object
+                        opt = scipy.optimize.minimize(lpost.loglikelihood, t0_p,
+                                                      method=self.fitmethod,
+                                                      args=args, tol=1.e-10,
+                                                      bounds=bounds,
+                                                      **scipy_optimize_options)
+                    else:
+                        opt = scipy.optimize.minimize(lpost.loglikelihood, t0_p,
+                                                      method=self.fitmethod,
+                                                      args=args, tol=1.e-10,
+                                                      **scipy_optimize_options)
+
 
                 elif isinstance(lpost, LogLikelihood):
-                    # Except this could be a `LogLikelihood object
-                    # In which case, use the evaluate function
-                    # if it's not either, give up and break!
-                    opt = scipy.optimize.minimize(lpost.evaluate, t0_p,
-                                                  method=self.fitmethod,
-                                                  args=args, tol=1.e-10,
-                                                  bounds=bounds,
-                                                  **scipy_optimize_options)
+
+                    if use_bounds:
+                        # Except this could be a `LogLikelihood object
+                        # In which case, use the evaluate function
+                        # if it's not either, give up and break!
+                        opt = scipy.optimize.minimize(lpost.evaluate, t0_p,
+                                                      method=self.fitmethod,
+                                                      args=args, tol=1.e-10,
+                                                      #bounds=bounds,
+                                                      **scipy_optimize_options)
+
+
+                    else:
+                        opt = scipy.optimize.minimize(lpost.evaluate, t0_p,
+                                                      method=self.fitmethod,
+                                                      args=args, tol=1.e-10,
+                                                      **scipy_optimize_options)
 
             funcval = opt.fun
             i += 1
@@ -559,7 +591,7 @@ class ParameterEstimation(object):
         For details, see definitions in the subclasses that implement this
         task.
         """
-        raise Exception("The behaviour of `simulate_lrts` should be defined "
+        raise NotImplementedError("The behaviour of `simulate_lrts` should be defined "
                         "in the subclass appropriate for your problem, not in "
                         "this super class!")
 
@@ -644,22 +676,32 @@ class ParameterEstimation(object):
                 mvn = scipy.stats.multivariate_normal(mean=res1.p_opt,
                                                       cov=res1.cov)
 
+
                 # sample parameters
                 s_all = mvn.rvs(size=nsim)
+                if lpost1.npar == 1:
+                    s_all = np.atleast_2d(s_all).T
 
             else:
                 # sample the posterior using MCMC
-                sample = self.sample(lpost1, res1.p_opt, cov=res1.cov,
+                s_mcmc = self.sample(lpost1, res1.p_opt, cov=res1.cov,
                                        nwalkers=nwalkers, niter=niter,
                                        burnin=burnin, namestr=namestr)
 
+
                 # pick nsim samples out of the posterior sample
-                s_all = sample[
-                    np.random.choice(sample.shape[0], nsim, replace=False)]
+                s_all = s_mcmc.samples[
+                    np.random.choice(s_mcmc.samples.shape[0], nsim,
+                                     replace=False)]
+
+                #if lpost1.npar == 1:
+                #    s_all = np.atleast_2d(s_all).T
+
 
         else:
             s_all = sample
-        print("s_all: " + str(s_all))
+
+
         # simulate LRTs
         # this method is defined in the subclasses!
         lrt_sim = self.simulate_lrts(s_all, lpost1, t1, lpost2, t2,
@@ -1025,7 +1067,7 @@ class PSDParEst(ParameterEstimation):
     def calibrate_highest_outlier(self, lpost, t0, sample=None,
                                   max_post=False,
                                   nsim=1000, niter=200, nwalkers=500,
-                                  burnin=200, namestr="test"):
+                                  burnin=200, namestr="test", seed=None):
 
         """
 
@@ -1044,8 +1086,12 @@ class PSDParEst(ParameterEstimation):
             mvn = scipy.stats.multivariate_normal(mean=res.p_opt,
                                                   cov=res.cov)
 
-            # sample parameters
-            s_all = mvn.rvs(size=nsim)
+            if lpost.npar == 1:
+                # sample parameters
+                s_all = np.atleast_2d(mvn.rvs(size=nsim)).T
+
+            else:
+                s_all = mvn.rvs(size=nsim)
 
         else:
             if sample is None:
@@ -1055,13 +1101,13 @@ class PSDParEst(ParameterEstimation):
                                        burnin=burnin, namestr=namestr)
 
             # pick nsim samples out of the posterior sample
-            s_all = sample[
-                np.random.choice(sample.shape[0], nsim, replace=False)]
+            s_all = sample.samples[
+                np.random.choice(sample.samples.shape[0], nsim, replace=False)]
 
         # simulate LRTs
         # this method is defined in the subclasses!
         out_high_sim = self.simulate_highest_outlier(s_all, lpost, t0,
-                                                max_post=max_post)
+                                                max_post=max_post, seed=seed)
         # now I can compute the p-value:
         pval = ParameterEstimation._compute_pvalue(out_high, out_high_sim)
 
