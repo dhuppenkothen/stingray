@@ -727,7 +727,7 @@ class TestPSDParEst(object):
         ps.df = self.ps.df
         ps.norm = "leahy"
 
-        pe = PSDParEst(ps)
+        pe = PSDParEst(ps, fitmethod="TNC")
         llike = PSDLogLikelihood(ps.freq, ps.power, model)
 
         true_pars = [self.x_0_0, self.fwhm_0,
