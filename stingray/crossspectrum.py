@@ -255,7 +255,7 @@ class Crossspectrum(object):
 
         return freqs[freqs > 0], cross
 
-    def rebin(self, df, method="mean"):
+    def rebin(self, df=None, f=None, method="mean"):
         """
         Rebin the cross spectrum to a new frequency resolution df.
 
@@ -264,11 +264,22 @@ class Crossspectrum(object):
         df: float
             The new frequency resolution
 
+        Other Parameters
+        ----------------
+        f: float
+            the rebin factor. If specified, it substitutes df with f*self.df
+
         Returns
         -------
         bin_cs = Crossspectrum object
             The newly binned cross spectrum
         """
+
+        if f is None and df is None:
+            raise ValueError('You need to specify at least one between f and '
+                             'df')
+        elif f is not None:
+            df = f * self.df
 
         # rebin cross spectrum to new resolution
         binfreq, bincs, binerr, step_size = \

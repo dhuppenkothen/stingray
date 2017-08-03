@@ -610,11 +610,29 @@ class TestLightcurveRebin(object):
             self.lc.counts[0]*dt_new/self.lc.dt
         assert np.allclose(lc_binned.counts, counts_test)
 
+    def test_rebin_even_factor(self):
+        f = 200
+        dt_new = f * self.lc.dt
+        lc_binned = self.lc.rebin(f=f)
+        assert np.isclose(dt_new, f * self.lc.dt)
+        counts_test = np.zeros_like(lc_binned.time) + \
+            self.lc.counts[0]*dt_new/self.lc.dt
+        assert np.allclose(lc_binned.counts, counts_test)
+
     def test_rebin_odd(self):
         dt_new = 1.5
         lc_binned = self.lc.rebin(dt_new)
         assert np.isclose(lc_binned.dt, dt_new)
 
+        counts_test = np.zeros_like(lc_binned.time) + \
+            self.lc.counts[0]*dt_new/self.lc.dt
+        assert np.allclose(lc_binned.counts, counts_test)
+
+    def test_rebin_odd_factor(self):
+        f = 100.5
+        dt_new = f * self.lc.dt
+        lc_binned = self.lc.rebin(f=f)
+        assert np.isclose(dt_new, f * self.lc.dt)
         counts_test = np.zeros_like(lc_binned.time) + \
             self.lc.counts[0]*dt_new/self.lc.dt
         assert np.allclose(lc_binned.counts, counts_test)
