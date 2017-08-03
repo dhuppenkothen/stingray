@@ -10,6 +10,7 @@ from stingray.lightcurve import Lightcurve
 from stingray.utils import rebin_data, simon
 from stingray.exceptions import StingrayError
 from stingray.gti import cross_two_gtis, bin_intervals_from_gtis, check_gtis
+import copy
 
 __all__ = ["Crossspectrum", "AveragedCrossspectrum", "coherence"]
 
@@ -413,7 +414,13 @@ class Crossspectrum(object):
         # last right bin edge
         binfreq = binfreq[:-1] + df/2
 
-        return binfreq, binpower, binpower_err, nsamples
+        new_spec = copy.copy(self)
+        new_spec.freq = binfreq
+        new_spec.power = binpower
+        new_spec.power_err = binpower_err
+        new_spec.m = nsamples
+
+        return new_spec
 
     def coherence(self):
         """
