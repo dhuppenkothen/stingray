@@ -10,6 +10,7 @@ from stingray.lightcurve import Lightcurve
 from stingray.utils import rebin_data, simon
 from stingray.exceptions import StingrayError
 from stingray.gti import cross_two_gtis, bin_intervals_from_gtis, check_gtis
+import copy
 
 __all__ = ["Crossspectrum", "AveragedCrossspectrum", "coherence"]
 
@@ -254,7 +255,7 @@ class Crossspectrum(object):
 
         return freqs[freqs > 0], cross
 
-    def rebin(self, df, method="mean"):
+    def rebin(self, df=None, f=None, method="mean"):
         """
         Rebin the cross spectrum to a new frequency resolution df.
 
@@ -263,11 +264,22 @@ class Crossspectrum(object):
         df: float
             The new frequency resolution
 
+        Other Parameters
+        ----------------
+        f: float
+            the rebin factor. If specified, it substitutes df with f*self.df
+
         Returns
         -------
         bin_cs = Crossspectrum object
             The newly binned cross spectrum
         """
+
+        if f is None and df is None:
+            raise ValueError('You need to specify at least one between f and '
+                             'df')
+        elif f is not None:
+            df = f * self.df
 
         # rebin cross spectrum to new resolution
         binfreq, bincs, binerr, step_size = \
@@ -413,7 +425,13 @@ class Crossspectrum(object):
         # last right bin edge
         binfreq = binfreq[:-1] + df/2
 
-        return binfreq, binpower, binpower_err, nsamples
+        new_spec = copy.copy(self)
+        new_spec.freq = binfreq
+        new_spec.power = binpower
+        new_spec.power_err = binpower_err
+        new_spec.m = nsamples
+
+        return new_spec
 
     def coherence(self):
         """

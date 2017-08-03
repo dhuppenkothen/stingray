@@ -137,9 +137,14 @@ class TestCrossspectrum(object):
         new_cs = self.cs.rebin(df=1.5)
         assert new_cs.df == 1.5
 
+    def test_rebin_factor(self):
+        new_cs = self.cs.rebin(f=1.5)
+        assert new_cs.df == self.cs.df * 1.5
+
     def test_rebin_log(self):
         # For now, just verify that it doesn't crash
-        _ = self.cs.rebin_log(f=0.01)
+        new_cs = self.cs.rebin_log(f=0.1)
+        assert type(new_cs) == type(self.cs)
 
     def test_norm_leahy(self):
         cs = Crossspectrum(self.lc1, self.lc2, norm='leahy')

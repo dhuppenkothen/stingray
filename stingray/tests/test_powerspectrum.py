@@ -193,7 +193,7 @@ class TestPowerspectrum(object):
         had better be 'method'
         """
         ps = Powerspectrum(lc=self.lc, norm="Leahy")
-        assert ps.rebin.__defaults__[0] == "mean"
+        assert ps.rebin.__defaults__[2] == "mean"
 
     @pytest.mark.parametrize('df', [2, 3, 5, 1.5, 1, 85])
     def test_rebin(self, df):

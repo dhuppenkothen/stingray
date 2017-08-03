@@ -178,8 +178,8 @@ class Powerspectrum(Crossspectrum):
         Crossspectrum.__init__(self, lc1=lc, lc2=lc, norm=norm, gti=gti)
         self.nphots = self.nphots1
 
-    def rebin(self, df, method="mean"):
-        bin_ps = Crossspectrum.rebin(self, df=df, method=method)
+    def rebin(self, df=None, f=None, method="mean"):
+        bin_ps = Crossspectrum.rebin(self, df=df, f=f, method=method)
         bin_ps.nphots = bin_ps.nphots1
 
         return bin_ps
