@@ -78,9 +78,14 @@ class TestFitLorentzians(object):
         model.amplitude_0 = self.t0[0]
         # model.bounds = {}
 
+        t0 = np.array([self.amplitude_0, self.x_0_0, self.fwhm_0,
+              self.amplitude_1, self.fwhm_1,
+              self.amplitude_2, self.fwhm_2,
+              self.whitenoise])
+
         parest, res = fit_powerspectrum(self.ps, model,
-                                np.random.normal(self.t0,
-                                                 self.t0 / 10))
+                                np.random.normal(t0,
+                                                 t0 / 10))
 
         true_pars = [self.amplitude_0,
                      self.x_0_0, self.fwhm_0,
@@ -97,9 +102,15 @@ class TestFitLorentzians(object):
         model.amplitude_0.fixed = True
         # model.bounds = {}
 
+        t0 = np.array([self.x_0_0, self.fwhm_0,
+              self.amplitude_1, self.x_0_1, self.fwhm_1,
+              self.amplitude_2, self.x_0_2, self.fwhm_2,
+              self.whitenoise])
+
+
         parest, res = fit_powerspectrum(self.ps, model,
-                                  np.random.normal(self.t0,
-                                                   self.t0 / 10))
+                                  np.random.normal(t0,
+                                                   t0 / 10))
 
         true_pars = [self.x_0_0, self.fwhm_0,
                      self.amplitude_1, self.x_0_1, self.fwhm_1,

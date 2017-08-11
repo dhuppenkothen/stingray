@@ -1,10 +1,12 @@
 from __future__ import division, print_function, absolute_import
 from astropy.modeling.models import custom_model
 
+
+#TODO: Add Jacobian
 @custom_model
 def GeneralizedLorentz1D(x, x_0=1., fwhm=1., value=1., power_coeff=1.):
     """
-    Generalized lorenzian function, 
+    Generalized Lorentzian function,
     implemented using astropy.modeling.models custom model
 
     Parameters
@@ -24,8 +26,10 @@ def GeneralizedLorentz1D(x, x_0=1., fwhm=1., value=1., power_coeff=1.):
         generalized Lorentzian psd model
     """
     assert power_coeff > 0., "The power coefficient should be greater than zero."
-    return value * (fwhm / 2)**power_coeff * 1./(abs(x - x_0)**power_coeff + (fwhm / 2)**power_coeff) 
-    
+    return value * (fwhm / 2)**power_coeff * 1./(abs(x - x_0)**power_coeff + (fwhm / 2)**power_coeff)
+
+
+#TODO: Add Jacobian
 @custom_model
 def SmoothBrokenPowerLaw(x, norm=1., gamma_low=1., gamma_high=1., break_freq=1.):
     """
@@ -34,7 +38,6 @@ def SmoothBrokenPowerLaw(x, norm=1., gamma_low=1., gamma_high=1., break_freq=1.)
 
     Parameters
     ----------
-
     x: numpy.ndarray
         non-zero frequencies
 
@@ -51,9 +54,9 @@ def SmoothBrokenPowerLaw(x, norm=1., gamma_low=1., gamma_high=1., break_freq=1.)
     return norm * x**(-gamma_low) / (1. + (x / break_freq)**2)**(-(gamma_low - gamma_high) / 2)
     
 
-def lorenzian(x, p):
+def generalized_lorentzian(x, p):
     """
-    Generalized lorenzian function.
+    Generalized Lorentzian function.
 
     Parameters
     ----------
@@ -70,11 +73,12 @@ def lorenzian(x, p):
     Returns
     -------
     model: numpy.ndarray
-        generalized lorenzian psd model
+        generalized lorentzian psd model
     """
 
     assert p[3] > 0., "The power coefficient should be greater than zero."
-    return p[2] * (p[1] / 2)**p[3] * 1./(abs(x - p[0])**p[3] + (p[1] / 2)**p[3]) 
+    return p[2] * (p[1] / 2)**p[3] * 1./(abs(x - p[0])**p[3] + (p[1] / 2)**p[3])
+
 
 def smoothbknpo(x, p):
     """

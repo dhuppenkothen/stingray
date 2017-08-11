@@ -55,27 +55,31 @@ either via a `pull request`_ or via an `issue`_.
 Contents
 --------
 - make a light curve from event data
-- make periodograms in Leahy and rms normalization
+- make periodograms in Leahy and r.m.s. normalization
 - average periodograms
 - maximum likelihood fitting of periodograms/parametric models
-- cross spectra and lags (time vs energy, time vs frequency)
 - coherence
+- cross spectra, r.m.s. spectra and lags (time vs energy, time vs frequency)
+- covariance spectra
+- bispectra
+- Bayesian QPO searches
 - simulate a light curve with a given power spectrum
 - simulate a light curve from another light curve and a 1-d (time) or 2-d (time-energy) impulse response
 - simulate an event list from a given light curve _and_ with a given energy spectrum
 - load event lists from fits files of a few missions (*RXTE*/PCA, *NuSTAR*/FPM, *XMM-Newton*/EPIC)
+- cross correlation functions
+- pulsar searches with Epoch Folding, $Z^2_n$ test
 
 Future Additions
 ----------------
-- cross correlation functions,
-- bispectra (?)
+- bicoherence
 - spectral-timing functionality
-- Bayesian QPO searches
 - power colours
-- rms spectra
 - full HEASARC-compatible mission support
-- graphical interface
+- graphical interface (see StingraySoftware/DAVE)
 - (...) Feel free to propose! Use the `Issues`_ page!
+- pulsar searches with $H$-test
+- binary pulsar searches
 
 Installation
 ------------

@@ -2,7 +2,6 @@ language: python
 
 python:
     - 2.7
-    - 3.5
     - 3.6
 
 # Setting sudo to false opts in to Travis-CI container-based builds.
@@ -20,6 +19,10 @@ addons:
             - texlive-latex-extra
             - dvipng
 
+branches:
+  only:
+    - "master"
+
 env:
     global:
         # The following versions are the 'default' for tests, unless
@@ -27,7 +30,7 @@ env:
         # to repeat them for all configurations.
         - ASTROPY_VERSION=stable
         - SETUP_CMD='test'
-        - PIP_DEPENDENCIES='emcee statsmodels corner'
+        - PIP_DEPENDENCIES='emcee statsmodels corner pytest-catchlog'
         # For this package-template, we include examples of Cython modules,
         # so Cython is required for testing. If your package does not include
         # Cython code, you can set CONDA_DEPENDENCIES=''
@@ -36,50 +39,45 @@ env:
         # Make sure that egg_info works without dependencies
         - SETUP_CMD='egg_info'
         # Try all python versions with the latest numpy
-        - SETUP_CMD='test'
+        - SETUP_CMD='test --coverage'
 
 matrix:
     fast_finish: true
     include:
+        - python: 3.5
+          env: PIP_DEPENDENCIES='git+https://git@github.com/nanograv/pint.git jplephem emcee statsmodels corner pytest-catchlog' SETUP_CMD='test --remote-data --coverage'
 
-        #Try without importing h5py
         - python: 2.7
-          env: CONDA_DEPENDENCIES='Cython numpy scipy nose matplotlib'
+          env: PIP_DEPENDENCIES='git+https://git@github.com/nanograv/pint.git jplephem emcee statsmodels corner pytest-catchlog' SETUP_CMD='test --remote-data'
+
+        #Try without importing h5py but importing numba
+        - python: 2.7
+          env: CONDA_DEPENDENCIES='Cython numpy scipy nose matplotlib numba'
 
         - python: 3.5
-          env: CONDA_DEPENDENCIES='Cython numpy scipy nose matplotlib'
+          env: CONDA_DEPENDENCIES='Cython numpy scipy nose matplotlib numba' SETUP_CMD='test --coverage'
 
         # Try without using corner
         - python: 3.5
-          env: PIP_DEPENDENCIES='emcee statsmodels' SETUP_CMD='test --coverage'
+          env: PIP_DEPENDENCIES='emcee statsmodels pytest-catchlog' SETUP_CMD='test --coverage'
 
-        # Do a coverage test in Python 2.
-        - python: 2.7
-          env: SETUP_CMD='test --coverage'
-
-        # Do a coverage test in Python 3.
+        # Try without using emcee
         - python: 3.5
-          env: SETUP_CMD='test --coverage'
+          env: PIP_DEPENDENCIES='statsmodels pytest-catchlog' SETUP_CMD='test --coverage'
 
-        # Try Astropy development version
-        - python: 2.7
-          env: ASTROPY_VERSION=development
+        # Try without using statsmodels
+        - python: 3.5
+          env: PIP_DEPENDENCIES='emcee pytest-catchlog' SETUP_CMD='test --coverage'
 
         - python: 3.4
           env: NUMPY_VERSION=1.11
-         # Check for sphinx doc build warnings - we do this first because it
-         # may run for a long time
-        - python: 2.7
-          env: SETUP_CMD='build_sphinx -w'
-        - python: 3.5
-          env: ASTROPY_VERSION=development
+
+        ## Here allowed failures start
         # Try older numpy versions
         - python: 2.7
           env: NUMPY_VERSION=1.8
         - python: 2.7
           env: NUMPY_VERSION=1.7
-        - python: 2.7
-          env: NUMPY_VERSION=1.6
         # Try older scipy versions
         - python: 2.7
           env: SCIPY_VERSION=0.16.0
@@ -87,8 +85,14 @@ matrix:
           env: SCIPY_VERSION=0.14.0
         - python: 2.6
           env: SETUP_CMD='test'
-        - python: 3.3
-          env: SETUP_CMD='test'
+
+        - python: 2.7
+          env: SETUP_CMD='build_sphinx -w'
+        # Try Astropy development version
+        - python: 2.7
+          env: ASTROPY_VERSION=development
+        - python: 3.5
+          env: ASTROPY_VERSION=development
 
     allow_failures:
         # Try older numpy versions
@@ -96,16 +100,12 @@ matrix:
           env: NUMPY_VERSION=1.8
         - python: 2.7
           env: NUMPY_VERSION=1.7
-        - python: 2.7
-          env: NUMPY_VERSION=1.6
         # Try older scipy versions
         - python: 2.7
           env: SCIPY_VERSION=0.16.0
         - python: 2.7
           env: SCIPY_VERSION=0.14.0
         - python: 2.6
-          env: SETUP_CMD='test'
-        - python: 3.3
           env: SETUP_CMD='test'
 
         - python: 2.7
@@ -161,4 +161,4 @@ after_success:
     # If coveralls.io is set up for this package, uncomment the line
     # below and replace "packagename" with the name of your package.
     # The coveragerc file may be customized as needed for your package.
-    - if [[ $SETUP_CMD == 'test --coverage' ]]; then coveralls --rcfile='stingray/tests/coveragerc'; fi
+    - if [[ $SETUP_CMD == *'--coverage'* ]]; then coveralls --rcfile='stingray/tests/coveragerc'; fi

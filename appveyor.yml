@@ -11,7 +11,7 @@ environment:
                           # of 32 bit and 64 bit builds are needed, move this
                           # to the matrix section.
         CONDA_DEPENDENCIES: "scipy numpy nose h5py astropy matplotlib"
-        PIP_DEPENDENCIES: "emcee statsmodels"
+        PIP_DEPENDENCIES: "emcee statsmodels pytest-catchlog"
 
     matrix:
 

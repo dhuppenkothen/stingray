@@ -103,7 +103,7 @@ def fit_powerspectrum(ps, model, starting_pars, max_post=False, priors=None,
 
     Let's also make a model to test:
     >>> model_to_test = models.PowerLaw1D() + models.Const1D()
-    >>> model_to_test.x_0_0.fixed = True
+    >>> model_to_test.amplitude_1.fixed = True
 
     We're ready for doing the fit:
     >>> parest, res = fit_powerspectrum(ps, model_to_test, t0)
@@ -114,9 +114,11 @@ def fit_powerspectrum(ps, model, starting_pars, max_post=False, priors=None,
 
     """
     if priors:
-        lpost = PSDPosterior(ps, model, priors=priors)
+        lpost = PSDPosterior(ps.freq, ps.power, model, priors=priors,
+                             m=ps.m)
     else:
         lpost = PSDLogLikelihood(ps.freq, ps.power, model, m=ps.m)
+
 
     parest = PSDParEst(ps, fitmethod=fitmethod, max_post=max_post)
     res = parest.fit(lpost, starting_pars, neg=True)
@@ -242,4 +244,3 @@ def fit_lorentzians(ps, nlor, starting_pars, fit_whitenoise=True,
 
     return fit_powerspectrum(ps, model, starting_pars, max_post=max_post,
                              priors=priors, fitmethod=fitmethod)
-

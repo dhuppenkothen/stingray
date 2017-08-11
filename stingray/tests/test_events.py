@@ -23,15 +23,17 @@ class TestEvents(object):
     def setup_class(self):
         self.time = [0.5, 1.5, 2.5, 3.5]
         self.counts = [3000, 2000, 2200, 3600]
-        self.spectrum = [[1, 2, 3, 4, 5, 6],[1000, 2040, 1000, 3000, 4020, 2070]]
+        self.counts_flat = [3000, 3000, 3000, 3000]
+        self.spectrum = [[1, 2, 3, 4, 5, 6],
+                         [1000, 2040, 1000, 3000, 4020, 2070]]
         self.gti = [[0, 4]]
 
     def test_inequal_length(self):
         """Check that exception is raised in case of
-        disparity in length of 'time' and 'pha'
+        disparity in length of 'time' and 'energy'
         """
         with pytest.raises(ValueError):
-            EventList(time=[1, 2, 3], pha=[10, 12])    
+            EventList(time=[1, 2, 3], energy=[10, 12])
 
     def test_to_lc(self):
         """Create a light curve from event list."""
@@ -52,28 +54,21 @@ class TestEvents(object):
         """Simulate photon arrival times for an event list 
         from light curve.
         """
-        lc = Lightcurve(self.time, self.counts)
+        lc = Lightcurve(self.time, self.counts_flat, gti=self.gti)
         ev = EventList()
         ev.simulate_times(lc)
+        lc_sim = ev.to_lc(dt=lc.dt, tstart=lc.tstart, tseg=lc.tseg)
+        assert np.all((lc - lc_sim).counts < 3 * np.sqrt(lc.counts))
 
     def test_simulate_times_with_spline(self):
         """Simulate photon arrival times, with use_spline option
         enabled.
         """
-        lc = Lightcurve(self.time, self.counts)
+        lc = Lightcurve(self.time, self.counts_flat, gti=self.gti)
         ev = EventList()
-        ev.simulate_times(lc, use_spline = True)
-
-    def test_recover_lc(self):
-        """Test that the original light curve can be recovered from 
-        event list, which was used to simulate it.
-        """
-        lc = Lightcurve(self.time, self.counts)
-        ev = EventList()
-        ev.simulate_times(lc)
-
-        lc_rcd = ev.to_lc(dt=1, tstart=0, tseg=4)
-        assert np.all(np.abs(lc_rcd.counts - lc.counts) < 3 * np.sqrt(lc.counts))
+        ev.simulate_times(lc, use_spline=True)
+        lc_sim = ev.to_lc(dt=lc.dt, tstart=lc.tstart, tseg=lc.tseg)
+        assert np.all((lc - lc_sim).counts < 3 * np.sqrt(lc.counts))
 
     def test_simulate_energies(self):
         """Assign photon energies to an event list.
@@ -101,17 +96,17 @@ class TestEvents(object):
         ev = EventList()
         ev.simulate_energies(self.spectrum)
 
-    def test_compare_pha(self):
+    def test_compare_energy(self):
         """Compare the simulated energy distribution to actual distribution.
         """
         fluxes = np.array(self.spectrum[1])
         ev = EventList(ncounts=1000)
         ev.simulate_energies(self.spectrum)
-        pha = [int(p) for p in ev.pha]
+        energy = [int(p) for p in ev.energy]
 
-        # Histogram pha to get shape approximation
-        gen_pha = ((np.array(pha) - 1) / 1).astype(int)
-        lc = np.bincount(pha)
+        # Histogram energy to get shape approximation
+        gen_energy = ((np.array(energy) - 1) / 1).astype(int)
+        lc = np.bincount(energy)
 
         # Remove first entry as it contains occurences of '0' element
         lc = lc[1:len(lc)]
@@ -151,7 +146,7 @@ class TestEvents(object):
         assert ev_new.time == None
         assert ev_new.gti == None
         assert ev_new.pi == None
-        assert ev_new.pha == None
+        assert ev_new.energy == None
 
         ev = EventList(time=[1, 2, 3])
         ev_other = EventList([])
@@ -168,12 +163,12 @@ class TestEvents(object):
         ev_new = ev.join(ev_other)
         assert ev_new.dt == 3
 
-    def test_join_without_pha(self):
-        ev = EventList(time=[1, 2, 3], pha=[3, 3, 3])
+    def test_join_without_energy(self):
+        ev = EventList(time=[1, 2, 3], energy=[3, 3, 3])
         ev_other = EventList(time=[4, 5])
         ev_new = ev.join(ev_other)
 
-        assert np.all(ev_new.pha == [3, 3, 3, 0, 0])
+        assert np.all(ev_new.energy == [3, 3, 3, 0, 0])
 
     def test_join_without_pi(self):
         ev = EventList(time=[1, 2, 3], pi=[3, 3, 3])
@@ -205,14 +200,14 @@ class TestEvents(object):
         """Join two overlapping event lists.
         """
         ev = EventList(time=[1, 1, 2, 3, 4], 
-                        pha=[3, 4, 7, 4, 3], gti=[[1, 2],[3, 4]])
+                        energy=[3, 4, 7, 4, 3], gti=[[1, 2],[3, 4]])
         ev_other = EventList(time=[5, 6, 6, 7, 10], 
-                            pha=[4, 3, 8, 1, 2], gti=[[6, 7]])
+                            energy=[4, 3, 8, 1, 2], gti=[[6, 7]])
         ev_new = ev.join(ev_other)
 
         assert (ev_new.time ==
                 np.array([1, 1, 2, 3, 4, 5, 6, 6, 7, 10])).all()
-        assert (ev_new.pha ==
+        assert (ev_new.energy ==
                 np.array([3, 4, 7, 4, 3, 4, 3, 8, 1, 2])).all()
         assert (ev_new.gti == 
                 np.array([[1, 2],[3, 4],[6, 7]])).all()
@@ -221,14 +216,14 @@ class TestEvents(object):
         """Join two non-overlapping event lists.
         """
         ev = EventList(time=[1, 1, 10, 6, 5], 
-                        pha=[10, 6, 3, 11, 2], gti=[[1, 3],[5, 6]])
+                        energy=[10, 6, 3, 11, 2], gti=[[1, 3],[5, 6]])
         ev_other = EventList(time=[5, 7, 6, 6, 10], 
-                            pha=[2, 3, 8, 1, 2], gti=[[5, 7],[8, 10]])
+                            energy=[2, 3, 8, 1, 2], gti=[[5, 7],[8, 10]])
         ev_new = ev.join(ev_other)
 
         assert (ev_new.time ==
                 np.array([1, 1, 5, 5, 6, 6, 6, 7, 10, 10])).all()
-        assert (ev_new.pha ==
+        assert (ev_new.energy ==
                 np.array([10, 6, 2, 2, 11, 8, 1, 3, 3, 2])).all()
         assert (ev_new.gti == np.array([[5, 6]])).all()
 

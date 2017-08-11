@@ -10,16 +10,16 @@ from .utils import simon, assign_value_if_none
 from .gti import cross_gtis, append_gtis, check_separate
 
 from .lightcurve import Lightcurve
+from stingray.simulator.base import simulate_times
 
 import numpy as np
 import numpy.random as ra
-import scipy.interpolate as sci
 
 __all__ = ['EventList']
 
 
 class EventList(object):
-    def __init__(self, time=None, pha=None, ncounts=None, mjdref=0, dt=0, notes="", 
+    def __init__(self, time=None, energy=None, ncounts=None, mjdref=0, dt=0, notes="",
             gti=None, pi=None):
         """
         Make an event list object from an array of time stamps
@@ -35,7 +35,7 @@ class EventList(object):
             The time resolution of the events. Only relevant when using events
             to produce light curves with similar bin time.
 
-        pha: iterable
+        energy: iterable
             A list of array of photon energy values
 
         mjdref : float
@@ -56,7 +56,7 @@ class EventList(object):
             The array of event arrival times, in seconds from the reference
             MJD (self.mjdref)
 
-        pha: numpy.ndarray
+        energy: numpy.ndarray
             The array of photon energy values
 
         ncounts: int
@@ -77,7 +77,7 @@ class EventList(object):
 
         """
         
-        self.pha = None if pha is None else np.array(pha)
+        self.energy = None if energy is None else np.array(energy)
         self.notes = notes
         self.dt = dt
         self.mjdref = mjdref
@@ -91,9 +91,9 @@ class EventList(object):
         else:
             self.time = None
 
-        if (time is not None) and (pha is not None):
-            if len(time) != len(pha):
-                raise ValueError('Lengths of time and pha must be equal.')
+        if (time is not None) and (energy is not None):
+            if len(time) != len(energy):
+                raise ValueError('Lengths of time and energy must be equal.')
 
     def to_lc(self, dt, tstart=None, tseg=None):
         """
@@ -150,90 +150,30 @@ class EventList(object):
 
     def simulate_times(self, lc, use_spline=False, bin_time=None):
         """
-        Assign (simulate) photon arrival times to event list, using acceptance-rejection
-        method.
+        Assign (simulate) photon arrival times to event list, using the
+        acceptance-rejection method.
 
         Parameters
         ----------
         lc: `Lightcurve` object
-        """ 
-       
-        times = lc.time
-        counts = lc.counts
 
-        bin_time = assign_value_if_none(bin_time, np.median(np.diff(times)))
-        n_bin = len(counts)
-        bin_start = 0
-        maxlc = np.max(counts)
-        intlc = maxlc * n_bin
-        n_events_predict = int(intlc + 10 * np.sqrt(intlc))
+        Other Parameters
+        ----------------
+        use_spline : bool
+            Approximate the light curve with a spline to avoid binning effects
+        bin_time : float
+            The bin time of the light curve, if it needs to be specified for
+            improved precision
 
-        # Max number of events per chunk must be < 100000
-        events_per_bin_predict = n_events_predict / n_bin
-        
-        if use_spline:
-            max_bin = np.long(np.max([4, 1000000 / events_per_bin_predict]))
-            
-        else:
-            max_bin = np.long(np.max([4, 5000000 / events_per_bin_predict]))
-
-        ev_list = np.zeros(n_events_predict)
-        nev = 0
-
-        while bin_start < n_bin:
-            
-            t0 = times[bin_start]
-            bin_stop = min([bin_start + max_bin, n_bin + 1])
-            
-            lc_filt = counts[bin_start:bin_stop]
-            t_filt = times[bin_start:bin_stop]
-            length = t_filt[-1] - t_filt[0]
-            
-            n_bin_filt = len(lc_filt)
-            n_to_simulate = n_bin_filt * max(lc_filt)
-            safety_factor = 10
-
-            if n_to_simulate > 10000:
-                safety_factor = 4.
-
-            n_to_simulate += safety_factor * np.sqrt(n_to_simulate)
-            n_to_simulate = int(np.ceil(n_to_simulate))
-            n_predict = ra.poisson(np.sum(lc_filt))
-
-            random_ts = ra.uniform(t_filt[0] - bin_time / 2,
-                                   t_filt[-1] + bin_time / 2, n_to_simulate)
-
-            random_amps = ra.uniform(0, max(lc_filt), n_to_simulate)
-            
-            if use_spline:
-                lc_spl = sci.splrep(t_filt, lc_filt, s=np.longdouble(0), k=1)
-                pts = sci.splev(random_ts, lc_spl)
-            
-            else:
-                rough_bins = np.rint((random_ts - t0) / bin_time)
-                rough_bins = rough_bins.astype(int)
-                pts = lc_filt[rough_bins]
-            
-            good = random_amps < pts
-            len1 = len(random_ts)
-            random_ts = random_ts[good]
-            
-            len2 = len(random_ts)
-            random_ts = random_ts[:n_predict]
-            random_ts.sort()
-            
-            new_nev = len(random_ts)
-            ev_list[nev:nev + new_nev] = random_ts[:]
-            nev += new_nev
-            bin_start += max_bin
-
-        # Discard all zero entries at the end
-        time = ev_list[:nev]
-        time.sort()
-        
-        self.time = EventList(time).time
-        self.ncounts = len(self.time)
+        Return
+        ------
+        times : array-like
+            Simulated photon arrival times
+        """
+        self.time = simulate_times(lc, use_spline=use_spline,
+                                   bin_time=bin_time)
         self.gti = lc.gti
+        self.ncounts = len(self.time)
 
     def simulate_energies(self, spectrum):
         """
@@ -253,10 +193,10 @@ class EventList(object):
 
         if isinstance(spectrum, list) or isinstance(spectrum, np.ndarray):
             
-            pha = np.array(spectrum)[0]
+            energy = np.array(spectrum)[0]
             fluxes = np.array(spectrum)[1]
 
-            if not isinstance(pha, np.ndarray):
+            if not isinstance(energy, np.ndarray):
                 raise IndexError("Spectrum must be a 2-d array or list")
         
         else:
@@ -272,7 +212,7 @@ class EventList(object):
         R = ra.uniform(0, 1, self.ncounts)
 
         # Assign energies to events corresponding to the random numbers drawn
-        self.pha = np.array([pha[np.argwhere(cum_prob == 
+        self.energy = np.array([energy[np.argwhere(cum_prob ==
             min(cum_prob[(cum_prob - r) > 0]))] for r in R])
 
     def join(self, other):
@@ -331,16 +271,16 @@ class EventList(object):
             ev_new.pi = np.concatenate([self.pi, other.pi])
             ev_new.pi = ev_new.pi[order]
 
-        if (self.pha is None) and (other.pha is None):
-            ev_new.pha = None
-        elif (self.pha is None) or (other.pha is None):
-            self.pha = assign_value_if_none(self.pha, np.zeros_like(self.time))
-            other.pha = assign_value_if_none(other.pha,
+        if (self.energy is None) and (other.energy is None):
+            ev_new.energy = None
+        elif (self.energy is None) or (other.energy is None):
+            self.energy = assign_value_if_none(self.energy, np.zeros_like(self.time))
+            other.energy = assign_value_if_none(other.energy,
                                              np.zeros_like(other.time))
 
-        if (self.pha is not None) and (other.pha is not None):
-            ev_new.pha = np.concatenate([self.pha, other.pha])
-            ev_new.pha = ev_new.pha[order]
+        if (self.energy is not None) and (other.energy is not None):
+            ev_new.energy = np.concatenate([self.energy, other.energy])
+            ev_new.energy = ev_new.energy[order]
 
         if self.gti is None and other.gti is not None and len(self.time) > 0:
             self.gti = \
@@ -383,7 +323,7 @@ class EventList(object):
         -------
         ev: `EventList` object
         """
-        attributes = ['time', 'pha', 'ncounts', 'mjdref', 'dt', 
+        attributes = ['time', 'energy', 'ncounts', 'mjdref', 'dt',
                 'notes', 'gti', 'pi']
         data = read(filename, format_, cols=attributes)
 
@@ -405,7 +345,7 @@ class EventList(object):
                 else:
                     values.append(None)
                     
-            return EventList(time=values[0], pha=values[1], ncounts=values[2], 
+            return EventList(time=values[0], energy=values[1], ncounts=values[2],
                 mjdref=values[3], dt=values[4], notes=values[5], gti=values[6], pi=values[7])
 
         elif format_ == 'pickle':

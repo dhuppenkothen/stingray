@@ -1,0 +1,4 @@
+FORMAT 1
+53358.000056.3.000.000.tsum 420.000 53358.7731394424088 1.196 ao -fe 430G -be ASP -B 430 -bw 4.0 -tobs 1806.363 -pta NANOGrav -proc dfg+12 -chanid asp_420
+53420.000025.3.000.000.tsum 420.000 53420.5541580125302 1.835 ao -fe 430G -be ASP -B 430 -bw 4.0 -tobs 1806.363 -pta NANOGrav -proc dfg+12 -chanid asp_420
+53448.000028.3.000.000.tsum 420.000 53448.4789265955255 1.675 ao -fe 430G -be ASP -B 430 -bw 4.0 -tobs 1806.363 -pta NANOGrav -proc dfg+12 -chanid asp_420

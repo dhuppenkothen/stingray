@@ -10,11 +10,27 @@ import numpy as np
 # If numba is installed, import jit. Otherwise, define an empty decorator with
 # the same name.
 
+HAS_NUMBA = False
 try:
     from numba import jit
-except:
-    def jit(fun):
-        return fun
+    HAS_NUMBA = True
+except ImportError:
+    warnings.warn("Numba not installed. Faking it")
+
+    class jit(object):
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __call__(self, func):
+            def wrapped_f(*args, **kwargs):
+                return func(*args, **kwargs)
+
+            return wrapped_f
+
+
+def _root_squared_mean(array):
+    return np.sqrt(np.sum(array**2)) / len(array)
 
 
 def simon(message, **kwargs):
@@ -35,7 +51,7 @@ def simon(message, **kwargs):
     warnings.warn("SIMON says: {0}".format(message), **kwargs)
 
 
-def rebin_data(x, y, dx_new, yerr=None, method='sum'):
+def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
 
     """Rebin some data to an arbitrary new data resolution. Either sum
     the data points in the new bins or average them.
@@ -48,15 +64,20 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum'):
     y: iterable
         The independent variable to be binned
 
-    yerr: iterable, optional
-        The uncertainties of y, to be propagated during binning.
-
     dx_new: float
         The new resolution of the dependent variable x
+
+    Other parameters
+    ----------------
+    yerr: iterable, optional
+        The uncertainties of y, to be propagated during binning.
 
     method: {"sum" | "average" | "mean"}, optional, default "sum"
         The method to be used in binning. Either sum the samples y in
         each new bin of x, or take the arithmetic mean.
+
+    dx: float
+        The old resolution (otherwise, calculated from median diff)
 
 
     Returns
@@ -77,7 +98,7 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum'):
     y = np.asarray(y)
     yerr = np.asarray(assign_value_if_none(yerr, np.zeros_like(y)))
 
-    dx_old = x[1] - x[0]
+    dx_old = assign_value_if_none(dx, np.median(np.diff(x)))
 
     if dx_new < dx_old:
         raise ValueError("New frequency resolution must be larger than "
@@ -134,6 +155,83 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum'):
     xbin = np.arange(ybin.shape[0]) * dx_new + new_x0
 
     return xbin, ybin, ybinerr, step_size
+
+
+def rebin_data_log(x, y, f, y_err=None, dx=None):
+    """Logarithmic rebin of the periodogram.
+
+    The new frequency depends on the previous frequency modified by a factor f:
+
+    dnu_j = dnu_{j-1}*(1+f)
+
+    Parameters
+    ----------
+    x: iterable
+        The dependent variable with some resolution dx_old = x[1]-x[0]
+
+    y: iterable
+        The independent variable to be binned
+
+    f: float
+        The factor of increase of each bin wrt the previous one.
+
+    Other Parameters
+    ----------------
+    yerr: iterable, optional
+        The uncertainties of y, to be propagated during binning.
+
+    method: {"sum" | "average" | "mean"}, optional, default "sum"
+        The method to be used in binning. Either sum the samples y in
+        each new bin of x, or take the arithmetic mean.
+
+    dx: float, optional
+        The binning step of the initial xs
+
+    Returns
+    -------
+    xbin: numpy.ndarray
+        The midpoints of the new bins in x
+
+    ybin: numpy.ndarray
+        The binned quantity y
+
+    ybin_err: numpy.ndarray
+        The uncertainties of the binned values of y.
+
+    step_size: float
+        The size of the binning step
+    """
+    import scipy
+    dx_init = assign_value_if_none(dx, np.median(np.diff(x)))
+    y = np.asarray(y)
+    y_err = np.asarray(assign_value_if_none(y_err, np.zeros_like(y)))
+
+    minx = x[1] * 0.5  # frequency to start from
+    maxx = x[-1]  # maximum frequency to end
+    binx = [minx, minx + dx_init]  # first
+    dx = x[1]  # the frequency resolution of the first bin
+
+    # until we reach the maximum frequency, increase the width of each
+    # frequency bin by f
+    while binx[-1] <= maxx:
+        binx.append(binx[-1] + dx*(1.0+f))
+        dx = binx[-1] - binx[-2]
+
+    # compute the mean of the ys that fall into each new frequency bin.
+    # we cast to np.double due to scipy's bad handling of longdoubles
+    biny, bin_edges, binno = scipy.stats.binned_statistic(
+        x.astype(np.double), y.astype(np.double),
+        statistic="mean", bins=binx)
+
+    biny_err, bin_edges, binno = scipy.stats.binned_statistic(
+        x.astype(np.double), y_err.astype(np.double),
+        statistic=_root_squared_mean, bins=binx)
+
+    # compute the number of powers in each frequency bin
+    nsamples = np.array([len(binno[np.where(binno == i)[0]])
+                         for i in range(np.max(binno))])
+
+    return binx, biny, biny_err, nsamples
 
 
 def assign_value_if_none(value, default):

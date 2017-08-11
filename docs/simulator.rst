@@ -1,8 +1,7 @@
 .. _stingray-simulator:
 
-***************************************
 Stingray Simulator (`stingray.simulator`)
-***************************************
+*****************************************
 
 Introduction
 ============
@@ -51,7 +50,7 @@ Simulate Method
 Stingray provides multiple ways to simulate a light curve. However, all these methods follow a common recipe::
 
   >>> sim = simulator.Simulator(N=1024, mean=0.5, dt=0.125)
-  >>> simulator.simulate(...)
+  >>> lc = sim.simulate(2)
 
 Using Power-Law Spectrum
 ------------------------
@@ -162,13 +161,15 @@ The `simulator` class provides the functionality to simulate light curves indepe
   1
   >>> lc = sim.get_channel('3.5 - 4.5')
   >>> sim.delete_channel('3.5 - 4.5')
-  0
 
 Alternatively, assume that we have light curves in the simulated energy channels `3.5 - 4.5`, `4.5 - 5.5` and `5.5 - 6.5`. These channels can be retreived or deleted in single commands. 
 
-  >>> sim.countchannels()
-  3
-  >>> sim.get_channels(['3.5 - 4.5','4.5 - 5.5','5.5 - 6.5'])
+  >>> sim.count_channels()
+  0
+  >>> sim.simulate_channel('3.5 - 4.5', 2)
+  >>> sim.simulate_channel('4.5 - 5.5', 2)
+  >>> sim.simulate_channel('5.5 - 6.5', 2)
+  >>> chans = sim.get_channels(['3.5 - 4.5','4.5 - 5.5','5.5 - 6.5'])
   >>> sim.delete_channels(['3.5 - 4.5','4.5 - 5.5','5.5 - 6.5'])
 
 Reference/API

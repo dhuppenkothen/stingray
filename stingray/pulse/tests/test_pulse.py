@@ -1,13 +1,75 @@
 from __future__ import division, print_function, absolute_import
-from ..pulsar import *
+
+import numpy as np
+from stingray.pulse.pulsar import fold_events, get_TOA
+from stingray.pulse.pulsar import stat, z_n, pulse_phase, phase_exposure
+from stingray.pulse.pulsar import fold_detection_level, z2_n_detection_level
+from stingray.pulse.pulsar import fold_profile_probability, z2_n_probability
+from stingray.pulse.pulsar import get_orbital_correction_from_ephemeris_file
+from ..pulsar import HAS_PINT
+from astropy.tests.helper import remote_data
+import pytest
+import os
 
 def _template_fun(phase, ph0, amplitude, baseline=0):
     return baseline + amplitude * np.cos((phase - ph0) * 2 * np.pi)
 
 
 class TestAll(object):
-
     """Unit tests for the stingray.pulsar module."""
+    @classmethod
+    def setup_class(cls):
+        cls.curdir = os.path.abspath(os.path.dirname(__file__))
+        cls.datadir = os.path.join(cls.curdir, 'data')
+
+    @remote_data
+    @pytest.mark.skipif('not HAS_PINT')
+    def test_pint_installed_correctly(self):
+        import pint.toa as toa
+        from pint.residuals import resids
+        import pint.models.model_builder as mb
+        import astropy.units as u
+        parfile = os.path.join(self.datadir, 'example_pint.par')
+        timfile = os.path.join(self.datadir, 'example_pint.tim')
+
+        toas = toa.get_TOAs(timfile, ephem="DE405",
+                            planets=False, include_bipm=False)
+        model = mb.get_model(parfile)
+
+        pint_resids_us = resids(toas, model, False).time_resids.to(u.s)
+
+        # Due to the gps2utc clock correction. We are at 3e-8 seconds level.
+        assert np.all(np.abs(pint_resids_us.value) < 3e-6)
+
+    @remote_data
+    @pytest.mark.skipif('not HAS_PINT')
+    def test_orbit_from_parfile(self):
+        import pint.toa as toa
+        parfile = os.path.join(self.datadir, 'example_pint.par')
+        timfile = os.path.join(self.datadir, 'example_pint.tim')
+
+        toas = toa.get_TOAs(timfile, ephem="DE405",
+                            planets=False, include_bipm=False)
+        mjds = np.array([m.value for m in toas.get_mjds(high_precision=True)])
+
+        mjdstart, mjdstop = mjds[0] - 1, mjds[-1] + 1
+
+        correction_sec, correction_mjd = \
+            get_orbital_correction_from_ephemeris_file(mjdstart, mjdstop,
+                                                       parfile, ntimes=1000)
+
+        mjdref = 50000
+        toa_sec = (mjds - mjdref) * 86400
+        corr = correction_mjd(mjds)
+        corr_s = correction_sec (toa_sec, mjdref)
+        assert np.allclose(corr, corr_s / 86400 + mjdref)
+
+    @pytest.mark.skipif('HAS_PINT')
+    def test_orbit_from_parfile_raises(self):
+        print("Doesn't have pint")
+        with pytest.raises(ImportError):
+            get_orbital_correction_from_ephemeris_file(0, 0,
+                                                       parfile='ciaociao')
 
     def test_stat(self):
         """Test pulse phase calculation, frequency only."""
@@ -119,17 +181,35 @@ class TestAll(object):
 
     def test_pulse_profile2(self):
         nbin = 16
-        times = np.arange(0, 1, 1/nbin)
+        dt = 1/nbin
+        times = np.arange(0, 2, dt)
+        gtis = np.array([[-0.5*dt, 2 + 0.5*dt]])
 
         period = 1
-        ph, p, pe = fold_events(times, 1, nbin=nbin, expocorr=True)
+        ph, p, pe = fold_events(times, 1, nbin=nbin, expocorr=True, gtis=gtis)
 
         np.testing.assert_array_almost_equal(ph, np.arange(nbin)/nbin +
                                              0.5/nbin)
-        np.testing.assert_array_almost_equal(p, np.ones(nbin))
-        np.testing.assert_array_almost_equal(pe, np.ones(nbin))
+        np.testing.assert_array_almost_equal(p, 2 * np.ones(nbin))
+        np.testing.assert_array_almost_equal(pe, 2**0.5 * np.ones(nbin))
 
-    def test_zn(self):
+    def test_pulse_profile3(self):
+        nbin = 16
+        dt = 1/nbin
+        times = np.arange(0, 2 - dt, dt)
+        gtis = np.array([[-0.5*dt, 2 - dt]])
+
+        ph, p, pe = fold_events(times, 1, nbin=nbin, expocorr=True,
+                                gtis=gtis)
+
+        np.testing.assert_array_almost_equal(ph, np.arange(nbin)/nbin +
+                                             0.5/nbin)
+        np.testing.assert_array_almost_equal(p, 2 * np.ones(nbin))
+        expected_err = 2**0.5 * np.ones(nbin)
+        expected_err[-1] = 2  # Because of the change of exposure
+        np.testing.assert_array_almost_equal(pe, expected_err)
+
+    def test_zn_2(self):
         np.testing.assert_almost_equal(z_n(np.arange(1), n=1, norm=1), 2)
         np.testing.assert_almost_equal(z_n(np.arange(1), n=2, norm=1), 4)
         np.testing.assert_almost_equal(z_n(np.arange(2), n=2, norm=1), 8)

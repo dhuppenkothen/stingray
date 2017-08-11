@@ -22,6 +22,7 @@ def _decode_energy_specification(energy_spec):
     True
     >>> a = _decode_energy_specification((1, 4, 2, 'log'))
     >>> np.all(a == [1, 2, 4])
+    True
     """
     if not isinstance(energy_spec, tuple):
         raise ValueError("Energy specification must be a tuple")
@@ -73,7 +74,7 @@ class VarEnergySpectrum(object):
         events2 : stingray.events.EventList object
             event list for the second channel, if not the same. Useful if the
             reference band has to be taken from another detector.
-            
+
         Attributes
         ----------
         events1 : array-like
@@ -88,7 +89,7 @@ class VarEnergySpectrum(object):
             the spectral values, corresponding to each energy interval
         spectrum_error : array-like
             the errorbars corresponding to spectrum
-        
+
         """
         self.events1 = events
         self.events2 = assign_value_if_none(events2, events)
@@ -131,8 +132,8 @@ class VarEnergySpectrum(object):
             energies1 = self.events1.pi
             energies2 = self.events2.pi
         else:
-            energies2 = self.events2.pha
-            energies1 = self.events1.pha
+            energies2 = self.events2.energy
+            energies1 = self.events1.energy
 
         gti = cross_two_gtis(self.events1.gti, self.events2.gti)
 
@@ -185,18 +186,23 @@ class RmsEnergySpectrum(VarEnergySpectrum):
         for i, eint in enumerate(self.energy_intervals):
             base_lc, ref_lc = self._construct_lightcurves(eint,
                                                           exclude=False)
-            xspect = AveragedCrossspectrum(base_lc, ref_lc,
-                                           segment_size=self.segment_size,
-                                           norm='frac')
-            good = (xspect.freq >= self.freq_interval[0]) & \
-                   (xspect.freq < self.freq_interval[1])
-            rms_spec[i] = np.sqrt(np.sum(xspect.power[good]*xspect.df))
+            try:
+                xspect = AveragedCrossspectrum(base_lc, ref_lc,
+                                               segment_size=self.segment_size,
+                                               norm='frac')
+            except AssertionError as e:
+                # Avoid "Mean count rate is <= 0. Something went wrong" assertion.
+                simon("AssertionError: " + str(e))
+            else:
+                good = (xspect.freq >= self.freq_interval[0]) & \
+                       (xspect.freq < self.freq_interval[1])
+                rms_spec[i] = np.sqrt(np.sum(xspect.power[good]*xspect.df))
 
-            # Root squared sum of errors of the spectrum
-            root_sq_err_sum = np.sqrt(np.sum(xspect.power[good]**2))*xspect.df
-            # But the rms is the squared root. So,
-            # Error propagation
-            rms_spec_err[i] = 1 / (2 * rms_spec[i]) * root_sq_err_sum
+                # Root squared sum of errors of the spectrum
+                root_sq_err_sum = np.sqrt(np.sum(xspect.power[good]**2))*xspect.df
+                # But the rms is the squared root. So,
+                # Error propagation
+                rms_spec_err[i] = 1 / (2 * rms_spec[i]) * root_sq_err_sum
 
         return rms_spec, rms_spec_err
 
@@ -209,23 +215,30 @@ class LagEnergySpectrum(VarEnergySpectrum):
         lag_spec_err = np.zeros_like(lag_spec)
         for i, eint in enumerate(self.energy_intervals):
             base_lc, ref_lc = self._construct_lightcurves(eint)
-            xspect = AveragedCrossspectrum(base_lc, ref_lc,
-                                           segment_size=self.segment_size)
-            good = (xspect.freq >= self.freq_interval[0]) & \
-                   (xspect.freq < self.freq_interval[1])
-            lag, lag_err = xspect.time_lag()
-            good_lag, good_lag_err = lag[good], lag_err[good]
-            coh, coh_err = xspect.coherence()
-            lag_spec[i] = np.mean(good_lag)
-            coh_check = coh > 1.2 / (1 + 0.2 * xspect.m)
-            if not np.all(coh_check[good]):
-                simon("Coherence is not ideal over the specified energy range."
-                      " Lag values and uncertainties might be underestimated. "
-                      "See Epitropakis and Papadakis, A\&A 591, 1113, 2016")
+            try:
+                xspect = AveragedCrossspectrum(base_lc, ref_lc,
+                                               segment_size=self.segment_size)
+            except AssertionError as e:
+                # Avoid assertions in AveragedCrossspectrum.
+                simon("AssertionError: " + str(e))
+            else:
+                good = (xspect.freq >= self.freq_interval[0]) & \
+                       (xspect.freq < self.freq_interval[1])
+                lag, lag_err = xspect.time_lag()
+                good_lag, good_lag_err = lag[good], lag_err[good]
+                coh, coh_err = xspect.coherence()
+                lag_spec[i] = np.mean(good_lag)
+                coh_check = coh > 1.2 / (1 + 0.2 * xspect.m)
+                if not np.all(coh_check[good]):
+                    simon("Coherence is not ideal over the specified energy "
+                          "range. Lag values and uncertainties might be "
+                          "underestimated. See Epitropakis and Papadakis, "
+                          "A\&A 591, 1113, 2016")
 
-            # Root squared sum of errors of the spectrum
-            # Verified!
-            lag_spec_err[i] = np.sqrt(np.sum(good_lag_err**2) / len(good_lag))
+                # Root squared sum of errors of the spectrum
+                # Verified!
+                lag_spec_err[i] = \
+                    np.sqrt(np.sum(good_lag_err**2) / len(good_lag))
 
         return lag_spec, lag_spec_err
 
