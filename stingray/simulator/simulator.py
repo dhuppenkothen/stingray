@@ -17,19 +17,19 @@ class Simulator(object):
 
         Parameters
         ----------
-        dt: int, default 1
+        dt : int, default 1
             time resolution of simulated light curve
-        N: int, default 1024
+        N : int, default 1024
             bins count of simulated light curve
-        mean: float, default 0
+        mean : float, default 0
             mean value of the simulated light curve
-        rms: float, default 1
+        rms : float, default 1
             fractional rms of the simulated light curve,
             actual rms is calculated by mean*rms
-        red_noise: int, default 1
+        red_noise : int, default 1
             multiple of real length of light curve, by
             which to simulate, to avoid red noise leakage
-        seed: int, default None
+        seed : int, default None
             seed value for random processes
         """
 
@@ -60,64 +60,44 @@ class Simulator(object):
 
             Parameters
             ----------
-            beta: float
+            beta : float
                 Defines the shape of spectrum
-
-            Returns
-            -------
-            lightCurve: `LightCurve` object
 
         - x = simulate(s)
             For generating a light curve from user-provided spectrum.
 
             Parameters
             ----------
-            s: array-like
+            s : array-like
                 power spectrum
-
-            Returns
-            -------
-            lightCurve: `LightCurve` object
 
         - x = simulate(model)
             For generating a light curve from pre-defined model
 
             Parameters
             ----------
-            model: astropy.modeling.Model
+            model : astropy.modeling.Model
                 the pre-defined model
-
-            Returns
-            -------
-            lightCurve: `LightCurve` object
 
         - x = simulate('model', params)
             For generating a light curve from pre-defined model
 
             Parameters
             ----------
-            model: string
+            model : string
                 the pre-defined model
-            params: list iterable or dict
+            params : list iterable or dict
                 the parameters for the pre-defined model
-
-            Returns
-            -------
-            lightCurve: `LightCurve` object
 
         - x = simulate(s, h)
             For generating a light curve using impulse response.
 
             Parameters
             ----------
-            s: array-like
+            s : array-like
                 Underlying variability signal
-            h: array-like
+            h : array-like
                 Impulse response
-
-            Returns
-            -------
-            lightCurve: `LightCurve` object
 
         - x = simulate(s, h, 'same')
             For generating a light curve of same length as input
@@ -125,11 +105,11 @@ class Simulator(object):
 
             Parameters
             ----------
-            s: array-like
+            s : array-like
                 Underlying variability signal
-            h: array-like
+            h : array-like
                 Impulse response
-            mode: str
+            mode : str
                 mode can be 'same', 'filtered, or 'full'.
                 'same' indicates that the length of output light
                 curve is same as that of input signal.
@@ -138,9 +118,15 @@ class Simulator(object):
                 'full' indicates that the length of output light
                 curve is len(s) + len(h) -1
 
+        Parameters
+        ----------
+        args
+            See examples below.
+
         Returns
-            -------
-            lightCurve: `LightCurve` object
+        -------
+        lightCurve : `LightCurve` object
+
         """
 
         if isinstance(args[0], (numbers.Integral, float)) and len(args) == 1:
@@ -172,15 +158,15 @@ class Simulator(object):
 
         Parameters
         ----------
-        channel: str
+        channel : str
             range of energy channel (e.g., 3.5-4.5)
 
-        *args:
+        *args
             see description of simulate() for details
 
         Returns
         -------
-            lightCurve: `LightCurve` object
+            lightCurve : `LightCurve` object
         """
 
         # Check that channel name does not already exist.
@@ -255,17 +241,17 @@ class Simulator(object):
 
         Parameters
         ----------
-        start: int
+        start : int
             start time of impulse response
-        width: int
+        width : int
             width of impulse response
-        intensity: float
+        intensity : float
             scaling parameter to set the intensity of delayed emission
             corresponding to direct emission.
 
         Returns
         -------
-        h: numpy.ndarray
+        h : numpy.ndarray
             Constructed impulse response
         """
 
@@ -285,24 +271,24 @@ class Simulator(object):
 
         Parameters
         ----------
-        t1: int
+        t1 : int
             primary peak time
-        t2: int
+        t2 : int
             secondary peak time
-        t3: int
+        t3 : int
             end time
-        p1: float
+        p1 : float
             value of primary peak
-        p2: float
+        p2 : float
             value of secondary peak
-        rise: float
+        rise : float
             slope of rising exponential from primary peak to secondary peak
-        decay: float
+        decay : float
             slope of decaying exponential from secondary peak to end time
 
         Returns
         -------
-        h: numpy.ndarray
+        h : numpy.ndarray
             Constructed impulse response
         """
 
@@ -339,12 +325,12 @@ class Simulator(object):
 
         Parameters
         ----------
-        B: int
+        B : int
             Defines the shape of power law spectrum.
 
         Returns
         -------
-        lightCurve: array-like
+        lightCurve : array-like
         """
 
         # Define frequencies at which to compute PSD
@@ -371,12 +357,12 @@ class Simulator(object):
 
         Parameters
         ----------
-        s: array-like
+        s : array-like
             power spectrum
 
         Returns
         -------
-        lightCurve: `LightCurve` object
+        lightCurve : `LightCurve` object
         """
 
         # Cast spectrum as numpy array
@@ -401,14 +387,14 @@ class Simulator(object):
 
         Parameters
         ----------
-        model: astropy.modeling.Model derived function
+        model : astropy.modeling.Model derived function
             the pre-defined model
             (library-based, available in astropy.modeling.models or
             custom-defined)
 
         Returns
         -------
-        lightCurve: `LightCurve` object
+        lightCurve : `LightCurve` object
         """
 
         # Frequencies at which the PSD is to be computed
@@ -436,14 +422,14 @@ class Simulator(object):
 
         Parameters
         ----------
-        model_str: string
+        model_str : string
             name of the pre-defined model
-        params: list or dictionary
+        params : list or dictionary
             parameters of the pre-defined model
 
         Returns
         -------
-        lightCurve: `LightCurve` object
+        lightCurve : `LightCurve` object
         """
 
         # Frequencies at which the PSD is to be computed
@@ -481,11 +467,11 @@ class Simulator(object):
 
         Parameters
         ----------
-        s: array-like
+        s : array-like
             Underlying variability signal
-        h: array-like
+        h : array-like
             Impulse response
-        mode: str
+        mode : str
             mode can be 'same', 'filtered, or 'full'.
             'same' indicates that the length of output light
             curve is same as that of input signal.
@@ -496,7 +482,7 @@ class Simulator(object):
 
         Returns
         -------
-        lightCurve: `LightCurve` object
+        lightCurve : `LightCurve` object
         """
         lc = signal.fftconvolve(s, h)
 
@@ -515,15 +501,15 @@ class Simulator(object):
 
         Parameters
         ----------
-        real: numpy.ndarray
+        real : numpy.ndarray
             Co-effients corresponding to real parts of complex numbers
-        imaginary: numpy.ndarray
+        imaginary : numpy.ndarray
             Co-efficients correspondong to imaginary parts of complex
             numbers
 
         Returns
         -------
-        ifft: numpy.ndarray
+        ifft : numpy.ndarray
             Real inverse fourier transform of complex numbers
         """
 
@@ -549,12 +535,12 @@ class Simulator(object):
 
         Parameters
         ----------
-        long_lc: numpy.ndarray
+        long_lc : numpy.ndarray
             Simulated lightcurve of length 'N' times 'red_noise'
 
         Returns
         -------
-        lc: numpy.ndarray
+        lc : numpy.ndarray
             Normalized and extracted lightcurve of length 'N'
         """
         if self.red_noise == 1:
@@ -577,13 +563,13 @@ class Simulator(object):
 
         Parameters
         ----------
-        lc: lightcurve.Lightcurve object OR
+        lc : lightcurve.Lightcurve object OR
             iterable of lightcurve.Lightcurve objects
             The light curve data to be Fourier-transformed.
 
         Returns
         -------
-        power: numpy.ndarray
+        power : numpy.ndarray
             The array of normalized squared absolute values of Fourier
             amplitudes
 
@@ -600,15 +586,15 @@ class Simulator(object):
 
         Parameters
         ----------
-        filename: str
+        filename : str
             Name of the Simulator object to be read.
 
-        format_: str
+        format_ : str
             Available option is 'pickle.'
 
         Returns
         -------
-        object: `Simulator` object
+        object : `Simulator` object
         """
 
         if format_ == 'pickle':
@@ -623,10 +609,10 @@ class Simulator(object):
 
         Parameters
         ----------
-        filename: str
+        filename : str
             Name of the Simulator object to be created.
 
-        format_: str
+        format_ : str
             Available options are 'pickle' and 'hdf5'.
         """
 

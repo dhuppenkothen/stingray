@@ -72,19 +72,11 @@ matrix:
         - python: 3.4
           env: NUMPY_VERSION=1.11
 
-        ## Here allowed failures start
-        # Try older numpy versions
-        - python: 2.7
-          env: NUMPY_VERSION=1.8
-        - python: 2.7
-          env: NUMPY_VERSION=1.7
         # Try older scipy versions
         - python: 2.7
           env: SCIPY_VERSION=0.16.0
         - python: 2.7
           env: SCIPY_VERSION=0.14.0
-        - python: 2.6
-          env: SETUP_CMD='test'
 
         - python: 2.7
           env: SETUP_CMD='build_sphinx -w'
@@ -95,18 +87,11 @@ matrix:
           env: ASTROPY_VERSION=development
 
     allow_failures:
-        # Try older numpy versions
-        - python: 2.7
-          env: NUMPY_VERSION=1.8
-        - python: 2.7
-          env: NUMPY_VERSION=1.7
         # Try older scipy versions
         - python: 2.7
           env: SCIPY_VERSION=0.16.0
         - python: 2.7
           env: SCIPY_VERSION=0.14.0
-        - python: 2.6
-          env: SETUP_CMD='test'
 
         - python: 2.7
           env: SETUP_CMD='build_sphinx -w'

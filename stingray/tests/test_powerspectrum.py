@@ -121,12 +121,11 @@ class TestPowerspectrum(object):
         assert np.isclose(rms_ps, rms_lc, atol=0.01)
 
     def test_leahy_norm_correct(self):
-        time = np.linspace(0, 10.0, 1e6)
+        time = np.linspace(0, 10.0, 1e5)
         counts = np.random.poisson(1000, size=time.shape[0])
 
         lc = Lightcurve(time, counts)
         ps = Powerspectrum(lc, norm="leahy")
-        print(np.mean(ps.power[1:]))
 
         assert np.isclose(np.mean(ps.power[1:]), 2.0, atol=0.01, rtol=0.01)
 
@@ -280,9 +279,19 @@ class TestAveragedPowerspectrum(object):
 
     def test_one_segment(self):
         segment_size = self.lc.tseg
-        print(segment_size, self.lc.tseg, self.lc.gti)
+
         ps = AveragedPowerspectrum(self.lc, segment_size)
         assert np.isclose(ps.segment_size, segment_size)
+
+    def test_make_empty_periodogram(self):
+        ps = AveragedPowerspectrum()
+        assert ps.norm == "frac"
+        assert ps.freq is None
+        assert ps.power is None
+        assert ps.power_err is None
+        assert ps.df is None
+        assert ps.m == 1
+        assert ps.n is None
 
     @pytest.mark.parametrize('nseg', [1, 2, 3, 5, 10, 20, 100])
     def test_n_segments(self, nseg):
@@ -297,7 +306,7 @@ class TestAveragedPowerspectrum(object):
         assert ps.m == 2
 
     def test_init_without_segment(self):
-        with pytest.raises(TypeError):
+        with pytest.raises(ValueError):
             assert AveragedPowerspectrum(self.lc)
 
     def test_init_with_nonsense_segment(self):
@@ -307,7 +316,7 @@ class TestAveragedPowerspectrum(object):
 
     def test_init_with_none_segment(self):
         segment_size = None
-        with pytest.raises(TypeError):
+        with pytest.raises(ValueError):
             assert AveragedPowerspectrum(self.lc, segment_size)
 
     def test_init_with_inf_segment(self):
@@ -359,7 +368,7 @@ class TestAveragedPowerspectrum(object):
                           (aps.freq[0]-aps.df*0.5+bin_aps.df*0.5),
                           atol=1e-4, rtol=1e-4)
 
-    @pytest.mark.parametrize('f', [2, 3, 5, 1.5, 1, 85])
+    @pytest.mark.parametrize('f', [20, 30, 50, 15, 1, 850])
     def test_rebin_factor(self, f):
         """
         TODO: Not sure how to write tests for the rebin method!
@@ -417,18 +426,18 @@ class TestAveragedPowerspectrum(object):
 
     def test_leahy_correct_for_multiple(self):
 
-        n = 100
+        n = 10
         lc_all = []
         for i in range(n):
-            time = np.arange(0.0, 10.0, 10. / 100000)
+            time = np.arange(0.0, 10.0, 10. / 10000)
             counts = np.random.poisson(1000, size=time.shape[0])
             lc = Lightcurve(time, counts)
             lc_all.append(lc)
 
-        ps = AveragedPowerspectrum(lc_all, 10.0, norm="leahy")
+        ps = AveragedPowerspectrum(lc_all, 1.0, norm="leahy")
 
-        assert np.isclose(np.mean(ps.power), 2.0, atol=1e-3, rtol=1e-3)
-        assert np.isclose(np.std(ps.power), 2.0 / np.sqrt(n), atol=0.1, rtol=0.1)
+        assert np.isclose(np.mean(ps.power), 2.0, atol=1e-2, rtol=1e-2)
+        assert np.isclose(np.std(ps.power), 2.0 / np.sqrt(n*10), atol=0.1, rtol=0.1)
 
 
 class TestClassicalSignificances(object):

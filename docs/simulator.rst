@@ -6,7 +6,7 @@ Stingray Simulator (`stingray.simulator`)
 Introduction
 ============
 
-`stingray.simulator` provides a framework to simulate light curves with given variability distributions. In time series experiments, understanding the certainty is crucial to interpret the derived results in context of physical models. The simulator module provides tools to assess this uncertainty by simulating time series and spectral data. 
+`stingray.simulator` provides a framework to simulate light curves with given variability distributions. In time series experiments, understanding the certainty is crucial to interpret the derived results in context of physical models. The simulator module provides tools to assess this uncertainty by simulating time series and spectral data.
 
 Stingray simulator supports multiple methods to carry out these simulation. Light curves can be simulated through power-law spectrum, through a user-defined or pre-defined model, or through impulse responses. The module is designed in a way such that all these methods can be accessed using similar set of commands.
 
@@ -23,7 +23,7 @@ Getting started
 ===============
 
 The examples here assume that the following libraries and modules have been imported::
-	
+
 	>>> import numpy as np
 	>>> from stingray import Lightcurve, sampledata
 	>>> from stingray.simulator import simulator, models
@@ -118,7 +118,7 @@ passed on as function arguments.
 Using Impulse Response
 ----------------------
 
-In order to simulate a light curve using impulse response, we need the original light curve and impulse response. Stingray provides `TransferFunction` class which can be used to obtain time and energy averaged impulse response by passing in a 2-D intensity profile as the input. A detailed tutorial on obtaining impulse response is provided `here <https://github.com/StingraySoftware/notebooks/blob/master/Transfer%20Functions/TransferFunction%20Tutorial.ipynb>`_.
+In order to simulate a light curve using impulse response, we need the original light curve and impulse response. Stingray provides `TransferFunction` class which can be used to obtain time and energy averaged impulse response by passing in a 2-D intensity profile as the input. A detailed tutorial on obtaining impulse response is provided `here <https://github.com/StingraySoftware/notebooks/blob/master/Transfer%20Functions/TransferFunction%20Tutorial.ipynb>`__.
 
 Here, for the sake of simplicity, we use a simulated impulse response.
 
@@ -148,13 +148,13 @@ Here, for the sake of simplicity, we use a simulated impulse response.
    plt.ylabel('Flux', fontsize='14')
    plt.show()
 
-Since, the new light curve is produced by the convolution of original light curveand impulse response, its length is truncated by default for ease of analysis. This can be changed, however, by supplying an additional parameter `full`. However, at times, we do not need to include lag delay portion in the output light curve. This can be done by changing the final function parameter to `filtered`. For a more detailed analysis on lag-frequency spectrum, follow the notebook `here <https://github.com/StingraySoftware/notebooks/blob/master/Simulator/Lag%20Analysis.ipynb>`_.
+Since, the new light curve is produced by the convolution of original light curveand impulse response, its length is truncated by default for ease of analysis. This can be changed, however, by supplying an additional parameter `full`. However, at times, we do not need to include lag delay portion in the output light curve. This can be done by changing the final function parameter to `filtered`. For a more detailed analysis on lag-frequency spectrum, follow the notebook `here <https://github.com/StingraySoftware/notebooks/blob/master/Simulator/Lag%20Analysis.ipynb>`__.
 
 Channel Simulation
 ==================
 
 The `simulator` class provides the functionality to simulate light curves independently for each channel. This is useful, for example, when dealing with energy dependent impulse responses where we can create a di↵erent simulation channel for each energy range. The module provides options to count, retrieve and delete channels.::
-  
+
   >>> sim = simulator.Simulator(N=1024, mean=0.5, dt=0.125)
   >>> sim.simulate_channel('3.5 - 4.5', 2)
   >>> sim.count_channels()
@@ -162,7 +162,7 @@ The `simulator` class provides the functionality to simulate light curves indepe
   >>> lc = sim.get_channel('3.5 - 4.5')
   >>> sim.delete_channel('3.5 - 4.5')
 
-Alternatively, assume that we have light curves in the simulated energy channels `3.5 - 4.5`, `4.5 - 5.5` and `5.5 - 6.5`. These channels can be retreived or deleted in single commands. 
+Alternatively, assume that we have light curves in the simulated energy channels `3.5 - 4.5`, `4.5 - 5.5` and `5.5 - 6.5`. These channels can be retreived or deleted in single commands.
 
   >>> sim.count_channels()
   0
