@@ -62,7 +62,7 @@ Contents
 - cross spectra, r.m.s. spectra and lags (time vs energy, time vs frequency)
 - covariance spectra
 - bispectra
-- Bayesian QPO searches
+- Bayesian quasi-periodic oscillation searches
 - simulate a light curve with a given power spectrum
 - simulate a light curve from another light curve and a 1-d (time) or 2-d (time-energy) impulse response
 - simulate an event list from a given light curve _and_ with a given energy spectrum
@@ -73,13 +73,13 @@ Contents
 Future Additions
 ----------------
 - bicoherence
-- spectral-timing functionality
+- phase-resolved spectroscopy of quasi-periodic oscillations
+- Fourier-frequency-resolved spectroscopy
 - power colours
 - full HEASARC-compatible mission support
-- graphical interface (see StingraySoftware/DAVE)
-- (...) Feel free to propose! Use the `Issues`_ page!
 - pulsar searches with $H$-test
 - binary pulsar searches
+- (...) Feel free to propose! Use the `Issues`_ page!
 
 Installation
 ------------

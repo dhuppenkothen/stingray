@@ -390,9 +390,9 @@ def excess_variance(lc, normalization='fvar'):
     lc_actual_var = np.var(lc.counts)
     var_xs = lc_actual_var - lc_mean_var
     mean_lc = np.mean(lc.counts)
-    mean_ctvar = np.mean(mean_lc ** 2)
+    mean_ctvar = mean_lc ** 2
 
-    fvar = var_xs / mean_ctvar
+    fvar = np.sqrt(var_xs / mean_ctvar)
 
     N = len(lc.counts)
     var_xs_err_A = np.sqrt(2 / N) * lc_mean_var / mean_lc ** 2

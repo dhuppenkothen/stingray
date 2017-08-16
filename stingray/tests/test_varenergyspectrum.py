@@ -137,7 +137,7 @@ class TestRMSEnergySpectrum(object):
     def setup_class(cls):
         from ..simulator.simulator import Simulator
 
-        simulator = Simulator(0.1, 10000, rms=0.4, mean=200)
+        simulator = Simulator(0.1, 1000, rms=0.4, mean=200)
         test_lc = simulator.simulate(1)
         test_ev1, test_ev2 = EventList(), EventList()
         test_ev1.simulate_times(test_lc)
@@ -154,7 +154,7 @@ class TestRMSEnergySpectrum(object):
     def test_correct_rms_values(self):
         # Assert that it is close to 0.4 (since we don't have infinite spectral
         # coverage, it will be a little less!)
-        assert np.allclose(self.rms.spectrum, 0.37, 0.05)
+        assert np.allclose(self.rms.spectrum, 0.4, 0.05)
 
     def test_correct_rms_errorbars(self):
 
@@ -181,7 +181,7 @@ class TestLagEnergySpectrum(object):
     def setup_class(cls):
         from ..simulator.simulator import Simulator
         dt = 0.1
-        simulator = Simulator(dt, 10000, rms=0.4, mean=200)
+        simulator = Simulator(dt, 1000, rms=0.4, mean=200)
         test_lc1 = simulator.simulate(2)
         test_lc2 = Lightcurve(test_lc1.time,
                               np.array(np.roll(test_lc1.counts, 2)),

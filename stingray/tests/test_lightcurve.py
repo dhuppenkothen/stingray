@@ -89,6 +89,40 @@ class TestLightcurve(object):
         lc = Lightcurve(self.times, self.counts)
         assert lc.n == 4
 
+    def test_analyze_lc_chunks(self):
+        lc = Lightcurve(self.times, self.counts, gti=self.gti)
+
+        def func(lc):
+            return lc.time[0]
+        start, stop, res = lc.analyze_lc_chunks(2, func)
+        assert start[0] == 0.5
+        assert np.all(start + lc.dt / 2 == res)
+
+    def test_analyze_lc_chunks_fvar_fracstep(self):
+        dt = 0.1
+        tstart = 0
+        tstop = 100
+        times = np.arange(tstart, tstop, dt)
+        gti = np.array([[tstart - dt/2, tstop - dt/2]])
+        # Simulate something *clearly* non-constant
+        counts = np.random.poisson(
+            10000 + 2000 * np.sin(2 * np.pi * times))
+
+        lc = Lightcurve(times, counts, gti=gti)
+
+        def excvar(lc):
+            from stingray.utils import excess_variance
+            return excess_variance(lc, normalization='fvar')
+
+        start, stop, res = lc.analyze_lc_chunks(20, excvar, fraction_step=0.5)
+        # excess_variance returns fvar and fvar_err
+        res, res_err = res
+
+        assert np.allclose(start[0], gti[0, 0])
+        assert np.all(res > 0)
+        # This must be a clear measurement of fvar
+        assert np.all(res > res_err)
+
     def test_bin_edges(self):
         bin_lo = [0.5,  1.5,  2.5,  3.5]
         bin_hi = [1.5,  2.5,  3.5,  4.5]
@@ -660,4 +694,16 @@ class TestLightcurveRebin(object):
     def test_change_mjdref(self):
         lc_new = self.lc.change_mjdref(57000)
         assert lc_new.mjdref == 57000
-    
+
+    def test_apply_gtis(self):
+        time = np.arange(150)
+        count = np.zeros_like(time) + 3
+        lc = Lightcurve(time, count, gti=[[-0.5, 150.5]])
+        lc.gti = [[-0.5, 2.5], [12.5, 14.5]]
+        lc._apply_gtis()
+        assert lc.n == 5
+        assert np.all(lc.time == np.array([0, 1, 2, 13, 14]))
+        lc.gti = [[-0.5, 10.5]]
+        lc._apply_gtis()
+        assert lc.n == 3
+        assert np.all(lc.time == np.array([0, 1, 2]))

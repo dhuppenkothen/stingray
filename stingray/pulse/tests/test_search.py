@@ -17,7 +17,7 @@ class TestAll(object):
         cls.tstart = 0
         cls.tend = 25.25
         cls.tseg = cls.tend - cls.tstart
-        cls.dt = 0.00606
+        cls.dt = 0.01212
         cls.times = np.arange(cls.tstart, cls.tend, cls.dt) + cls.dt / 2
         cls.counts = \
             100 + 20 * np.cos(2 * np.pi * cls.times * cls.pulse_frequency)
