@@ -20,7 +20,7 @@ def P1(td, tb, r0):
             P(f) = P1 - P2 * cos(pi*f/fnyq)
     """
 
-    return 2 * [1 - 2 * r0 * td * (1 - (td / 2 * tb))]
+    return 2 * (1 - 2 * r0 * td * (1 - (td / 2 * tb)))
 
 
 def P2(td, tb, r0, N):
@@ -47,7 +47,7 @@ def P2(td, tb, r0, N):
 
 
 @custom_model
-def dead_time_ps(f, fnyq, P1=1., P2=1.):
+def deadtime_powerspectrum(f, fnyq, P1=1., P2=1.):
     """
         Custom astropy.modeling model intended to model dead_time effects in power spectrum. Implements:
             P(f) = P1 - P2 * cos(pi*f/fnyq)
@@ -82,5 +82,5 @@ def dead_time_ps(f, fnyq, P1=1., P2=1.):
         W. Zhang, K. Jahoda, J. H. Swank, E. H. Morgan and A. B. Giles. 
     """
 
-    power = P1 - [P2 * np.cos((np.pi * f) / fnyq)]
+    power = P1 - (P2 * np.cos((np.pi * f) / fnyq))
     return power
