@@ -532,10 +532,6 @@ def _retrieve_ascii_object(filename, **kwargs):
     -------
     data : astropy.Table object
         An astropy.Table object with the data from the file
-
-
-    Example
-    -------
     """
     if not isinstance(filename, six.string_types):
         raise TypeError("filename must be string!")
