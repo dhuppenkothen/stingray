@@ -102,7 +102,7 @@ class TestVarEnergySpectrum(object):
             vespec._construct_lightcurves([0, 0.5],
                                           tstart=0, tstop=0.65)
         np.testing.assert_allclose(base_lc.counts, [1, 0, 2, 1, 0, 0])
-        np.testing.assert_allclose(ref_lc.counts, [0, 0, 0, 1, 0, 1])
+        np.testing.assert_allclose(ref_lc.counts, [0, 0, 0, 0, 1, 1])
 
     def test_construct_lightcurves_no_exclude(self):
         events = EventList([0.09, 0.21, 0.23, 0.32, 0.4, 0.54],
@@ -129,7 +129,7 @@ class TestVarEnergySpectrum(object):
             vespec._construct_lightcurves([0, 0.5],
                                           tstart=0, tstop=0.65)
         np.testing.assert_allclose(base_lc.counts, [1, 0, 2, 1, 0, 0])
-        np.testing.assert_allclose(ref_lc.counts, [0, 0, 0, 1, 0, 1])
+        np.testing.assert_allclose(ref_lc.counts, [0, 0, 0, 0, 1, 1])
 
 
 class TestRMSEnergySpectrum(object):
@@ -157,11 +157,7 @@ class TestRMSEnergySpectrum(object):
         assert np.allclose(self.rms.spectrum, 0.4, 0.05)
 
     def test_correct_rms_errorbars(self):
-
-        # Assert that the rms measured at all energies is the same
-        assert np.all(
-            np.abs(self.rms.spectrum - self.rms.spectrum[0]) < \
-                self.rms.spectrum_error)
+        assert np.allclose(self.rms.spectrum_error, 0.0014, atol=0.0001)
 
     def test_rms_invalid_evlist_warns(self):
         ev = EventList(time=[], energy=[], gti=self.rms.events1.gti)

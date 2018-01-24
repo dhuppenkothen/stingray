@@ -18,7 +18,7 @@ except ImportError:
 
 
 class TestEvents(object):
-    
+
     @classmethod
     def setup_class(self):
         self.time = [0.5, 1.5, 2.5, 3.5]
@@ -39,8 +39,7 @@ class TestEvents(object):
         """Create a light curve from event list."""
         ev = EventList(self.time, gti=self.gti)
         lc = ev.to_lc(1)
-        print(lc.time)
-        assert (lc.time == [0.5, 1.5, 2.5, 3.5]).all()
+        assert np.all((lc.time == [0.5, 1.5, 2.5, 3.5]))
         assert (lc.gti == self.gti).all()
 
     def test_from_lc(self):
@@ -51,7 +50,7 @@ class TestEvents(object):
         assert (ev.time == np.array([0.5, 0.5, 1.5, 2.5, 2.5])).all()
 
     def test_simulate_times(self):
-        """Simulate photon arrival times for an event list 
+        """Simulate photon arrival times for an event list
         from light curve.
         """
         lc = Lightcurve(self.time, self.counts_flat, gti=self.gti)
@@ -78,7 +77,7 @@ class TestEvents(object):
 
     def test_simulate_energies_with_1d_spectrum(self):
         """Test that simulate_energies() method raises index
-        error exception is spectrum is 1-d. 
+        error exception is spectrum is 1-d.
         """
         ev = EventList(ncounts=100)
         with pytest.raises(IndexError):
@@ -199,9 +198,9 @@ class TestEvents(object):
     def test_non_overlapping_join(self):
         """Join two overlapping event lists.
         """
-        ev = EventList(time=[1, 1, 2, 3, 4], 
+        ev = EventList(time=[1, 1, 2, 3, 4],
                         energy=[3, 4, 7, 4, 3], gti=[[1, 2],[3, 4]])
-        ev_other = EventList(time=[5, 6, 6, 7, 10], 
+        ev_other = EventList(time=[5, 6, 6, 7, 10],
                             energy=[4, 3, 8, 1, 2], gti=[[6, 7]])
         ev_new = ev.join(ev_other)
 
@@ -209,15 +208,15 @@ class TestEvents(object):
                 np.array([1, 1, 2, 3, 4, 5, 6, 6, 7, 10])).all()
         assert (ev_new.energy ==
                 np.array([3, 4, 7, 4, 3, 4, 3, 8, 1, 2])).all()
-        assert (ev_new.gti == 
+        assert (ev_new.gti ==
                 np.array([[1, 2],[3, 4],[6, 7]])).all()
 
     def test_overlapping_join(self):
         """Join two non-overlapping event lists.
         """
-        ev = EventList(time=[1, 1, 10, 6, 5], 
+        ev = EventList(time=[1, 1, 10, 6, 5],
                         energy=[10, 6, 3, 11, 2], gti=[[1, 3],[5, 6]])
-        ev_other = EventList(time=[5, 7, 6, 6, 10], 
+        ev_other = EventList(time=[5, 7, 6, 6, 10],
                             energy=[2, 3, 8, 1, 2], gti=[[5, 7],[8, 10]])
         ev_new = ev.join(ev_other)
 
@@ -280,4 +279,4 @@ class TestEvents(object):
 
         with pytest.raises(KeyError):
             ev.read('ev.pickle', format_="unsupported")
-            
+

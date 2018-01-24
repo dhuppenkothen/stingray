@@ -53,14 +53,14 @@ def simulate_times(lc, use_spline=False, bin_time=None):
     while bin_start < n_bin:
 
         t0 = times[bin_start]
-        bin_stop = min([bin_start + max_bin, n_bin + 1])
+        bin_stop = np.min([bin_start + max_bin, n_bin + 1])
 
         lc_filt = counts[bin_start:bin_stop]
         t_filt = times[bin_start:bin_stop]
         length = t_filt[-1] - t_filt[0]
 
         n_bin_filt = len(lc_filt)
-        n_to_simulate = n_bin_filt * max(lc_filt)
+        n_to_simulate = n_bin_filt * np.max(lc_filt)
         safety_factor = 10
 
         if n_to_simulate > 10000:
@@ -73,7 +73,7 @@ def simulate_times(lc, use_spline=False, bin_time=None):
         random_ts = ra.uniform(t_filt[0] - bin_time / 2,
                                t_filt[-1] + bin_time / 2, n_to_simulate)
 
-        random_amps = ra.uniform(0, max(lc_filt), n_to_simulate)
+        random_amps = ra.uniform(0, np.max(lc_filt), n_to_simulate)
 
         if use_spline:
             lc_spl = sci.splrep(t_filt, lc_filt, s=np.longdouble(0), k=1)

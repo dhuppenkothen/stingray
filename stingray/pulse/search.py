@@ -1,5 +1,6 @@
 from __future__ import division, print_function
 import numpy as np
+import collections
 from .pulsar import stat, fold_events, z_n, pulse_phase
 from ..utils import jit, HAS_NUMBA
 from ..utils import contiguous_regions
@@ -11,15 +12,19 @@ __all__ = ['epoch_folding_search', 'z_n_search', 'search_best_peaks',
 
 
 @jit(nopython=True)
-def _pulse_phase_fast(time, f, buffer_array):
+def _pulse_phase_fast(time, f, fdot, buffer_array):
     for i in range(len(time)):
-        buffer_array[i] = time[i] * f
+        buffer_array[i] = time[i] * f + 0.5 * time[i]**2 * fdot
         buffer_array[i] -= np.floor(buffer_array[i])
     return buffer_array
 
 
-def _folding_search(stat_func, times, frequencies, segment_size=5000):
-    stats = np.zeros_like(frequencies)
+def _folding_search(stat_func, times, frequencies, segment_size=5000,
+                    use_times=False, fdots=0, **kwargs):
+
+    fgrid, fdgrid = np.meshgrid(np.asarray(frequencies).astype(np.float64),
+                                np.asarray(fdots).astype(np.float64))
+    stats = np.zeros_like(fgrid)
     times = (times - times[0]).astype(np.float64)
     length = times[-1]
     if length < segment_size:
@@ -27,15 +32,34 @@ def _folding_search(stat_func, times, frequencies, segment_size=5000):
     start_times = np.arange(times[0], times[-1], segment_size)
     count = 0
     for s in start_times:
-        ts = times[(times >=s) & (times < s + segment_size)]
-        buffer = np.zeros_like(ts)
+        good = (times >=s) & (times < s + segment_size)
+        ts = times[good]
         if len(ts) < 1 or ts[-1] - ts[0] < 0.2 * segment_size:
             continue
-        for i, f in enumerate(frequencies):
-            phases = _pulse_phase_fast(ts, f, buffer)
-            stats[i] += stat_func(phases)
+        buffer = np.zeros_like(ts)
+        for i in range(stats.shape[0]):
+            for j in range(stats.shape[1]):
+                f = fgrid[i, j]
+                fd = fdgrid[i, j]
+                if use_times:
+                    kwargs_copy = {}
+                    for key in kwargs.keys():
+                        if isinstance(kwargs[key], collections.Iterable) and \
+                            len(kwargs[key]) == len(times):
+
+                            kwargs_copy[key] = kwargs[key][good]
+                        else:
+                            kwargs_copy[key] = kwargs[key]
+                    stats[i, j] += stat_func(ts, f, fd, **kwargs_copy)
+                else:
+                    phases = _pulse_phase_fast(ts, f, fd, buffer)
+                    stats[i, j] += stat_func(phases)
         count += 1
-    return frequencies, stats / count
+
+    if fgrid.shape[0] == 1:
+        return fgrid.flatten(), stats.flatten() / count
+    else:
+        return fgrid, fdgrid, stats / count
 
 
 @jit(nopython=True)
@@ -58,7 +82,7 @@ def _profile_fast(phase, nbin=128):
 
 
 def epoch_folding_search(times, frequencies, nbin=128, segment_size=5000,
-                         expocorr=False):
+                         expocorr=False, gti=None, weights=1, fdots=0):
     """Performs epoch folding at trial frequencies in photon data.
 
     If no exposure correction is needed and numba is installed, it uses a fast
@@ -80,23 +104,39 @@ def epoch_folding_search(times, frequencies, nbin=128, segment_size=5000,
         the number of bins of the folded profiles
     segment_size : float
         the length of the segments to be averaged in the periodogram
+    fdots : array-like
+        trial values of the first frequency derivative (optional)
     expocorr : bool
         correct for the exposure (Use it if the period is comparable to the
-        length of the good time intervals.)
+        length of the good time intervals). If True, GTIs have to be specified
+        via the ``gti`` keyword
+    gti : [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
+        Good time intervals
+    weights : array-like
+        weight for each time. This might be, for example, the number of counts
+        if the times array contains the time bins of a light curve
     """
-    if expocorr or not HAS_NUMBA:
+    if expocorr or not HAS_NUMBA or isinstance(weights, collections.Iterable):
+        if expocorr and gti is None:
+            raise ValueError('To calculate exposure correction, you need to'
+                             ' specify the GTIs')
+
+        def stat_fun(t, f, fd=0, **kwargs):
+            return stat(fold_events(t, f, fd, **kwargs)[1])
+
         return \
-            _folding_search(lambda x: stat(fold_events(np.sort(x), 1,
-                                                       nbin=nbin,
-                                                       expocorr=expocorr)[1]),
-                               times, frequencies, segment_size=segment_size)
+            _folding_search(stat_fun, times, frequencies,
+                            segment_size=segment_size,
+                            use_times=True, expocorr=expocorr, weights=weights,
+                            gti=gti, nbin=nbin, fdots=fdots)
 
     return _folding_search(lambda x: stat(_profile_fast(x, nbin=nbin)),
-                           times, frequencies, segment_size=segment_size)
+                           times, frequencies, segment_size=segment_size,
+                           fdots=fdots)
 
 
 def z_n_search(times, frequencies, nharm=4, nbin=128, segment_size=5000,
-               expocorr=False):
+               expocorr=False, weights=1, gti=None, fdots=0):
     """Calculates the Z^2_n statistics at trial frequencies in photon data.
 
     The "real" Z^2_n statistics is very slow. Therefore, in this function data
@@ -124,22 +164,35 @@ def z_n_search(times, frequencies, nharm=4, nbin=128, segment_size=5000,
         the number of bins of the folded profiles
     segment_size : float
         the length of the segments to be averaged in the periodogram
+    fdots : array-like
+        trial values of the first frequency derivative (optional)
     expocorr : bool
         correct for the exposure (Use it if the period is comparable to the
         length of the good time intervals.)
+    gti : [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
+        Good time intervals
+    weights : array-like
+        weight for each time. This might be, for example, the number of counts
+        if the times array contains the time bins of a light curve
     """
     phase = np.arange(0, 1, 1 / nbin)
-    if expocorr or not HAS_NUMBA:
+    if expocorr or not HAS_NUMBA or isinstance(weights, collections.Iterable):
+        if expocorr and gti is None:
+            raise ValueError('To calculate exposure correction, you need to'
+                             ' specify the GTIs')
+        def stat_fun(t, f, fd=0, **kwargs):
+            return z_n(phase, n=nharm,
+                       norm=fold_events(t, f, fd, nbin=nbin, **kwargs)[1])
         return \
-            _folding_search(
-                lambda x: z_n(phase, n=nharm,
-                              norm=fold_events(np.sort(x), 1, nbin=nbin,
-                                               expocorr=expocorr)[1]),
-                               times, frequencies, segment_size=segment_size)
+            _folding_search(stat_fun, times, frequencies,
+                            segment_size=segment_size,
+                            use_times=True, expocorr=expocorr, weights=weights,
+                            gti=gti, fdots=fdots)
 
     return _folding_search(lambda x: z_n(phase, n=nharm,
                                          norm=_profile_fast(x, nbin=nbin)),
-                           times, frequencies, segment_size=segment_size)
+                           times, frequencies, segment_size=segment_size,
+                           fdots=fdots)
 
 
 def search_best_peaks(x, stat, threshold):
@@ -299,7 +352,8 @@ def plot_phaseogram(phaseogram, phase_bins, time_bins, unit_str='s', ax=None,
 
 
 def phaseogram(times, f, nph=128, nt=32, ph0=0, mjdref=None, fdot=0, fddot=0,
-               pepoch=None, plot=False, phaseogram_ax=None, **plot_kwargs):
+               pepoch=None, plot=False, phaseogram_ax=None,
+               weights=None, **plot_kwargs):
     """
     Calculate and plot the phaseogram of a pulsar observation.
 
@@ -335,6 +389,8 @@ def phaseogram(times, f, nph=128, nt=32, ph0=0, mjdref=None, fdot=0, fddot=0,
         If the input pulse solution is referred to a given time, give it here.
         It has no effect (just a phase shift of the pulse) if `fdot` is zero.
         if `mjdref` is specified, pepoch MUST be in MJD
+    weights : array
+        Weight for each time
     plot : bool
         Return the axes in the additional_info, and don't close the plot, so
         that the user can add information to it.
@@ -373,6 +429,12 @@ def phaseogram(times, f, nph=128, nt=32, ph0=0, mjdref=None, fdot=0, fddot=0,
     allphases = np.concatenate([phases, phases + 1]).astype('float64')
     allts = \
         np.concatenate([times, times]).astype('float64')
+    if weights is not None and isinstance(weights, collections.Iterable):
+        if len(weights) != len(times):
+            raise ValueError('The length of weights must match the length of '
+                             'times')
+        weights = \
+            np.concatenate([weights, weights]).astype('float64')
 
     if use_mjdref:
         allts = allts / 86400 + mjdref
@@ -380,7 +442,8 @@ def phaseogram(times, f, nph=128, nt=32, ph0=0, mjdref=None, fdot=0, fddot=0,
     phas, binx, biny = np.histogram2d(allphases, allts,
                bins=(np.linspace(0, 2, nph * 2 + 1),
                      np.linspace(np.min(allts),
-                                 np.max(allts), nt + 1)))
+                                 np.max(allts), nt + 1)),
+               weights=weights)
 
     if plot:
         phaseogram_ax = plot_phaseogram(phas, binx, biny, ax=phaseogram_ax,

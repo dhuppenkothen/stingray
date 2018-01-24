@@ -199,8 +199,8 @@ class TestCrossspectrum(object):
 
     def test_timelag(self):
         time_lag = self.cs.time_lag()
-        assert max(time_lag) <= np.pi
-        assert min(time_lag) >= -np.pi
+        assert np.max(time_lag) <= np.pi
+        assert np.min(time_lag) >= -np.pi
 
     def test_nonzero_err(self):
         assert np.all(self.cs.power_err > 0)
@@ -375,6 +375,16 @@ class TestAveragedCrossspectrum(object):
         new_cs = self.cs.rebin_log(f=0.1)
         assert type(new_cs) == type(self.cs)
         new_cs.time_lag()
+
+    def test_rebin_log_returns_complex_values(self):
+        # For now, just verify that it doesn't crash
+        new_cs = self.cs.rebin_log(f=0.1)
+        assert isinstance(new_cs.power[0], np.complex)
+
+    def test_rebin_log_returns_complex_errors(self):
+        # For now, just verify that it doesn't crash
+        new_cs = self.cs.rebin_log(f=0.1)
+        assert isinstance(new_cs.power_err[0], np.complex)
 
     def test_timelag(self):
         from ..simulator.simulator import Simulator

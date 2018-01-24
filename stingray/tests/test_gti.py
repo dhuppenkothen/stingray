@@ -5,11 +5,11 @@ import numpy as np
 import pytest
 import os
 
-from ..utils import contiguous_regions
 from ..gti import cross_gtis, append_gtis, load_gtis, get_btis, join_gtis
 from ..gti import check_separate, create_gti_mask, check_gtis
 from ..gti import create_gti_from_condition, gti_len, gti_border_bins
 from ..gti import time_intervals_from_gtis, bin_intervals_from_gtis
+from ..gti import create_gti_mask_complete
 
 curdir = os.path.abspath(os.path.dirname(__file__))
 datadir = os.path.join(curdir, 'data')
@@ -35,13 +35,14 @@ class TestGTI(object):
         assert np.all(newgti == [[4.0, 5.0], [7.0, 9.0], [12.2, 13.2]]), \
             'GTIs do not coincide!'
 
-    def test_crossgti2(self):
+    def test_crossgti3(self):
         """A more complicated example of intersection of GTIs."""
         gti1 = np.array([[1, 2], [4, 5], [7, 10]])
         newgti = cross_gtis([gti1])
 
         assert np.all(newgti == gti1), \
             'GTIs do not coincide!'
+
     def test_bti(self):
         """Test the inversion of GTIs."""
         gti = np.array([[1, 2], [4, 5], [7, 10], [11, 11.2], [12.2, 13.2]])
@@ -57,6 +58,37 @@ class TestGTI(object):
         # NOTE: the time bin has to be fully inside the GTI. That is why the
         # bin at times 0, 2, 4 and 5 are not in.
         assert np.all(mask == np.array([0, 1, 0, 0, 0, 0, 0], dtype=bool))
+
+    def test_gti_mask_complete(self):
+        arr = np.array([0, 1, 2, 3, 4, 5, 6])
+        gti = np.array([[0, 2.1], [3.9, 5]])
+        mask, new_gtis = create_gti_mask_complete(arr, gti,
+                                                  return_new_gtis=True)
+        # NOTE: the time bin has to be fully inside the GTI. That is why the
+        # bin at times 0, 2, 4 and 5 are not in.
+        assert np.all(mask == np.array([0, 1, 0, 0, 0, 0, 0], dtype=bool))
+
+    def test_gti_mask_compare(self):
+        arr = np.array([ 0.5, 1.5, 2.5, 3.5])
+        gti = np.array([[0, 4]])
+        mask_c, new_gtis_c = \
+            create_gti_mask_complete(arr, gti, return_new_gtis=True,
+                                     safe_interval=1)
+        mask, new_gtis = create_gti_mask(arr, gti, return_new_gtis=True,
+                                         safe_interval=1)
+        assert np.all(mask == mask_c)
+        assert np.all(new_gtis == new_gtis_c)
+
+    def test_gti_mask_compare2(self):
+        arr = np.array([ 0.5, 1.5, 2.5, 3.5])
+        gti = np.array([[0, 4]])
+        mask_c, new_gtis_c = \
+            create_gti_mask_complete(arr, gti, return_new_gtis=True,
+                                     safe_interval=[1, 1])
+        mask, new_gtis = create_gti_mask(arr, gti, return_new_gtis=True,
+                                         safe_interval=[1, 1])
+        assert np.all(mask == mask_c)
+        assert np.all(new_gtis == new_gtis_c)
 
     def test_gti_from_condition1(self):
         t = np.array([0, 1, 2, 3, 4, 5, 6])

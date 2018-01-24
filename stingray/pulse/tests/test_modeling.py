@@ -1,5 +1,5 @@
 import numpy as np
-from stingray.pulse.modeling import fit_sinc, fit_gaussian
+from stingray.pulse.modeling import fit_sinc, fit_gaussian, SincSquareModel
 
 np.random.seed(0)
 
@@ -82,3 +82,13 @@ def test_gaussian_tied():
     gs = fit_gaussian(x, y, tied={"mean": tiedgaussian})
 
     assert np.abs(gs.mean/gs.amplitude - 0.5) < 0.1
+
+
+def test_pickle_SincSquared():
+    import pickle
+    a = SincSquareModel(amplitude=13., mean=3, width=12.)
+    pickle.dump(a, open('bubufile.p', 'wb'))
+    b = pickle.load(open('bubufile.p', 'rb'))
+    assert a.amplitude == b.amplitude
+    assert a.mean == b.mean
+    assert a.width == b.width

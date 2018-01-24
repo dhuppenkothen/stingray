@@ -8,7 +8,9 @@ from astropy.modeling import models
 from scipy.special import gammaln as scipy_gammaln
 
 from stingray import Lightcurve, Powerspectrum
-from stingray.modeling import Posterior, PSDPosterior, PoissonPosterior, GaussianPosterior
+from stingray.modeling import Posterior, PSDPosterior, \
+    PoissonPosterior, GaussianPosterior, LaplacePosterior
+
 from stingray.modeling import set_logprior
 from stingray.modeling.posterior import logmin
 from stingray.modeling.posterior import IncorrectParameterError
@@ -493,6 +495,136 @@ class TestGaussianPosterior(object):
         lpost.logprior = set_logprior(lpost, self.priors)
 
         assert np.isclose(lpost(t0), logmin, 1e-5)
+
+class TestLaplacePosterior(object):
+
+    @classmethod
+    def setup_class(cls):
+
+        nx = 1000000
+        cls.x = np.arange(nx)
+        cls.countrate = 10.0
+        cls.cerr = 2.0
+        cls.y = np.random.normal(cls.countrate, cls.cerr, size=cls.x.shape[0])
+        cls.yerr = np.ones_like(cls.y)*cls.cerr
+
+        cls.model = models.Const1D()
+
+        p_amplitude = lambda amplitude: \
+            scipy.stats.norm(loc=cls.countrate, scale=cls.cerr).pdf(amplitude)
+
+        cls.priors = {"amplitude":p_amplitude}
+
+    def test_logprior_fails_without_prior(self):
+        lpost = LaplacePosterior(self.x, self.y, self.yerr, self.model)
+
+        with pytest.raises(AttributeError):
+            lpost.logprior([10])
+
+    def test_making_posterior(self):
+        lpost = LaplacePosterior(self.x, self.y, self.yerr, self.model)
+        lpost.logprior = set_logprior(lpost, self.priors)
+
+        assert lpost.x.all() == self.x.all()
+        assert lpost.y.all() == self.y.all()
+
+    def test_correct_number_of_parameters(self):
+        lpost = LaplacePosterior(self.x, self.y, self.yerr, self.model)
+        lpost.logprior = set_logprior(lpost, self.priors)
+
+        with pytest.raises(IncorrectParameterError):
+            lpost([2,3])
+
+    def test_logprior(self):
+        t0 = [10.0]
+
+        lpost = LaplacePosterior(self.x, self.y, self.yerr, self.model)
+        lpost.logprior = set_logprior(lpost, self.priors)
+
+        lp_test = lpost.logprior(t0)
+        lp = np.log(scipy.stats.norm(self.countrate, self.cerr).pdf(t0))
+        assert lp == lp_test
+
+    def test_loglikelihood(self):
+        t0 = [10.0]
+        self.model.amplitude = t0[0]
+        mean_model = self.model(self.x)
+
+        loglike = np.sum(-np.log(2.0*self.yerr) -
+                         np.abs(self.y - mean_model)/self.yerr)
+
+        lpost = LaplacePosterior(self.x, self.y, self.yerr, self.model)
+        lpost.logprior = set_logprior(lpost, self.priors)
+
+        loglike_test = lpost.loglikelihood(t0, neg=False)
+
+        assert np.isclose(loglike, loglike_test)
+
+
+    def test_negative_loglikelihood(self):
+        t0 = [10.0]
+        self.model.amplitude = t0[0]
+        mean_model = self.model(self.x)
+
+        loglike = -np.sum(-np.log(2.0*self.yerr) -
+                         np.abs(self.y - mean_model)/self.yerr)
+
+        lpost = LaplacePosterior(self.x, self.y, self.yerr, self.model)
+        lpost.logprior = set_logprior(lpost, self.priors)
+
+        loglike_test = lpost.loglikelihood(t0, neg=True)
+
+        assert np.isclose(loglike, loglike_test)
+
+    def test_posterior(self):
+        t0 = [10.0]
+        self.model.amplitude = t0[0]
+        mean_model = self.model(self.x)
+
+        lpost = LaplacePosterior(self.x, self.y, self.yerr, self.model)
+        lpost.logprior = set_logprior(lpost, self.priors)
+
+        post_test = lpost(t0, neg=False)
+
+        loglike = np.sum(-np.log(2.0*self.yerr) -
+                         np.abs(self.y - mean_model)/self.yerr)
+
+        logprior = np.log(scipy.stats.norm(self.countrate, self.cerr).pdf(t0))
+
+        post = loglike + logprior
+
+        assert np.isclose(post_test, post, atol=1.e-10)
+
+    def test_negative_posterior(self):
+        t0 = [10.0]
+        self.model.amplitude = t0[0]
+        mean_model = self.model(self.x)
+
+        lpost = LaplacePosterior(self.x, self.y, self.yerr, self.model)
+        lpost.logprior = set_logprior(lpost, self.priors)
+
+        post_test = lpost(t0, neg=True)
+
+        loglike = np.sum(-np.log(2.0*self.yerr) -
+                         np.abs(self.y - mean_model)/self.yerr)
+
+        logprior = np.log(scipy.stats.norm(self.countrate, self.cerr).pdf(t0))
+
+        post = -loglike - logprior
+
+        assert np.isclose(post_test, post, atol=1.e-10)
+
+    def test_counts_are_nan(self):
+        y = np.nan * np.ones(self.x.shape[0])
+
+        t0 = [10.0]
+        self.model.amplitude = t0[0]
+
+        lpost = LaplacePosterior(self.x, y, self.yerr, self.model)
+        lpost.logprior = set_logprior(lpost, self.priors)
+
+        assert np.isclose(lpost(t0), logmin, 1e-5)
+
 
 
 

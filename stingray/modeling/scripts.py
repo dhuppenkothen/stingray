@@ -64,8 +64,8 @@ def fit_powerspectrum(ps, model, starting_pars, max_post=False, priors=None,
         The OptimizationResults object storing useful results and quantities
         relating to the fit
 
-    Example
-    -------
+    Examples
+    --------
 
     We start by making an example power spectrum with three Lorentzians
     >>> m = 1
@@ -181,8 +181,8 @@ def fit_lorentzians(ps, nlor, starting_pars, fit_whitenoise=True,
         The OptimizationResults object storing useful results and quantities
         relating to the fit
 
-    Example
-    -------
+    Examples
+    --------
 
     We start by making an example power spectrum with three Lorentzians
     >>> np.random.seed(400)

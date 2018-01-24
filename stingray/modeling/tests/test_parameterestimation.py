@@ -1017,7 +1017,6 @@ class TestPSDParEst(object):
         ps.norm = "leahy"
 
         loglike = PSDLogLikelihood(ps.freq, ps.power, model, m=1)
-        loglike = PSDLogLikelihood(ps.freq, ps.power, model, m=1)
 
         s_all = np.atleast_2d(np.ones(10) * 2.0).T
 
@@ -1030,7 +1029,7 @@ class TestPSDParEst(object):
         lrt_obs, res1, res2 = pe.compute_lrt(loglike, [2.0], loglike2,
                                              [2.0, 1.0, 2.0], neg=True)
         lrt_sim = pe.simulate_lrts(s_all, loglike, [2.0], loglike2,
-                                           [2.0, 1.0, 2.0], max_post=False,
+                                           [2.0, 1.0, 2.0],
                                            seed=100)
 
         assert (lrt_obs > 0.4) and (lrt_obs < 0.6)
@@ -1070,7 +1069,7 @@ class TestPSDParEst(object):
     def test_calibrate_lrt_works_as_expected(self):
 
         m = 1
-        nfreq = 100000
+        nfreq = 10000
         freq = np.linspace(1, 10, nfreq)
         rng = np.random.RandomState(100)
         noise = rng.exponential(size=nfreq)
@@ -1106,7 +1105,7 @@ class TestPSDParEst(object):
     def test_calibrate_lrt_works_with_mvn(self):
 
         m = 1
-        nfreq = 100000
+        nfreq = 10000
         freq = np.linspace(1, 10, nfreq)
         rng = np.random.RandomState(100)
         noise = rng.exponential(size=nfreq)
@@ -1140,7 +1139,7 @@ class TestPSDParEst(object):
     @pytest.mark.skipif("not can_sample")
     def test_calibrate_lrt_works_with_sampling(self):
         m = 1
-        nfreq = 100000
+        nfreq = 10000
         freq = np.linspace(1, 10, nfreq)
         rng = np.random.RandomState(100)
         noise = rng.exponential(size=nfreq)
@@ -1286,7 +1285,7 @@ class TestPSDParEst(object):
 
     def test_calibrate_highest_outlier_works(self):
         m = 1
-        nfreq = 100000
+        nfreq = 10000
         seed = 100
         freq = np.linspace(1, 10, nfreq)
         rng = np.random.RandomState(seed)
@@ -1318,7 +1317,7 @@ class TestPSDParEst(object):
 
     def test_calibrate_highest_outlier_works_with_mvn(self):
         m = 1
-        nfreq = 100000
+        nfreq = 10000
         seed = 100
         freq = np.linspace(1, 10, nfreq)
         rng = np.random.RandomState(seed)

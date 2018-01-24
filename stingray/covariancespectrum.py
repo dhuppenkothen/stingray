@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import division
 import collections
+
 import numpy as np
 
 from stingray import Lightcurve
+from stingray.events import EventList
 import stingray.utils as utils
 
 __all__ = ['Covariancespectrum', 'AveragedCovariancespectrum']
@@ -11,27 +13,59 @@ __all__ = ['Covariancespectrum', 'AveragedCovariancespectrum']
 
 class Covariancespectrum(object):
 
-    def __init__(self, event_list, dt, band_interest=None,
+    def __init__(self, data, dt=None, band_interest=None,
                  ref_band_interest=None, std=None):
+
         """
+        Compute a covariance spectrum for the data. The input data can be
+        either in event data or pre-made light curves. Event data can either
+        be in the form of a numpy.ndarray with (time stamp, energy) pairs or
+        a `stingray.events.EventList` object. If light curves are formed ahead
+        of time, then a list of `Lightcurve` objects should be passed to the
+        object, ideally one light curve for each band of interest.
+
+        For the case where the data is input as a list of `Lightcurve` objects,
+        the reference band(s) should either be (1) a single `Lightcurve` object,
+        (2) a list of `Lightcurve` objects with the reference band for each band
+        of interest pre-made, or (3) `None`, in which case reference bands will
+        formed by combining all light curves *except* for the band of interest.
+
+        In the case of event data, `band_interest` and `ref_band_interest` can
+        be (multiple) pairs of energies, and the light curves for the bands of
+        interest and reference bands will be produced dynamically.
+
+
         Parameters
         ----------
-        event_list : numpy 2D array
-            A numpy 2D array with first column as time of arrival and second
-            column as photon energies associated.
+        data : {numpy.ndarray | EventList object | list of Lightcurve objects}
+            `data` contains the time series data, either in the form of a
+            2-D array of (time stamp, energy) pairs for event data, or as a
+            list of light curves.
             Note : The event list must be in sorted order with respect to the
             times of arrivals.
 
         dt : float
             The time resolution of the Lightcurve formed from the energy bin.
+            Only used if `data` is an event list.
 
-        band_interest : iterable of tuples, default All
-            An iterable of tuples with minimum and maximum values of the range
-            in the band of interest. e.g list of tuples, tuple of tuples.
+        band_interest : {None, iterable of tuples}
+            If None, all possible energy values will be assumed to be of
+            interest, and a covariance spectrum in the highest resolution
+            will be produced.
+            Note;
+            If the input is a list of Lightcurve objects, then the user may
+            supply their energy values here, for construction of a
+            reference band.
 
-        ref_band_interest : tuple of reference band range, default All
-            A tuple with minimum and maximum values of the range in the band
-            of interest in reference channel.
+        ref_band_interest : {None, tuple, Lightcurve, list of Lightcurves}
+            Defines the reference band to be used for comparison with the
+            bands of interest. If None, all bands *except* the band of
+            interest will be used for each band of interest, respectively.
+            Alternatively, a tuple can be given for event list data, which will
+            extract the reference band (always excluding the band of interest),
+            or one may put in a single Lightcurve object to be used (the same
+            for each band of interest) or a list of Lightcurve objects, one for
+            each band of interest.
 
         std : float or np.array or list of numbers
             The term std is used to calculate the excess variance of a band.
@@ -41,18 +75,8 @@ class Covariancespectrum(object):
             is also used as the std. And if the std is an iterable of
             numbers, their mean is used for the same purpose.
 
-
         Attributes
         ----------
-        energy_events : dictionary
-            A dictionary with energy bins as keys and time of arrivals of
-            photons with the same energy as value.
-
-        energy_covar : dictionary
-            A dictionary with mid point of band_interest and their covariance
-            computed with their individual reference band. The covariance
-            values are normalized.
-
         unnorm_covar : np.ndarray
             An array of arrays with mid point band_interest and their
             covariance. It is the array-form of the dictionary `energy_covar`.
@@ -64,20 +88,8 @@ class Covariancespectrum(object):
         covar_error : np.ndarray
             Errors of the normalized covariance spectrum.
 
-        min_time : int
-            Time of arrival of the earliest photon.
-
-        max_time : int
-            Time of arrival of the last photon.
-
-        min_energy : float
-            Energy of the photon with the minimum energy.
-
-        max_energy : float
-            Energy of the photon with the maximum energy.
-
-        Reference
-        ---------
+        References
+        ----------
         [1] Wilkinson, T. and Uttley, P. (2009), Accretion disc variability
             in the hard state of black hole X-ray binaries. Monthly Notices
             of the Royal Astronomical Society, 397: 666–676.
@@ -87,202 +99,246 @@ class Covariancespectrum(object):
         --------
         See https://github.com/StingraySoftware/notebooks repository for
         detailed notebooks on the code.
+
         """
 
-        # This parameter is used to identify whether the current object is
-        # an instance of Covariancespectrum or AveragedCovariancespectrum.
-        self.avg_covar = False
-
-        self._init_vars(event_list, dt, band_interest,
-                        ref_band_interest, std)
-
-        # A dictionary with energy bin as key and events as value of the key
-        self.energy_events = {}
-
-        self._construct_energy_events(self.energy_events)
-
-        self._update_energy_events(self.energy_events)
-
-        # The dictionary with covariance spectrum for each energy bin
-        self.energy_covar = {}
-
-        self._construct_energy_covar(self.energy_events, self.energy_covar)
-
-    def _init_vars(self, event_list, dt, band_interest,
-                   ref_band_interest, std):
-        """
-        Check for consistency with input variables and declare public ones.
-        """
-        if not np.all(np.diff(event_list, axis=0).T[0] >= 0):
-            utils.simon("The event list must be sorted with respect to "
-                        "times of arrivals.")
-            event_list = event_list[event_list[:, 0].argsort()]
-
-        self.event_list = event_list
-
-        self.event_list_T = event_list.T
-
-        self._init_special_vars()
-
-        if ref_band_interest is None:
-            ref_band_interest = (self.min_energy, self.max_energy)
-
-        assert type(ref_band_interest) in (list, tuple), "Ref Band interest " \
-                                                         "should be either " \
-                                                         "tuple or list."
-
-        assert len(ref_band_interest) == 2, "Band interest should be a tuple" \
-                                            " with min and max energy value " \
-                                            "for the reference band."
-        self.ref_band_interest = ref_band_interest
-
-        if band_interest is not None:
-            for element in list(band_interest):
-                assert type(element) in (list, tuple), \
-                    "band_interest should be iterable of either tuple or list."
-                assert len(element) == 2, "Band interest should be a tuple " \
-                                          "with min and max energy values."
-
-        self.band_interest = band_interest
         self.dt = dt
-
         self.std = std
 
-    def _init_special_vars(self, T_start=None, T_end=None):
-        """
-        Method to set mininum and maximum time and energy parameters. It has
-        been separated from the main init method due to multiple calls from
-        AveragedCovariancespectrum.
-        """
-        self.min_energy = np.min(self.event_list_T[1][T_start:T_end])
-        self.max_energy = np.max(self.event_list_T[1][T_start:T_end])
-        self.min_time = np.min(self.event_list_T[0][T_start:T_end])
-        self.max_time = np.max(self.event_list_T[0][T_start:T_end])
+        # check whether data is an EventList object:
+        if isinstance(data, EventList):
+            data = np.vstack([data.time, data.energy]).T
 
-    def _construct_energy_events(self, energy_events, T_start=None, T_end=None):
-        # The T_start and T_end parameters are for the purpose of
-        # AveragedCovariancespectrum where the range of consideration
-        # is defined.
-        event_list_T = np.array([self.event_list_T[0][T_start: T_end],
-                                 self.event_list_T[1][T_start: T_end]])
-        least_count = np.diff(np.unique(event_list_T[1])).min()
-
-        # An array of unique energy values
-        unique_energy = np.unique(event_list_T[1])
-
-        for i in range(len(unique_energy) - 1):
-            energy_events[unique_energy[i] + least_count*0.5] = []
-
-        # Add time of arrivals to corresponding energy bins
-        # For each bin except the last one, the lower bound is included and
-        # the upper bound is excluded.
-        for energy in energy_events.keys():
-            # The last energy bin
-            if energy == self.max_energy - least_count*0.5:
-                toa = event_list_T[0][np.logical_and(
-                    event_list_T[1] >= energy - least_count*0.5,
-                    event_list_T[1] <= energy + least_count*0.5)]
-                energy_events[energy] = sorted(toa)
-            else:
-                toa = event_list_T[0][np.logical_and(
-                    event_list_T[1] >= energy - least_count*0.5,
-                    event_list_T[1] < energy + least_count*0.5)]
-                energy_events[energy] = sorted(toa)
-
-    def _update_energy_events(self, energy_events):
-        """
-        In case of a specific band interest, merge the required energy bins
-        into one with the new key as the mid-point of the band interest.
-        """
-        if self.band_interest is not None:
-            energy_events_ = {}
-            for band in list(self.band_interest):
-                mid_bin = (band[0] + band[1]) / 2
-                energy_events_[mid_bin] = []
-
-                # Modify self.energy_events to form a band with one key
-                for key in list(energy_events.keys()):
-                    if key >= band[0] and key <= band[1]:
-                        energy_events_[mid_bin] += energy_events[key]
-                        del energy_events[key]
-
-            energy_events.update(energy_events_)
-
-    def _init_energy_covar(self, energy_events, energy_covar):
-        """
-        Initialize the energy_covar dictionary for further computations.
-        """
-        # Initialize it with empty mapping
-        if self.band_interest is None:
-            for key in energy_events.keys():
-                energy_covar[key] = []
+        # check whether the data contains a list of Lightcurve objects
+        if isinstance(data[0], Lightcurve):
+            self.use_lc = True
+            self.lcs = data
         else:
-            for band in list(self.band_interest):
-                mid_bin = (band[0] + band[1]) / 2
-                energy_covar[mid_bin] = []
+            self.use_lc = False
 
-        if not self.avg_covar:
-            # Error in covariance
-            self.covar_error = {}
+        # if band_interest is None, extract the energy bins and make an array
+        # with the lower and upper bounds of the energy bins
+        if not band_interest:
+            if not self.use_lc:
+                self._create_band_interest(data)
+            else:
+                self.band_interest = np.vstack([np.arange(len(data)),
+                                                np.arange(1, len(data)+1, 1)]).T
+        else:
+            if np.size(band_interest) < 2:
+                raise ValueError('band_interest must contain at least 2 values '
+                                 '(minimum and maximum values for each band) '
+                                 'and be a 2D array!')
 
-    def _construct_energy_covar(self, energy_events, energy_covar,
-                                xs_var=None):
-        """Form the actual output covariance dictionary and array."""
-        self._init_energy_covar(energy_events, energy_covar)
+            self.band_interest = np.atleast_2d(band_interest)
 
-        if not self.avg_covar:
-            xs_var = dict()
+        if self.use_lc is False and not dt:
+            raise ValueError("If the input data is event data, the dt keyword "
+                             "must be set and supply a time resolution for "
+                             "creating light curves!")
 
-        for energy in energy_covar.keys():
-            lc, lc_ref = self._create_lc_and_lc_ref(energy, energy_events)
+        # if we don't have light curves already, make them:
+        if not self.use_lc:
+            if not np.all(np.diff(data, axis=0).T[0] >= 0):
+                utils.simon("The event list must be sorted with respect to "
+                            "times of arrivals.")
+                data = data[data[:, 0].argsort()]
 
-            covar = self._compute_covariance(lc, lc_ref)
+            self.lcs = self._make_lightcurves(data)
 
-            energy_covar[energy] = covar
-            if not self.avg_covar:
-                self.covar_error[energy] = self._calculate_covariance_error(
-                                                lc, lc_ref)
+        # check whether band of interest contains a Lightcurve object:
+        if np.size(ref_band_interest) == 1  or isinstance(ref_band_interest,
+                                                          Lightcurve):
+            if isinstance(ref_band_interest, Lightcurve):
+                self.ref_band_lcs = ref_band_interest
+            # ref_band_interest must either be a Lightcurve, or must have
+            # multiple entries
 
-            # Excess variance in ref band
-            xs_var[energy] = self._calculate_excess_variance(lc_ref)
+            elif ref_band_interest is None:
+                if self.use_lc:
+                    self.ref_band_lcs = \
+                        self._make_reference_bands_from_lightcurves(ref_band_interest)
+                else:
+                    self.ref_band_lcs = \
+                        self._make_reference_bands_from_event_data(data)
+            else:
+                raise ValueError("ref_band_interest must contain either "
+                                 "a Lightcurve object, a list of Lightcurve "
+                                 "objects or a tuple of length 2.")
+        else:
+            # check whether ref_band_interest is a list of light curves
+            if isinstance(ref_band_interest[0], Lightcurve):
+                self.ref_band_lcs = ref_band_interest
+                assert len(ref_band_interest) == len(self.lcs), "The list of " \
+                                                                "reference light " \
+                                                                "curves must have " \
+                                                                "the same length as " \
+                                                                "the list of light curves" \
+                                                                "of interest."
+            # if not, it must be a tuple, so we're going to make a list of light
+            # curves
+            else:
+                if self.use_lc:
+                    self.ref_band_lcs = \
+                        self._make_reference_bands_from_lightcurves(bounds=
+                                                                    ref_band_interest)
+                else:
+                    self.ref_band_lcs = \
+                        self._make_reference_bands_from_event_data(data)
 
-        for key, value in energy_covar.items():
-            if not xs_var[key] > 0:
+        self._construct_covar()
+
+    def _make_reference_bands_from_event_data(self, data, bounds=None):
+
+        if not bounds:
+            bounds = [np.min(data[:, 1]), np.max(data[:, 1])]
+
+        if bounds[1] <= np.min(self.band_interest[:, 0]) or \
+           bounds[0] >= np.max(self.band_interest[:, 1]):
+            elow = bounds[0]
+            ehigh = bounds[1]
+
+            toa = data[np.logical_and(
+                data[:, 1] >= elow,
+                data[:, 1] <= ehigh)]
+
+            lc_all = Lightcurve.make_lightcurve(toa, self.dt,
+                                                tstart=self.tstart,
+                                                tseg=self.tseg)
+
+        else:
+
+            lc_all = []
+            for i, b in enumerate(self.band_interest):
+                elow = b[0]
+                ehigh = b[1]
+
+                emask1 = data[np.logical_and(
+                    data[:, 1] <= elow,
+                    data[:, 1] >= bounds[0])]
+
+                emask2 = data[np.logical_and(
+                    data[:, 1] <= bounds[1],
+                    data[:, 1] >= ehigh)]
+
+                toa = np.vstack([emask1, emask2])
+                lc = Lightcurve.make_lightcurve(toa, self.dt,
+                                                tstart=self.tstart,
+                                                tseg=self.tseg)
+                lc_all.append(lc)
+
+        return lc_all
+
+    def _make_reference_bands_from_lightcurves(self, bounds=None):
+
+        if not bounds:
+            bounds_idx = [0, len(self.band_interest)]
+
+        else:
+            low_bound = self.band_interest.searchsorted(bounds[0])
+            high_bound = self.band_interest.searchsorted(bounds[1])
+
+            bounds_idx = [low_bound, high_bound]
+
+        lc_all = []
+        for i, b in enumerate(self.band_interest):
+
+            # initialize empty counts array
+            counts = np.zeros_like(self.lcs[0].counts)
+            for j in range(bounds_idx[0], bounds_idx[1], 1):
+                if i == j:
+                    continue
+                else:
+                    counts += self.lcs[j].counts
+
+            # make a combined light curve
+            lc = Lightcurve(self.lcs[0].time, counts)
+
+            # add to list of reference light curves
+            lc_all.append(lc)
+
+        return lc_all
+
+    def _construct_covar(self):
+
+        self.avg_covar = False
+        covar = np.zeros(len(self.lcs))
+        covar_err = np.zeros(len(self.lcs))
+        xs_var = np.zeros(len(self.lcs))
+
+        for i in range(len(self.lcs)):
+            lc = self.lcs[i]
+
+            if np.size(self.ref_band_lcs) == 1 or isinstance(self.ref_band_lcs,
+                                                             Lightcurve):
+                lc_ref = self.ref_band_lcs
+            else:
+                lc_ref = self.ref_band_lcs[i]
+
+            cv = self._compute_covariance(lc, lc_ref)
+            cv_err = self._calculate_covariance_error(lc, lc_ref)
+
+            covar[i] = cv
+            covar_err[i] = cv_err
+
+            xs = self._calculate_excess_variance(lc_ref)
+            if not xs > 0:
                 utils.simon("The excess variance in the reference band is "
                             "negative. This implies that the reference "
                             "band was badly chosen. Beware that the "
                             "covariance spectra will have NaNs!")
 
-        if not self.avg_covar:
-            self.unnorm_covar = np.vstack(energy_covar.items())
-            energy_covar[key] = value / (xs_var[key])**0.5
+            xs_var[i] = xs
 
-            self.covar = np.vstack(energy_covar.items())
+        self.unnorm_covar = covar
+        energy_covar = covar / xs_var**0.5
 
-            self.covar_error = np.vstack(self.covar_error.items())
+        self.covar = energy_covar
 
-    def _create_lc_and_lc_ref(self, energy, energy_events):
-        lc = Lightcurve.make_lightcurve(
-                energy_events[energy], self.dt, tstart=self.min_time,
-                tseg=self.max_time - self.min_time)
+        self.covar_error = covar_err
 
-        # Calculating timestamps for lc_ref
-        toa_ref = []
-        for key, value in energy_events.items():
-            if key >= self.ref_band_interest[0] and \
-                    key <= self.ref_band_interest[1]:
-                if key != energy:
-                    toa_ref.extend(value)
+        return
 
-        toa_ref = np.array(sorted(toa_ref))
+    def _make_lightcurves(self, data):
 
-        lc_ref = Lightcurve.make_lightcurve(
-                toa_ref, self.dt, tstart=self.min_time,
-                tseg=self.max_time - self.min_time)
+        self.tstart = np.min(data[:, 0])
+        self.tend = np.max(data[:, 0])
 
-        assert len(lc.time) == len(lc_ref.time)
+        self.tseg = self.tend - self.tstart
 
-        return lc, lc_ref
+        lc_all = []
+
+        for i, b in enumerate(self.band_interest):
+            elow = b[0]
+            ehigh = b[1]
+
+            toa = data[np.logical_and(
+                data[:, 1] >= elow,
+                data[:, 1] <= ehigh)]
+
+            lc = Lightcurve.make_lightcurve(toa, self.dt, tstart=self.tstart,
+                                            tseg=self.tseg)
+            lc_all.append(lc)
+
+        return lc_all
+
+    def _create_band_interest(self, data):
+
+        unique_energy = np.unique(data[:, 1])
+        energ_diff = np.diff(unique_energy)
+
+        energy_low = np.zeros_like(unique_energy)
+        energy_high = np.zeros_like(unique_energy)
+
+        energy_low[:-1] = unique_energy[:-1] - 0.5 * energ_diff
+        energy_high[:-1] = unique_energy[:-1] + 0.5 * energ_diff
+
+        energy_low[-1] = unique_energy[-1] - 0.5 * energ_diff[-1]
+        energy_high[-1] = unique_energy[-1] + 0.5 * energ_diff[-1]
+
+        energy_list = np.vstack([energy_low, energy_high]).T
+
+        self.band_interest = energy_list
 
     def _calculate_excess_variance(self, lc):
         """Calculate excess variance in a band with the standard deviation."""
@@ -315,52 +371,63 @@ class Covariancespectrum(object):
         # Standard deviation of light curve
         err_x = self._calculate_std(lc_x)
         # Number of time bins in lightcurve
-        N = lc_x.n
+        nn = lc_x.n
         # Number of segments averaged
         if not self.avg_covar:
-            M = 1
+            mm = 1
         else:
-            M = self.nbins
+            mm = self.nbins
 
         num = xs_x*err_y + xs_y*err_x + err_x*err_y
-        denom = N * M * xs_y
+        denom = nn * mm * xs_y
 
         return (num / denom)**0.5
 
 
 class AveragedCovariancespectrum(Covariancespectrum):
-    def __init__(self, event_list, dt, segment_size, band_interest=None,
+
+    def __init__(self, data, segment_size, dt=None, band_interest=None,
                  ref_band_interest=None, std=None):
+
         """
-        Make an averaged covariance spectrum by segmenting the light curve
-        formed, calculating covariance for each segment and then averaging
-        the resulting covariance spectra.
+        Compute a covariance spectrum for the data.
 
         Parameters
         ----------
-        event_list : numpy 2D array
-            A numpy 2D array with first column as time of arrival and second
-            column as photon energies associated.
+        data : {numpy.ndarray | list of Lightcurve objects}
+            `data` contains the time series data, either in the form of a
+            2-D array of (time stamp, energy) pairs for event data, or as a
+            list of light curves.
             Note : The event list must be in sorted order with respect to the
             times of arrivals.
 
+        segment_size : float
+            The length of each segment in the averaged covariance spectrum.
+            The number of segments will be calculated automatically using the
+            total length of the data set and the segment_size defined here.
+
         dt : float
             The time resolution of the Lightcurve formed from the energy bin.
+            Only used if `data` is an event list.
 
-        segment_size : float
-            The size of each segment to average. Note that if the total
-            duration of each Lightcurve object formed is not an integer
-            multiple of the segment_size, then any fraction left-over at the
-            end of the time series will be lost.
+        band_interest : {None, iterable of tuples}
+            If None, all possible energy values will be assumed to be of
+            interest, and a covariance spectrum in the highest resolution
+            will be produced.
+            Note;
+            If the input is a list of Lightcurve objects, then the user may
+            supply their energy values here, for construction of a
+            reference band.
 
-
-        band_interest : iterable of tuples, default All
-            An iterable of tuples with minimum and maximum values of the range
-            in the band of interest. e.g list of tuples, tuple of tuples.
-
-        ref_band_interest : tuple of reference band range, default All
-            A tuple with minimum and maximum values of the range in the band
-            of interest in reference channel.
+        ref_band_interest : {None, tuple, Lightcurve, list of Lightcurve}
+            Defines the reference band to be used for comparison with the
+            bands of interest. If None, all bands *except* the band of
+            interest will be used for each band of interest, respectively.
+            Alternatively, a tuple can be given for event list data, which will
+            extract the reference band (always excluding the band of interest),
+            or one may put in a single Lightcurve object to be used (the same
+            for each band of interest) or a list of Lightcurve objects, one for
+            each band of interest.
 
         std : float or np.array or list of numbers
             The term std is used to calculate the excess variance of a band.
@@ -370,18 +437,8 @@ class AveragedCovariancespectrum(Covariancespectrum):
             is also used as the std. And if the std is an iterable of
             numbers, their mean is used for the same purpose.
 
-
         Attributes
         ----------
-        energy_events : dictionary
-            A dictionary with energy bins as keys and time of arrivals of
-            photons with the same energy as value.
-
-        energy_covar : dictionary
-            A dictionary with mid point of band_interest and their covariance
-            computed with their individual reference band. The covariance
-            values are normalized.
-
         unnorm_covar : np.ndarray
             An array of arrays with mid point band_interest and their
             covariance. It is the array-form of the dictionary `energy_covar`.
@@ -393,108 +450,73 @@ class AveragedCovariancespectrum(Covariancespectrum):
         covar_error : np.ndarray
             Errors of the normalized covariance spectrum.
 
-        min_time : int
-            Time of arrival of the earliest photon.
-
-        max_time : int
-            Time of arrival of the last photon.
-
-        min_energy : float
-            Energy of the photon with the minimum energy.
-
-        max_energy : float
-            Energy of the photon with the maximum energy.
-
-        """
-        # Set parameter to distinguish between parent class and derived class.
-        self.avg_covar = True
-
-        self._init_vars(event_list, dt, band_interest, ref_band_interest, std)
-        self.segment_size = segment_size
-
-        self._make_averaged_covar_spectrum()
-
-        self._init_covar_error()
-
-        self._calculate_covariance_error()
-
-    def _make_averaged_covar_spectrum(self):
-        """
-        Calls methods from base class for every segment and calculates averaged
-        covariance and error.
-        """
-        self.nbins = int((self.max_time - self.min_time + 1) / self.segment_size)
-
-        for n in range(self.nbins):
-            tstart = self.min_time + n*self.segment_size
-            tend = self.min_time + self.segment_size*(n+1) - 1
-            indices = np.intersect1d(np.where(self.event_list_T[0] >= tstart),
-                                     np.where(self.event_list_T[0] <= tend))
-
-            # Set minimum and maximum values for the specified indices value
-            self._init_special_vars(T_start=indices[0], T_end=indices[-1]+1)
-
-            energy_events = {}
-
-            self._construct_energy_events(energy_events, T_start=indices[0],
-                                          T_end=indices[-1]+1)
-
-            self._update_energy_events(energy_events)
-
-            energy_covar = {}
-            xs_var = {}
-            self._construct_energy_covar(energy_events, energy_covar,
-                                         xs_var)
-
-            if n == 0:  # Declare
-                self.energy_covar = energy_covar
-                self.xs_var = xs_var
-            else:  # Sum up
-                for key in energy_covar.keys():
-                    self.energy_covar[key] = self.energy_covar.get(key, 0) + \
-                                             energy_covar[key]
-                    self.xs_var[key] = self.xs_var.get(key, 0) + xs_var[key]
-
-        # Now divide with total number of bins for averaging
-        for key in self.energy_covar.keys():
-            self.energy_covar[key] /= self.nbins
-            self.xs_var[key] /= self.nbins
-
-        self.unnorm_covar = np.vstack(self.energy_covar.items())
-
-        for key, value in self.energy_covar.items():
-            self.energy_covar[key] = value / (self.xs_var[key])**0.5
-
-        self.covar = np.vstack(self.energy_covar.items())
-
-    def _init_covar_error(self):
-        """Initialize dictionaries separately for the calculation of error."""
-        self.energy_events = {}
-        self._construct_energy_events(self.energy_events)
-        self._update_energy_events(self.energy_events)
-        self.covar_error = {}
-        self._init_energy_covar(self.energy_events, self.covar_error)
-
-    def _calculate_covariance_error(self):
-        """
-        Calculate Covariance error on the averaged quantities.
-
-        Reference
-        ---------
+        References
+        ----------
         http://arxiv.org/pdf/1405.6575v2.pdf Equation 15
 
         """
-        for energy in self.covar_error.keys():
-            lc, lc_ref = self._create_lc_and_lc_ref(energy, self.energy_events)
 
-            xs_y = self._calculate_excess_variance(lc_ref)
+        self.segment_size = segment_size
 
-            err_x = self._calculate_std(lc)
-            err_y = self._calculate_std(lc_ref)
+        Covariancespectrum.__init__(self, data, dt=dt,
+                                    band_interest=band_interest,
+                                    ref_band_interest=ref_band_interest,
+                                    std=std)
 
-            covar = self.energy_covar[energy]
+    def _construct_covar(self):
 
-            num = (covar**2)*err_y + xs_y*err_x + err_x*err_y
-            denom = 2*self.nbins*xs_y
+        self.avg_covar = True
 
-            self.covar_error[energy] = (num / denom)**0.5
+        start_time = self.lcs[0].time[0]
+
+        covar = np.zeros(len(self.lcs))
+        covar_err = np.zeros(len(self.lcs))
+        xs_var = np.zeros(len(self.lcs))
+
+        for i in range(len(self.lcs)):
+            lc = self.lcs[i]
+
+            if np.size(self.ref_band_lcs) == 1:
+                lc_ref = self.ref_band_lcs
+            else:
+                lc_ref = self.ref_band_lcs[i]
+
+            tstart = start_time
+            tend = start_time + self.segment_size
+            cv = 0.0
+            cv_err = 0.0
+            xs = 0.0
+
+            self.nbins = int((tend - tstart)/self.segment_size)
+            for k in range(self.nbins):
+                start_ind = lc.time.searchsorted(tstart)
+                end_ind = lc.time.searchsorted(tend)
+
+                lc_seg = lc.truncate(start=start_ind, stop=end_ind)
+                lc_ref_seg = lc_ref.truncate(start=start_ind, stop=end_ind)
+
+                cv += self._compute_covariance(lc_seg, lc_ref_seg)
+                cv_err += self._calculate_covariance_error(lc_seg, lc_ref_seg)
+                xs += self._calculate_excess_variance(lc_ref_seg)
+                if not xs > 0:
+                    utils.simon("The excess variance in the reference band is "
+                                "negative. This implies that the reference "
+                                "band was badly chosen. Beware that the "
+                                "covariance spectra will have NaNs!")
+
+                tstart += self.segment_size
+                tend += self.segment_size
+
+
+            covar[i] = cv/self.nbins
+            covar_err[i] = cv_err/self.nbins
+            xs_var[i] = xs/self.nbins
+
+        self.unnorm_covar = covar
+        energy_covar = covar / xs_var**0.5
+
+        self.covar = energy_covar
+
+        self.covar_error = covar_err
+
+        return

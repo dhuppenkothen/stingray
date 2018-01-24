@@ -113,11 +113,55 @@ class TestPowerspectrum(object):
         print(std_lc)
         assert np.isclose(ps_int, std_lc, atol=0.01, rtol=0.01)
 
-    def test_fractional_rms_in_frac_norm(self):
-        ps = Powerspectrum(lc=self.lc, norm="frac")
+    def test_fractional_rms_in_frac_norm_is_consistent(self):
+        time = np.arange(0, 100, 1) + 0.5
+
+        poisson_counts = np.random.poisson(100.0,
+                                           size=time.shape[0])
+
+        lc = Lightcurve(time, counts=poisson_counts, dt=1,
+                            gti=[[0, 100]])
+        ps = Powerspectrum(lc=lc, norm="leahy")
+        rms_ps_l, rms_err_l = ps.compute_rms(min_freq=ps.freq[1],
+                                         max_freq=ps.freq[-1], white_noise_offset=0)
+
+        ps = Powerspectrum(lc=lc, norm="frac")
         rms_ps, rms_err = ps.compute_rms(min_freq=ps.freq[1],
-                                         max_freq=ps.freq[-1])
-        rms_lc = np.std(self.lc.counts) / np.mean(self.lc.counts)
+                                         max_freq=ps.freq[-1], white_noise_offset=0)
+        assert np.allclose(rms_ps, rms_ps_l, atol=0.01)
+        assert np.allclose(rms_err, rms_err_l, atol=0.01)
+
+    def test_fractional_rms_in_frac_norm_is_consistent_averaged(self):
+        time = np.arange(0, 400, 1) + 0.5
+
+        poisson_counts = np.random.poisson(100.0,
+                                           size=time.shape[0])
+
+        lc = Lightcurve(time, counts=poisson_counts, dt=1,
+                            gti=[[0, 400]])
+        ps = AveragedPowerspectrum(lc=lc, norm="leahy", segment_size=100)
+        rms_ps_l, rms_err_l = ps.compute_rms(min_freq=ps.freq[1],
+                                         max_freq=ps.freq[-1], white_noise_offset=0)
+
+        ps = AveragedPowerspectrum(lc=lc, norm="frac", segment_size=100)
+        rms_ps, rms_err = ps.compute_rms(min_freq=ps.freq[1],
+                                         max_freq=ps.freq[-1], white_noise_offset=0)
+        assert np.allclose(rms_ps, rms_ps_l, atol=0.01)
+        assert np.allclose(rms_err, rms_err_l, atol=0.01)
+
+    def test_fractional_rms_in_frac_norm(self):
+        time = np.arange(0, 400, 1) + 0.5
+
+        poisson_counts = np.random.poisson(100.0,
+                                           size=time.shape[0])
+
+        lc = Lightcurve(time, counts=poisson_counts, dt=1,
+                            gti=[[0, 400]])
+        ps = AveragedPowerspectrum(lc=lc, norm="frac", segment_size=100)
+        rms_ps, rms_err = ps.compute_rms(min_freq=ps.freq[1],
+                                         max_freq=ps.freq[-1],
+                                         white_noise_offset=0)
+        rms_lc = np.std(lc.counts) / np.mean(lc.counts)
         assert np.isclose(rms_ps, rms_lc, atol=0.01)
 
     def test_leahy_norm_correct(self):
@@ -203,7 +247,8 @@ class TestPowerspectrum(object):
         bin_ps = ps.rebin(df)
         assert np.isclose(bin_ps.freq[1] - bin_ps.freq[0], bin_ps.df,
                           atol=1e-4, rtol=1e-4)
-        assert np.isclose(bin_ps.freq[0], (ps.freq[0] - ps.df * 0.5 + bin_ps.df * 0.5),
+        assert np.isclose(bin_ps.freq[0],
+                          (ps.freq[0] - ps.df * 0.5 + bin_ps.df * 0.5),
                           atol=1e-4, rtol=1e-4)
 
     def test_classical_significances_runs(self):
@@ -437,7 +482,8 @@ class TestAveragedPowerspectrum(object):
         ps = AveragedPowerspectrum(lc_all, 1.0, norm="leahy")
 
         assert np.isclose(np.mean(ps.power), 2.0, atol=1e-2, rtol=1e-2)
-        assert np.isclose(np.std(ps.power), 2.0 / np.sqrt(n*10), atol=0.1, rtol=0.1)
+        assert np.isclose(np.std(ps.power), 2.0 / np.sqrt(n*10), atol=0.1,
+                          rtol=0.1)
 
 
 class TestClassicalSignificances(object):
@@ -546,7 +592,7 @@ class TestDynamicalPowerspectrum(object):
         vari = 25 * np.sin(2 * np.pi * freq * timestamps)
         signal = vari + 50
         # create a lightcurve
-        lc = Lightcurve(timestamps, signal)
+        lc = Lightcurve(timestamps, signal, err_dist='gauss')
         cls.lc = lc
 
         # Simple lc to demonstrate rebinning of dyn ps
@@ -574,8 +620,8 @@ class TestDynamicalPowerspectrum(object):
         dps = DynamicalPowerspectrum(self.lc, segment_size=3)
         max_pos = dps.trace_maximum()
 
-        assert max(dps.freq[max_pos]) <= 1 / self.lc.dt
-        assert min(dps.freq[max_pos]) >= 1 / dps.segment_size
+        assert np.max(dps.freq[max_pos]) <= 1 / self.lc.dt
+        assert np.min(dps.freq[max_pos]) >= 1 / dps.segment_size
 
     def test_trace_maximum_with_boundaries(self):
         dps = DynamicalPowerspectrum(self.lc, segment_size=3)
@@ -583,8 +629,8 @@ class TestDynamicalPowerspectrum(object):
         maxfreq = 24
         max_pos = dps.trace_maximum(min_freq=minfreq, max_freq=maxfreq)
 
-        assert max(dps.freq[max_pos]) <= maxfreq
-        assert min(dps.freq[max_pos]) >= minfreq
+        assert np.max(dps.freq[max_pos]) <= maxfreq
+        assert np.min(dps.freq[max_pos]) >= minfreq
 
     def test_size_of_trace_maximum(self):
         dps = DynamicalPowerspectrum(self.lc, segment_size=3)

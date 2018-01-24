@@ -10,34 +10,31 @@ environment:
         PYTHON_ARCH: "64" # needs to be set for CMD_IN_ENV to succeed. If a mix
                           # of 32 bit and 64 bit builds are needed, move this
                           # to the matrix section.
-        CONDA_DEPENDENCIES: "scipy numpy nose h5py astropy matplotlib"
-        PIP_DEPENDENCIES: "emcee statsmodels pytest-catchlog"
+        CONDA_DEPENDENCIES: "scipy numpy nose h5py astropy matplotlib statsmodels"
+        PIP_DEPENDENCIES: "emcee pytest-catchlog"
 
     matrix:
-
         - PYTHON_VERSION: "3.4"
-          NUMPY_VERSION: "1.11"
           CONDA_PY: "34"
+          CONDA_DEPENDENCIES: "mkl=2017.0.3 scipy=0.18 numpy=1.11 nose h5py astropy matplotlib statsmodels"
         - PYTHON_VERSION: "3.5"
-          NUMPY_VERSION: "1.11"
           CONDA_PY: "35"
+          NUMPY_VERSION: "1.11"
         - PYTHON_VERSION: "2.7"
           NUMPY_VERSION: "stable"
           CONDA_PY: "27"
         - PYTHON_VERSION: "3.6"
           NUMPY_VERSION: "stable"
           CONDA_PY: "36"
+
 matrix:
     fast_finish: true
-    allow_failures:
-        - PYTHON_VERSION: "3.6"
-          NUMPY_VERSION: "stable"
 
 platform:
     -x64
 
 install:
-    - "git clone git://github.com/astropy/ci-helpers.git"
+    - "git clone --depth 1 git://github.com/astropy/ci-helpers.git"
     - "powershell ci-helpers/appveyor/install-miniconda.ps1"
     - "SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%"
     - "activate test"

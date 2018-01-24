@@ -2,74 +2,78 @@ from __future__ import division
 
 import numpy as np
 from scipy.linalg import toeplitz
-from scipy.fftpack import fftshift, fft2, ifftshift, fftfreq
+from scipy.fftpack import fftshift, fft2, ifftshift, fft
+from  scipy.linalg import hankel
 
 from stingray import lightcurve
-from stingray.utils import simon
-import matplotlib.pyplot as plt
+import stingray.utils as utils
 
 
 class Bispectrum(object):
-    def __init__(self, lc, maxlag=None, scale='biased'):
+    def __init__(self, lc, maxlag=None, window=None, scale='biased'):
         """
                 Makes a :class:`Bispectrum` object from a given :class:`Lightcurve`.
-                
+
                 Bispectrum is a higher order time series analysis method and is calculated by indirect method as
                 fourier transform of triple auto-correlation function also called as 3rd Order cumulant.
-                
+
                 Parameters
                 ----------
-                lc: lightcurve.Lightcurve object
+                lc : lightcurve.Lightcurve object
                     The light curve data for bispectrum calculation.
-                maxlag: int, optional, default None
-                    Maximum lag on both positive and negative sides of 
+                maxlag : int, optional, default None
+                    Maximum lag on both positive and negative sides of
                     3rd order cumulant (Similar to lags in correlation).
                     if None, max lag is set to one-half of length of lightcurve.
-                scale: {'biased', 'unbiased'}, optional, default 'biased'
+                window : {'uniform', 'parzen', 'hamming', 'hanning', 'traingular', 'welch', 'blackmann', 'flat-top'}, optional, default 'uniform'
+                    Type of Window to apply for Bispectrum.
+                scale : {'biased', 'unbiased'}, optional, default 'biased'
                     Flag to decide biased or unbiased normalization for 3rd order cumulant function.
+
 
                 Attributes
                 ----------
-                lc: lightcurve.Lightcurve 
+                lc : lightcurve.Lightcurve
                     The light curve data for bispectrum.
-                fs: float
-                    Sampling freq of light curve.        
-                n: int
+                fs : float
+                    Sampling freq of light curve.
+                n : int
                     Total Number of samples of light curve observations.
-                maxlag: int
-                    Maximum lag on both positive and negative sides of 
+                maxlag : int
+                    Maximum lag on both positive and negative sides of
                     3rd order cumulant (Similar to lags in correlation)
-                signal: numpy.ndarray
+                signal : numpy.ndarray
                     Row vector of lightcurve counts for matrix operations
-                scale: {'biased', 'unbiased'}
-                    Flag to decide biased or unbiased normalization for 3rd order cumulant function. 
-                lags: numpy.ndarray
+                scale : {'biased', 'unbiased'}
+                    Flag to decide biased or unbiased normalization for 3rd order cumulant function.
+                lags : numpy.ndarray
                     An array of time lags for which 3rd order cumulant is calculated
-                freq: numpy.ndarray
+                freq : numpy.ndarray
                     An array of freq values for bispectrum.
-                cum3: numpy.ndarray
+                cum3 : numpy.ndarray
                     A maxlag*2+1 x maxlag*2+1 matrix containing 3rd order cumulant data for different lags.
-                bispec: numpy.ndarray
+                bispec : numpy.ndarray
                     A maxlag*2+1 x maxlag*2+1 matrix containing bispectrum data for different frequencies.
-                bispec_mag: numpy.ndarray
+                bispec_mag : numpy.ndarray
                     Magnitude of Bispectrum
-                bispec_phase: numpy.ndarray
+                bispec_phase : numpy.ndarray
                     Phase of Bispectrum
+
                 References
-                ----------     
+                ----------
                 [1] The biphase explained: understanding the asymmetries invcoupled Fourier components of astronomical timeseries
                 by Thomas J. Maccarone Department of Physics, Box 41051, Science Building, Texas Tech University, Lubbock TX 79409-1051
                 School of Physics and Astronomy, University of Southampton, SO16 4ES
-                    
+
                 [2] T. S. Rao, M. M. Gabr, An Introduction to Bispectral Analysis and Bilinear Time
                 Series Models, Lecture Notes in Statistics, Volume 24, D. Brillinger, S. Fienberg,
                 J. Gani, J. Hartigan, K. Krickeberg, Editors, Springer-Verlag, New York, NY, 1984.
-                
-                [3] Matlab version of bispectrum under following link. 
+
+                [3] Matlab version of bispectrum under following link.
                 https://www.mathworks.com/matlabcentral/fileexchange/60-bisp3cum
-                
-                Example
-                -------
+
+                Examples
+                --------
                 >> from stingray.lightcurve import Lightcurve
                 >> from stingray.bispectrum import Bispectrum
                 >> lc = Lightcurve([1,2,3,4,5],[2,3,1,1,2])
@@ -89,19 +93,29 @@ class Bispectrum(object):
                 >> bs.bispec_phase
                 array([[ -9.65946229e-01,   2.25347190e-14,   3.46944695e-14],
                     [  0.00000000e+00,   3.14159265e+00,   0.00000000e+00],
-                    [ -3.46944695e-14,  -2.25347190e-14,   9.65946229e-01]])                  
+                    [ -3.46944695e-14,  -2.25347190e-14,   9.65946229e-01]])
         """
 
         # Function call to create Bispectrum Object
-        self._make_bispectrum(lc, maxlag, scale)
+        self._make_bispetrum(lc, maxlag, window, scale)
 
-    def _make_bispectrum(self, lc, maxlag, scale):
+    def _make_bispetrum(self, lc, maxlag, window, scale):
         """
-            Makes a Bispectrum Object with given lighcurve, maxlag and scale. 
+            Makes a Bispectrum Object with given lighcurve, maxlag and scale.
         """
 
         if not isinstance(lc, lightcurve.Lightcurve):
             raise TypeError('lc must be a lightcurve.ightcurve object')
+
+        # Available Windows. Used to resolve window paramneter
+        WINDOWS = ['uniform', 'parzen', 'hamming', 'hanning', 'triangular', 'welch', 'blackmann', 'flat-top']
+
+        if window:
+            if not isinstance(window, str):
+                raise TypeError('Window must be specified as string!')
+            window = window.lower()
+            if window not in WINDOWS:
+                raise ValueError("Wrong window specified or window function is not available")
 
         self.lc = lc
         self.fs = 1 / lc.dt
@@ -127,6 +141,13 @@ class Bispectrum(object):
             raise ValueError("scale can only be either 'biased' or 'unbiased'.")
         self.scale = scale.lower()
 
+        if window is None:
+            self.window_name = 'No Window'
+            self.window = None
+        else:
+            self.window_name = window
+            self.window = self._get_window()
+
         # Other Atributes
         self.lags = None
         self.cum3 = None
@@ -145,11 +166,33 @@ class Bispectrum(object):
         self._normalize_cumulant3()
         self._cal_bispec()
 
+    def _get_window(self):
+        """
+            Returns a window function of self.window_name type
+        """
+        N = 2 * self.maxlag + 1
+        window_even = utils.create_window(N, self.window_name)
+
+        # 2d even window
+        window2d = np.array([window_even, ] * N)
+
+        ## One-sided window with zero padding
+        window = np.zeros(N)
+        window[:self.maxlag + 1] = window_even[self.maxlag:]
+        window[self.maxlag:] = 0
+
+        # 2d window function to apply to bispectrum
+        row = np.concatenate(([window[0]], np.zeros(2 * self.maxlag)))
+        toep_matrix = toeplitz(window, row)
+        toep_matrix += np.tril(toep_matrix, -1).transpose()
+        window = toep_matrix[..., ::-1] * window2d * window2d.transpose()
+        return window
+
     def _cumulant3(self):
         """
             Calculates the 3rd Order cummulant of the lightcurve.
-            Assigns: 
-            self.cum3, 
+            Assigns:
+            self.cum3,
             self.lags
         """
         # Initialize square cumulant matrix if zeros
@@ -182,7 +225,7 @@ class Bispectrum(object):
     def _normalize_cumulant3(self):
         """
         Scales (biased or ubiased) the 3rd Order cumulant of the lightcurve .
-        Updates: 
+        Updates:
         self.cum3
         """
 
@@ -229,14 +272,20 @@ class Bispectrum(object):
     def _cal_bispec(self):
         """
             Calculates bispectrum as a fourier transform of 3rd Order Cumulant.
-            Assigns: 
+            Assigns:
             self.freq
             self.bispec
             self.bispec_mag
             self.bispec_phase
         """
         self.freq = (1 / 2) * self.fs * (self.lags / self.lc.dt) / self.maxlag
-        self.bispec = fftshift(fft2(ifftshift(self.cum3)))
+
+        # Apply window if specified otherwise calculate with applying window
+        if self.window is None:
+            self.bispec = fftshift(fft2(ifftshift(self.cum3)))
+        else:
+            self.bispec = fftshift(fft2(ifftshift(self.cum3 * self.window)))
+
         self.bispec_mag = np.abs(self.bispec)
         self.bispec_phase = np.angle((self.bispec))
 
@@ -367,8 +416,3 @@ class Bispectrum(object):
             else:
                 plt.savefig(filename)
         return plt
-
-
-lc = lightcurve.Lightcurve([1, 2, 3, 4, 5], [2, 3, 1, 1, 2])
-bs = Bispectrum(lc)
-print(bs.bispec_mag)

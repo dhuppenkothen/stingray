@@ -18,6 +18,70 @@ try:
 except ImportError:
     _H5PY_INSTALLED = False
 
+def fvar_fun(lc):
+    from stingray.utils import excess_variance
+    return excess_variance(lc, normalization='fvar')
+
+def nvar_fun(lc):
+    from stingray.utils import excess_variance
+    return excess_variance(lc, normalization='norm_xs')
+
+def evar_fun(lc):
+    from stingray.utils import excess_variance
+    return excess_variance(lc, normalization='none')
+
+
+class TestChunks(object):
+    @classmethod
+    def setup_class(cls):
+        dt = 0.1
+        tstart = 0
+        tstop = 100
+        times = np.arange(tstart, tstop, dt)
+        cls.gti = np.array([[tstart - dt/2, tstop - dt/2]])
+        # Simulate something *clearly* non-constant
+        counts = np.random.poisson(
+            10000 + 2000 * np.sin(2 * np.pi * times))
+
+        cls.lc = Lightcurve(times, counts, gti=cls.gti)
+
+    def test_analyze_lc_chunks_fvar_fracstep(self):
+
+        start, stop, res = self.lc.analyze_lc_chunks(20, fvar_fun,
+                                                     fraction_step=0.5)
+        # excess_variance returns fvar and fvar_err
+        fvar, fvar_err = res
+
+        assert np.allclose(start[0], self.gti[0, 0])
+        assert np.all(fvar > 0)
+        # This must be a clear measurement of fvar
+        assert np.all(fvar > fvar_err)
+
+    def test_analyze_lc_chunks_nvar_fracstep(self):
+        start, stop, res = self.lc.analyze_lc_chunks(20, fvar_fun,
+                                                     fraction_step=0.5)
+        # excess_variance returns fvar and fvar_err
+        fvar, fvar_err = res
+        start, stop, res = self.lc.analyze_lc_chunks(20, nvar_fun,
+                                                     fraction_step=0.5)
+        # excess_variance returns fvar and fvar_err
+        nevar, nevar_err = res
+        assert np.allclose(nevar, fvar**2, rtol=0.01)
+
+    def test_analyze_lc_chunks_nvar_fracstep_mean(self):
+        start, stop, mean = self.lc.analyze_lc_chunks(20, np.mean,
+                                                      fraction_step=0.5)
+        start, stop, res = self.lc.analyze_lc_chunks(20, evar_fun,
+                                                     fraction_step=0.5)
+        # excess_variance returns fvar and fvar_err
+        evar, evar_err = res
+        start, stop, res = self.lc.analyze_lc_chunks(20, nvar_fun,
+                                                     fraction_step=0.5)
+        # excess_variance returns fvar and fvar_err
+        nevar, nevar_err = res
+        assert np.allclose(nevar * mean ** 2, evar, rtol=0.01)
+        assert np.allclose(nevar_err * mean ** 2, evar_err, rtol=0.01)
+
 
 class TestLightcurve(object):
 
@@ -33,7 +97,7 @@ class TestLightcurve(object):
         Demonstrate that we can create a trivial Lightcurve object.
         """
         lc = Lightcurve(self.times, self.counts)
-    
+
     def test_irregular_time_warning(self):
         """
         Check if inputting an irregularly spaced time iterable throws out
@@ -98,31 +162,6 @@ class TestLightcurve(object):
         assert start[0] == 0.5
         assert np.all(start + lc.dt / 2 == res)
 
-    def test_analyze_lc_chunks_fvar_fracstep(self):
-        dt = 0.1
-        tstart = 0
-        tstop = 100
-        times = np.arange(tstart, tstop, dt)
-        gti = np.array([[tstart - dt/2, tstop - dt/2]])
-        # Simulate something *clearly* non-constant
-        counts = np.random.poisson(
-            10000 + 2000 * np.sin(2 * np.pi * times))
-
-        lc = Lightcurve(times, counts, gti=gti)
-
-        def excvar(lc):
-            from stingray.utils import excess_variance
-            return excess_variance(lc, normalization='fvar')
-
-        start, stop, res = lc.analyze_lc_chunks(20, excvar, fraction_step=0.5)
-        # excess_variance returns fvar and fvar_err
-        res, res_err = res
-
-        assert np.allclose(start[0], gti[0, 0])
-        assert np.all(res > 0)
-        # This must be a clear measurement of fvar
-        assert np.all(res > res_err)
-
     def test_bin_edges(self):
         bin_lo = [0.5,  1.5,  2.5,  3.5]
         bin_hi = [1.5,  2.5,  3.5,  4.5]
@@ -131,7 +170,31 @@ class TestLightcurve(object):
         assert np.allclose(lc.bin_hi, bin_hi)
 
     def test_lightcurve_from_toa(self):
-        lc = Lightcurve.make_lightcurve(self.times, self.dt)
+        lc = Lightcurve.make_lightcurve(self.times, self.dt, use_hist=True,
+                                        tstart=0.5)
+        lc2 = Lightcurve.make_lightcurve(self.times, self.dt, use_hist=False,
+                                        tstart=0.5)
+        assert np.allclose(lc.time, lc2.time)
+        assert np.all(lc.counts == lc2.counts)
+
+    def test_lightcurve_from_toa_halfbin(self):
+        lc = Lightcurve.make_lightcurve(self.times + 0.5, self.dt,
+                                        use_hist=True,
+                                        tstart=0.5)
+        lc2 = Lightcurve.make_lightcurve(self.times + 0.5, self.dt,
+                                         use_hist=False,
+                                         tstart=0.5)
+        assert np.allclose(lc.time, lc2.time)
+        assert np.all(lc.counts == lc2.counts)
+
+    def test_lightcurve_from_toa_random_nums(self):
+        times = np.random.uniform(0, 10, 1000)
+        lc = Lightcurve.make_lightcurve(times, self.dt, use_hist=True,
+                                        tstart=0.5)
+        lc2 = Lightcurve.make_lightcurve(times, self.dt, use_hist=False,
+                                        tstart=0.5)
+        assert np.allclose(lc.time, lc2.time)
+        assert np.all(lc.counts == lc2.counts)
 
     def test_tstart(self):
         tstart = 0.0
@@ -365,12 +428,16 @@ class TestLightcurve(object):
         assert lc[0] == lc[1] == lc[2] == lc[3] == 2
 
     def test_slicing(self):
-        lc = Lightcurve(self.times, self.counts)
+        lc = Lightcurve(self.times, self.counts, gti=self.gti)
 
         assert np.all(lc[1:3].counts == np.array([2, 2]))
         assert np.all(lc[:2].counts == np.array([2, 2]))
+        assert np.all(lc[:2].gti == [[0.5, 2.5]])
         assert np.all(lc[2:].counts == np.array([2, 2]))
+        assert np.all(lc[2:].gti == [[2.5, 4.5]])
         assert np.all(lc[:].counts == np.array([2, 2, 2, 2]))
+        assert np.all(lc[::2].gti == [[0.5, 1.5], [2.5, 3.5]])
+        assert np.all(lc[:].gti == lc.gti)
         assert lc[:].mjdref == lc.mjdref
 
 
@@ -442,7 +509,7 @@ class TestLightcurve(object):
 
         lc1 = Lightcurve(self.times, self.counts, err_dist = "poisson")
         lc2 = Lightcurve(_times, _counts, err_dist = "gauss")
-        
+
         with warnings.catch_warnings(record=True) as w:
             lc3 = lc1.join(lc2)
             assert "We are setting the errors to zero." in str(w[1].message)
@@ -680,6 +747,21 @@ class TestLightcurveRebin(object):
         for dt in dt_all:
             self.rebin_several(dt)
 
+    def test_rebin_with_gtis(self):
+        times = np.arange(0, 100, 0.1)
+
+        counts = np.random.normal(100, 0.1, size=times.shape[0])
+        gti = [[0, 40], [60, 100]]
+
+        good = create_gti_mask(times, gti)
+
+        counts[np.logical_not(good)] = 0
+        lc = Lightcurve(times, counts, gti=gti)
+
+        lc_rebin = lc.rebin(1.0)
+
+        assert (lc_rebin.time[39] - lc_rebin.time[38]) > 1.0
+
     def test_lc_baseline(self):
         times = np.arange(0, 100, 0.01)
         counts = np.random.normal(100, 0.1, len(times)) + \
@@ -690,6 +772,18 @@ class TestLightcurveRebin(object):
         lc = Lightcurve(times, counts, gti=gti)
         baseline = lc.baseline(10000, 0.01)
         assert np.all(lc.counts - baseline < 1)
+
+    def test_lc_baseline_offset(self):
+        times = np.arange(0, 100, 0.01)
+        input_stdev = 0.1
+        counts = np.random.normal(100, input_stdev, len(times)) + \
+            0.001 * times
+        gti = [[-0.005, 50.005], [59.005, 100.005]]
+        good = create_gti_mask(times, gti)
+        counts[np.logical_not(good)] = 0
+        lc = Lightcurve(times, counts, gti=gti)
+        baseline = lc.baseline(10000, 0.01, offset_correction=True)
+        assert np.isclose(np.std(lc.counts - baseline), input_stdev, rtol=0.1)
 
     def test_change_mjdref(self):
         lc_new = self.lc.change_mjdref(57000)
@@ -705,5 +799,37 @@ class TestLightcurveRebin(object):
         assert np.all(lc.time == np.array([0, 1, 2, 13, 14]))
         lc.gti = [[-0.5, 10.5]]
         lc._apply_gtis()
-        assert lc.n == 3
         assert np.all(lc.time == np.array([0, 1, 2]))
+
+    def test_eq_operator(self):
+        time = [1, 2, 3]
+        count1 = [100, 200, 300]
+        count2 = [100, 200, 300]
+        lc1 = Lightcurve(time, count1)
+        lc2 = Lightcurve(time, count2)
+        assert lc1 == lc2
+
+    def test_eq_bad_lc(self):
+        time = [1, 2, 3]
+        count1 = [100, 200, 300]
+        count2 = [100, 200, 300]
+        lc1 = Lightcurve(time, count1)
+        with pytest.raises(ValueError):
+            lc1 == count2
+
+    def test_eq_different_times(self):
+        time1 = [1, 2, 3]
+        time2 = [2, 3, 4]
+        count1 = [100, 200, 300]
+        count2 = [100, 200, 300]
+        lc1 = Lightcurve(time1, count1)
+        lc2 = Lightcurve(time2, count2)
+        assert not lc1 == lc2
+
+    def test_eq_different_counts(self):
+        time = [1, 2, 3, 4]
+        count1 = [5, 10, 15, 20]
+        count2 = [2, 4, 5, 8]
+        lc1 = Lightcurve(time, count1)
+        lc2 = Lightcurve(time, count2)
+        assert not lc1 == lc2

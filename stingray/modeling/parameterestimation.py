@@ -45,7 +45,7 @@ from astropy.modeling.fitting import _fitter_to_model_params, \
     _model_to_fit_params, _validate_model, _convert_input
 
 from stingray.modeling.posterior import Posterior, PSDPosterior, \
-    LogLikelihood, PSDLogLikelihood
+    LogLikelihood, PSDLogLikelihood, logmin
 
 
 class OptimizationResults(object):
@@ -133,9 +133,18 @@ class OptimizationResults(object):
         self.ssd = np.sqrt(2.0*self.sexp)
         self.sobs = np.sum(lpost.y-self.mfit)
 
-    def print_summary(self, lpost):
+    def print_summary(self, lpost, log=None):
 
-        logging.info("The best-fit model parameters plus errors are:")
+
+        if log is None:
+            log = logging.getLogger('Fitting summary')
+            log.setLevel(logging.DEBUG)
+
+            ch = logging.StreamHandler()
+            ch.setLevel(logging.DEBUG)
+            log.addHandler(ch)
+
+        log.info("The best-fit model parameters plus errors are:")
 
         fixed = [lpost.model.fixed[n] for n in lpost.model.param_names]
         tied = [lpost.model.tied[n] for n in lpost.model.param_names]
@@ -147,35 +156,35 @@ class OptimizationResults(object):
 
         all_parnames = [n for n in lpost.model.param_names]
         for i, par in enumerate(all_parnames):
-            logging.info("{:3}) Parameter {:<20}: ".format(i, par))
+            log.info("{:3}) Parameter {:<20}: ".format(i, par))
 
             if par in parnames:
                 idx = parnames.index(par)
 
-                logging.info("{:<20.5f} +/- {:<20.5f} ".format(self.p_opt[idx],
+                log.info("{:<20.5f} +/- {:<20.5f} ".format(self.p_opt[idx],
                                                   self.err[idx]))
-                logging.info("[{:>10} {:>10}]".format(str(bounds[i][0]),
+                log.info("[{:>10} {:>10}]".format(str(bounds[i][0]),
                                                str(bounds[i][1])))
             elif fixed[i]:
-                logging.info("{:<20.5f} (Fixed) ".format(lpost.model.parameters[i]))
+                log.info("{:<20.5f} (Fixed) ".format(lpost.model.parameters[i]))
             elif tied[i]:
-                logging.info("{:<20.5f} (Tied) ".format(lpost.model.parameters[i]))
+                log.info("{:<20.5f} (Tied) ".format(lpost.model.parameters[i]))
 
-        logging.info("\n")
+        log.info("\n")
 
-        logging.info("Fitting statistics: ")
-        logging.info(" -- number of data points: %i"%(len(lpost.x)))
+        log.info("Fitting statistics: ")
+        log.info(" -- number of data points: %i"%(len(lpost.x)))
 
         try:
             self.deviance
         except AttributeError:
             self._compute_criteria(lpost)
 
-        logging.info(" -- Deviance [-2 log L] D = %f.3"%self.deviance)
-        logging.info(" -- The Akaike Information Criterion of the model is: " +
+        log.info(" -- Deviance [-2 log L] D = %f.3"%self.deviance)
+        log.info(" -- The Akaike Information Criterion of the model is: " +
               str(self.aic) + ".")
 
-        logging.info(" -- The Bayesian Information Criterion of the model is: " +
+        log.info(" -- The Bayesian Information Criterion of the model is: " +
               str(self.bic) + ".")
 
         try:
@@ -183,14 +192,14 @@ class OptimizationResults(object):
         except AttributeError:
             self._compute_statistics(lpost)
 
-        logging.info(" -- The figure-of-merit function for this model " +
+        log.info(" -- The figure-of-merit function for this model " +
               " is: %f.5f"%self.merit +
               " and the fit for %i dof is %f.3f"%(self.dof,
                                                   self.merit/self.dof))
 
-        logging.info(" -- Summed Residuals S = %f.5f"%self.sobs)
-        logging.info(" -- Expected S ~ %f.5 +/- %f.5"%(self.sexp, self.ssd))
-        logging.info(" -- merit function (SSE) M = %f.5f \n\n"%self.merit)
+        log.info(" -- Summed Residuals S = %f.5f"%self.sobs)
+        log.info(" -- Expected S ~ %f.5 +/- %f.5"%(self.sexp, self.ssd))
+        log.info(" -- merit function (SSE) M = %f.5f \n\n"%self.merit)
 
         return
 
@@ -205,13 +214,13 @@ class ParameterEstimation(object):
         this is required, define (uniform) priors in the ParametricModel
         instances to be used below.
 
-        Parameters:
-        -----------
-        fitmethod: string, optional, default "L-BFGS-B"
+        Parameters
+        ----------
+        fitmethod : string, optional, default "L-BFGS-B"
             Any of the strings allowed in scipy.optimize.minimize in
             the method keyword. Sets the fit method to be used.
 
-        max_post: bool, optional, default True
+        max_post : bool, optional, default True
             If True, then compute the Maximum-A-Posteriori estimate. If False,
             compute a Maximum Likelihood estimate.
         """
@@ -225,9 +234,9 @@ class ParameterEstimation(object):
         Do either a Maximum A Posteriori or Maximum Likelihood
         fit to the data.
 
-        Parameters:
+        Parameters
         -----------
-        lpost: Posterior (or subclass) instance
+        lpost : Posterior (or subclass) instance
             and instance of class Posterior or one of its subclasses
             that defines the function to be minized (either in loglikelihood
             or logposterior)
@@ -244,9 +253,9 @@ class ParameterEstimation(object):
             A dictionary with options for `scipy.optimize.minimize`,
             directly passed on as keyword arguments.
 
-        Returns:
+        Returns
         --------
-        fitparams: dict
+        fitparams : dict
             A dictionary with the fit results
             TODO: Add description of keywords in the class!
         """
@@ -283,22 +292,22 @@ class ParameterEstimation(object):
                 funcval == 0.0 or not np.isfinite(funcval):
 
             if i > 20:
-                raise Exception("Fitting unsuccessful!")
+                raise RuntimeError("Fitting unsuccessful!")
             # perturb parameters slightly
             t0_p = np.random.multivariate_normal(p0, np.diag(np.abs(p0)/100.))
 
             params = [getattr(newmod,name) for name in newmod.param_names]
-            bounds = [p.bounds for p in params if not np.any([p.tied, p.fixed])]
+            bounds = np.array([p.bounds for p in params if not np.any([p.tied, p.fixed])])
 
-            if len(bounds) > 0 and self.fitmethod not in ["L-BFGS-B",
-                                                          "TNC",
-                                                          "SLSQP"]:
+            if any(elem is not None for elem in np.hstack(bounds)) \
+                    and self.fitmethod not in ["L-BFGS-B", "TNC", "SLSQP"]:
                 logging.warning("Fitting method %s "%self.fitmethod +
                                 "cannot incorporate the bounds you set!")
 
-            if len(bounds) == 0 or self.fitmethod not in ["L-BFGS-B",
-                                                          "TNC",
-                                                          "SLSQP"]:
+            if any(elem is not None for elem in np.hstack(bounds)) or \
+                            self.fitmethod not in ["L-BFGS-B",
+                                                   "TNC",
+                                                   "SLSQP"]:
                 use_bounds = False
             else:
                 use_bounds = True
@@ -357,7 +366,12 @@ class ParameterEstimation(object):
                                                       args=args, tol=1.e-10,
                                                       **scipy_optimize_options)
 
+
             funcval = opt.fun
+
+            if np.isclose(opt.fun, logmin)  or np.isclose(opt.fun, 2*logmin):
+                funcval = 100
+
             i += 1
 
         res = OptimizationResults(lpost, opt, neg=neg)
@@ -600,8 +614,7 @@ class ParameterEstimation(object):
                       nsim=1000, niter=200, nwalkers=500, burnin=200,
                       namestr="test", seed=None):
 
-        """
-        Calibrate the outcome of a Likelihood Ratio Test via MCMC.
+        """Calibrate the outcome of a Likelihood Ratio Test via MCMC.
 
         In order to compare models via likelihood ratio test, one generally
         aims to compute a p-value for the null hypothesis (generally the
@@ -609,15 +622,17 @@ class ParameterEstimation(object):
         distribution used to compute that p-value analytically given the
         observed likelihood ratio (a chi-square distribution) is not
         applicable:
+
         * the models are not nested (i.e. Model 1 is not a special, simpler
-        case of Model 2),
+          case of Model 2),
+
         * the parameter values fixed in Model 2 to retrieve Model 1 are at the
-        edges of parameter space (e.g. if one must set, say, an amplitude to
-        zero in order to remove a component in the more complex model, and
-        negative amplitudes are excluded a priori)
+          edges of parameter space (e.g. if one must set, say, an amplitude to
+          zero in order to remove a component in the more complex model, and
+          negative amplitudes are excluded a priori)
 
         In these cases, the observed likelihood ratio must be calibrated via
-         simulations of the simpler model (Model 1), using MCMC to take into
+        simulations of the simpler model (Model 1), using MCMC to take into
         account the uncertainty in the parameters. This function does
         exactly that: it computes the likelihood ratio for the observed data,
         and produces simulations to calibrate the likelihood ratio and
@@ -652,12 +667,10 @@ class ParameterEstimation(object):
             If True, set the internal state to do the optimization with the
             log-likelihood rather than the log-posterior.
 
-
         Returns
         -------
         pvalue : float [0,1]
             p-value 'n stuff
-
         """
 
         # compute the observed likelihood ratio
@@ -665,6 +678,8 @@ class ParameterEstimation(object):
                                                lpost2, t2,
                                                neg=neg,
                                                max_post=max_post)
+
+        rng = np.random.RandomState(seed)
 
         if sample is None:
             # simulate parameter sets from the simpler model
@@ -674,7 +689,7 @@ class ParameterEstimation(object):
 
                 # set up the distribution
                 mvn = scipy.stats.multivariate_normal(mean=res1.p_opt,
-                                                      cov=res1.cov)
+                                                      cov=res1.cov, seed=seed)
 
 
                 # sample parameters
@@ -685,13 +700,13 @@ class ParameterEstimation(object):
             else:
                 # sample the posterior using MCMC
                 s_mcmc = self.sample(lpost1, res1.p_opt, cov=res1.cov,
-                                       nwalkers=nwalkers, niter=niter,
-                                       burnin=burnin, namestr=namestr)
+                                     nwalkers=nwalkers, niter=niter,
+                                     burnin=burnin, namestr=namestr)
 
 
                 # pick nsim samples out of the posterior sample
                 s_all = s_mcmc.samples[
-                    np.random.choice(s_mcmc.samples.shape[0], nsim,
+                    rng.choice(s_mcmc.samples.shape[0], nsim,
                                      replace=False)]
 
                 #if lpost1.npar == 1:
@@ -699,23 +714,24 @@ class ParameterEstimation(object):
 
 
         else:
-            s_all = sample
+            s_all = sample[rng.choice(sample.shape[0], nsim,
+                                     replace=False)]
 
 
         # simulate LRTs
         # this method is defined in the subclasses!
         lrt_sim = self.simulate_lrts(s_all, lpost1, t1, lpost2, t2,
-                                      max_post=max_post, seed=seed)
-
+                                     seed=seed)
         # now I can compute the p-value:
         pval = ParameterEstimation._compute_pvalue(lrt_obs, lrt_sim)
+
 
         return pval
 
 
 class SamplingResults(object):
 
-    def __init__(self, sampler, ci_min=0.05, ci_max=0.95):
+    def __init__(self, sampler, ci_min=5, ci_max=95):
         """
         Helper class that will contain the results of the sampling
         in a handly format.
@@ -726,11 +742,11 @@ class SamplingResults(object):
         sampler: emcee.EnsembleSampler object
             The object containing the sampler that's done all the work.
 
-        ci_min: float out of [0,1]
+        ci_min: float out of [0,100]
             The lower bound percentile for printing confidence intervals
             on the parameters
 
-        ci_max: float out of [0,1]
+        ci_max: float out of [0,100]
             The upper bound percentile for printing confidence intervals
             on the parameters
 
@@ -786,31 +802,45 @@ class SamplingResults(object):
 
         return rhat
 
-    def _infer(self, ci_min=0.05, ci_max=0.95):
+    def _infer(self, ci_min=5, ci_max=95):
         self.mean = np.mean(self.samples, axis=0)
         self.std = np.std(self.samples, axis=0)
         self.ci = np.percentile(self.samples, [ci_min, ci_max], axis=0)
 
-    def print_results(self):
+    def print_results(self, log=None):
         """
         Print results of the MCMC run.
 
-        """
+        Parameters
+        ----------
+        log : a logging.getLogger() object
+            Object to handle logging output
 
-        logging.info("-- The acceptance fraction is: %f.5"%self.acceptance)
+        """
+        if log is None:
+            log = logging.getLogger('MCMC summary')
+            log.setLevel(logging.DEBUG)
+
+            ch = logging.StreamHandler()
+            ch.setLevel(logging.DEBUG)
+            log.addHandler(ch)
+
+        log.info("-- The acceptance fraction is: %f.5"%self.acceptance)
         try:
-            logging.info("-- The autocorrelation time is: %f.5"%self.acor)
+            log.info("-- The autocorrelation time is: %f.5"%self.acor)
         except AttributeError:
             pass
-        logging.info("R_hat for the parameters is: " + str(self.rhat))
+        log.info("R_hat for the parameters is: " + str(self.rhat))
 
-        logging.info("-- Posterior Summary of Parameters: \n")
-        logging.info("parameter \t mean \t\t sd \t\t 5% \t\t 95% \n")
-        logging.info("---------------------------------------------\n")
+        log.info("-- Posterior Summary of Parameters: \n")
+        log.info("parameter \t mean \t\t sd \t\t 5% \t\t 95% \n")
+        log.info("---------------------------------------------\n")
         for i in range(self.ndim):
-            logging.info("theta[" + str(i) + "] \t " +
+            log.info("theta[" + str(i) + "] \t " +
                   str(self.mean[i]) + "\t" + str(self.std[i]) + "\t" +
                   str(self.ci[0, i]) + "\t" + str(self.ci[1, i]) + "\n")
+
+        return
 
     def plot_results(self, nsamples=1000, fig=None, save_plot=False,
                      filename="test.pdf"):
@@ -828,26 +858,26 @@ class SamplingResults(object):
         Parameters
         ----------
 
-        nsamples: int, default 1000
+        nsamples : int, default 1000
             The maximum number of samples used for plotting.
 
-        fig: matplotlib.Figure instance, default None
+        fig : matplotlib.Figure instance, default None
             If created externally, you can pass a Figure instance to this method.
             If none is passed, the method will create one internally.
 
-        save_plot: bool, default False
+        save_plot : bool, default False
             If True, save the plot to file with a file name specified by the
             keyword `filename`. If False, just return the `Figure` object
 
-        filename: str
+        filename : str
             Name of the output file with the figure
 
         """
         assert can_plot, "Need to have matplotlib installed for plotting"
         if use_corner:
-            corner.corner(self.samples, labels=None, fig=fig, bins=int(20),
-                          quantiles=[0.16, 0.5, 0.84],
-                          show_titles=True, title_args={"fontsize": 12})
+            fig = corner.corner(self.samples, labels=None, fig=fig, bins=int(20),
+                                quantiles=[0.16, 0.5, 0.84],
+                                show_titles=True, title_args={"fontsize": 12})
 
         else:
             if fig is None:
@@ -873,7 +903,7 @@ class SamplingResults(object):
                         ntemp, binstemp, patchestemp = \
                             ax.hist(samples[:, i], 30, normed=True,
                                     histtype='stepfilled')
-                        ax.axis([ymin, ymax, 0, max(ntemp)*1.2])
+                        ax.axis([ymin, ymax, 0, np.max(ntemp)*1.2])
 
                     else:
 
@@ -944,7 +974,7 @@ class PSDParEst(ParameterEstimation):
         """
         Generate a fake power spectrum from a model.
 
-        Parameters:
+        Parameters
         ----------
         lpost : instance of a Posterior or LogLikelihood subclass
             The object containing the relevant information about the
@@ -978,7 +1008,7 @@ class PSDParEst(ParameterEstimation):
 
         return sim_ps
 
-    def simulate_lrts(self, s_all, lpost1, t1, lpost2, t2, max_post=True,
+    def simulate_lrts(self, s_all, lpost1, t1, lpost2, t2,
                       seed=None):
         """
         Simulate likelihood ratios for two given models based on MCMC samples
@@ -989,7 +1019,7 @@ class PSDParEst(ParameterEstimation):
         s_all : numpy.ndarray of shape (nsamples, lpost1.npar)
             An array with MCMC samples derived from the null hypothesis model in
             `lpost1`. Its second dimension must match the number of free
-             parameters in `lpost1.model`.
+            parameters in `lpost1.model`.
 
         lpost1 : LogLikelihood or Posterior subclass object
             Object containing the null hypothesis model
@@ -1018,7 +1048,6 @@ class PSDParEst(ParameterEstimation):
         lrt_sim : numpy.ndarray
             An array with the simulated likelihood ratios for the simulated
             data
-
         """
 
         assert lpost1.__class__ == lpost2.__class__, "Both LogLikelihood or " \
@@ -1036,13 +1065,15 @@ class PSDParEst(ParameterEstimation):
             # generate fake PSD
             sim_ps = self._generate_data(lpost1, s, rng)
 
+            neg=True
+
             # make LogLikelihood objects for both:
             if isinstance(lpost1, LogLikelihood):
                 sim_lpost1 = PSDLogLikelihood(sim_ps.freq, sim_ps.power,
                                               model=lpost1.model)
                 sim_lpost2 = PSDLogLikelihood(sim_ps.freq, sim_ps.power,
                                               model=lpost2.model, m=sim_ps.m)
-                neg = True
+                max_post = False
             else:
                 # make a Posterior object
                 sim_lpost1 = PSDPosterior(sim_ps.freq, sim_ps.power,
@@ -1053,14 +1084,23 @@ class PSDParEst(ParameterEstimation):
                                           lpost2.model, m=sim_ps.m)
 
                 sim_lpost2.logprior = lpost2.logprior
-                neg=False
+                max_post=True
 
-            parest_sim = PSDParEst(sim_ps, max_post=max_post)
+            parest_sim = PSDParEst(sim_ps, max_post=max_post,
+                                   fitmethod=self.fitmethod)
 
-            lrt_sim[i], _, _ = parest_sim.compute_lrt(sim_lpost1, t1,
-                                                      sim_lpost2, t2,
-                                                      neg=neg,
-                                                      max_post=max_post)
+
+
+            try:
+                lrt_sim[i], _, _ = parest_sim.compute_lrt(sim_lpost1, t1,
+                                                          sim_lpost2, t2,
+                                                          neg=neg,
+                                                          max_post=max_post)
+            except RuntimeError:
+                logging.warning("Fitting was unsuccessful. "
+                                "Skipping this simulation!")
+                continue
+
         return lrt_sim
 
 
@@ -1075,6 +1115,8 @@ class PSDParEst(ParameterEstimation):
         # fit the model to the data
         res = self.fit(lpost, t0, neg=True)
 
+        rng = np.random.RandomState(seed)
+
         # find the highest data/model outlier:
         out_high, _, _ = self._compute_highest_outlier(lpost, res)
         # simulate parameter sets from the simpler model
@@ -1084,7 +1126,7 @@ class PSDParEst(ParameterEstimation):
 
             # set up the distribution
             mvn = scipy.stats.multivariate_normal(mean=res.p_opt,
-                                                  cov=res.cov)
+                                                  cov=res.cov, seed=seed)
 
             if lpost.npar == 1:
                 # sample parameters
@@ -1097,17 +1139,18 @@ class PSDParEst(ParameterEstimation):
             if sample is None:
                 # sample the posterior using MCMC
                 sample = self.sample(lpost, res.p_opt, cov=res.cov,
-                                       nwalkers=nwalkers, niter=niter,
-                                       burnin=burnin, namestr=namestr)
+                                     nwalkers=nwalkers, niter=niter,
+                                     burnin=burnin, namestr=namestr)
 
             # pick nsim samples out of the posterior sample
-            s_all = sample.samples[
-                np.random.choice(sample.samples.shape[0], nsim, replace=False)]
+            s_all = sample.samples[rng.choice(sample.samples.shape[0], nsim,
+                                              replace=False)]
 
         # simulate LRTs
         # this method is defined in the subclasses!
         out_high_sim = self.simulate_highest_outlier(s_all, lpost, t0,
-                                                max_post=max_post, seed=seed)
+                                                     max_post=max_post,
+                                                     seed=seed)
         # now I can compute the p-value:
         pval = ParameterEstimation._compute_pvalue(out_high, out_high_sim)
 
@@ -1142,10 +1185,16 @@ class PSDParEst(ParameterEstimation):
 
             parest_sim = PSDParEst(sim_ps, max_post=max_post)
 
-            res = parest_sim.fit(sim_lpost, t0, neg=True)
-            max_y_all[i], maxfreq, maxind = self._compute_highest_outlier(sim_lpost,
-                                                               res,
-                                                               nmax=1)
+            try:
+                res = parest_sim.fit(sim_lpost, t0, neg=True)
+                max_y_all[i], maxfreq, maxind = self._compute_highest_outlier(sim_lpost,
+                                                                   res,
+                                                                   nmax=1)
+            except RuntimeError:
+                logging.warning("Fitting unsuccessful! "
+                                "Skipping this simulation!")
+                continue
+
         return np.hstack(max_y_all)
 
     def _compute_highest_outlier(self, lpost, res, nmax=1):
@@ -1194,8 +1243,8 @@ class PSDParEst(ParameterEstimation):
 
                 p1, = s1.plot(logx, logy, color='black', linestyle='steps-mid')
                 p2, = s1.plot(logx, logpar1, color='blue', lw=2)
-                s1.set_xlim([min(logx), max(logx)])
-                s1.set_ylim([min(logy)-1.0, max(logy)+1])
+                s1.set_xlim([np.min(logx), np.max(logx)])
+                s1.set_ylim([np.min(logy)-1.0, np.max(logy)+1])
                 if self.ps.norm == "leahy":
                     s1.set_ylabel('log(Leahy-Normalized Power)', fontsize=18)
                 elif self.ps.norm == "rms":
@@ -1212,9 +1261,9 @@ class PSDParEst(ParameterEstimation):
                 s1.set_xscale("log")
                 s1.set_yscale("log")
 
-                s1.set_xlim([min(self.ps.freq), max(self.ps.freq)])
-                s1.set_ylim([min(self.ps.freq)/10.0,
-                             max(self.ps.power)*10.0])
+                s1.set_xlim([np.min(self.ps.freq), np.max(self.ps.freq)])
+                s1.set_ylim([np.min(self.ps.freq)/10.0,
+                             np.max(self.ps.power)*10.0])
 
                 if self.ps.norm == "leahy":
                     s1.set_ylabel('Leahy-Normalized Power', fontsize=18)
@@ -1248,8 +1297,8 @@ class PSDParEst(ParameterEstimation):
                 s2.plot(logx, pldif, color='black', linestyle='steps-mid')
                 s2.plot(logx, np.ones(self.ps.freq.shape[0]),
                         color='blue', lw=2)
-                s2.set_xlim([min(logx), max(logx)])
-                s2.set_ylim([min(pldif), max(pldif)])
+                s2.set_xlim([np.min(logx), np.max(logx)])
+                s2.set_ylim([np.min(pldif), np.max(pldif)])
 
             else:
                 s2.plot(self.ps.freq, pldif, color='black',
@@ -1259,8 +1308,8 @@ class PSDParEst(ParameterEstimation):
 
                 s2.set_xscale("log")
                 s2.set_yscale("log")
-                s2.set_xlim([min(self.ps.freq), max(self.ps.freq)])
-                s2.set_ylim([min(pldif), max(pldif)])
+                s2.set_xlim([np.min(self.ps.freq), np.max(self.ps.freq)])
+                s2.set_ylim([np.min(pldif), np.max(pldif)])
 
             if res2 is not None:
                 bpldif = self.ps.power/res2.mfit
@@ -1272,7 +1321,7 @@ class PSDParEst(ParameterEstimation):
                     s3.plot(logx, bpldif, color='black', linestyle='steps-mid')
                     s3.plot(logx, np.ones(len(self.ps.freq)),
                             color='red', lw=2)
-                    s3.axis([min(logx), max(logx), min(bpldif), max(bpldif)])
+                    s3.axis([np.min(logx), np.max(logx), np.min(bpldif), np.max(bpldif)])
                     s3.set_xlabel("log(Frequency) [Hz]", fontsize=18)
 
                 else:
@@ -1282,8 +1331,8 @@ class PSDParEst(ParameterEstimation):
                             color='red', lw=2)
                     s3.set_xscale("log")
                     s3.set_yscale("log")
-                    s3.set_xlim([min(self.ps.freq), max(self.ps.freq)])
-                    s3.set_ylim([min(bpldif), max(bpldif)])
+                    s3.set_xlim([np.min(self.ps.freq), np.max(self.ps.freq)])
+                    s3.set_ylim([np.min(bpldif), np.max(bpldif)])
                     s3.set_xlabel("Frequency [Hz]", fontsize=18)
 
                 s3.set_ylabel("Residuals, \n second model",

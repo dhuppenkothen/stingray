@@ -21,8 +21,8 @@ from stingray import Lightcurve, Powerspectrum
 #from stingray.modeling.parametricmodels import logmin
 
 __all__ = ["set_logprior", "Posterior", "PSDPosterior", "LogLikelihood",
-           "PSDLogLikelihood", "GaussianLogLikelihood",
-           "PoissonPosterior", "GaussianPosterior",
+           "PSDLogLikelihood", "GaussianLogLikelihood", "LaplaceLogLikelihood",
+           "PoissonPosterior", "GaussianPosterior", "LaplacePosterior",
            "PriorUndefinedError", "LikelihoodUndefinedError"]
 
 logmin = -10000000000000000.0
@@ -58,15 +58,15 @@ def set_logprior(lpost, priors):
         A dictionary containing the prior definitions. Keys are parameter
         names as defined by the model used in `lpost`. Items are functions
         that take a parameter as input and return the log-prior probability
-         of that parameter.
+        of that parameter.
 
     Returns
     -------
         logprior : function
             The function definition for the prior
 
-    Example
-    -------
+    Examples
+    --------
     Make a light curve and power spectrum
 
     >>> photon_arrivals = np.sort(np.random.uniform(0,1000, size=10000))
@@ -105,14 +105,14 @@ def set_logprior(lpost, priors):
         The logarithm of the prior distribution for the
         model defined in self.model.
 
-        Parameters:
-        ------------
-        t0: {list | numpy.ndarray}
+        Parameters
+        ----------
+        t0 : {list | numpy.ndarray}
             The list with parameters for the model
 
-        Returns:
-        --------
-        logp: float
+        Returns
+        -------
+        logp : float
             The logarithm of the prior distribution for the model and
             parameters given.
         """
@@ -200,10 +200,10 @@ class GaussianLogLikelihood(LogLikelihood):
         y : iterable
             y-coordinte of the data
 
-        yerr: iterable
+        yerr : iterable
             the uncertainty on the data, as standard deviation
 
-        model: an Astropy Model instance
+        model : an Astropy Model instance
             The model to use in the likelihood.
 
         """
@@ -254,7 +254,7 @@ class PoissonLogLikelihood(LogLikelihood):
         y : iterable
             y-coordinte of the data
 
-        model: an Astropy Model instance
+        model : an Astropy Model instance
             The model to use in the likelihood.
 
         """
@@ -297,14 +297,14 @@ class PSDLogLikelihood(LogLikelihood):
 
         Parameters
         ----------
-        freq: iterable
+        freq : iterable
             Array with frequencies
 
-        power: iterable
+        power : iterable
             Array with (averaged/singular) powers corresponding to the
             frequencies in `freq`
 
-        model: an Astropy Model instance
+        model : an Astropy Model instance
             The model to use in the likelihood.
 
         m : int
@@ -328,6 +328,7 @@ class PSDLogLikelihood(LogLikelihood):
 
         _fitter_to_model_params(self.model, pars)
 
+
         mean_model = self.model(self.x)
 
         with warnings.catch_warnings(record=True) as out:
@@ -350,6 +351,59 @@ class PSDLogLikelihood(LogLikelihood):
             return -loglike
         else:
             return loglike
+
+class LaplaceLogLikelihood(LogLikelihood):
+    def __init__(self, x, y, yerr, model):
+        """
+        A Gaussian likelihood.
+
+        Parameters
+        ----------
+        x : iterable
+            Array with independent variable
+
+        y : iterable
+            Array with dependent variable
+
+        model : an Astropy Model instance
+            The model to use in the likelihood.
+
+        yerr : iterable
+            Array with the uncertainties on `y`, in standard deviation
+
+        """
+
+        LogLikelihood.__init__(self, x, y, model)
+        self.yerr = yerr
+
+        self.npar = 0
+        for pname in self.model.param_names:
+            if not self.model.fixed[pname] and not self.model.tied[pname]:
+                self.npar += 1
+
+    def evaluate(self, pars, neg=False):
+
+        if np.size(pars) != self.npar:
+            raise IncorrectParameterError("Input parameters must" +
+                                          " match model parameters!")
+
+        _fitter_to_model_params(self.model, pars)
+
+        mean_model = self.model(self.x)
+
+        with warnings.catch_warnings(record=True) as out:
+
+                        loglike = np.sum(-np.log(2.*self.yerr) - \
+                                  (np.abs(self.y - mean_model)/self.yerr))
+
+        if not np.isfinite(loglike):
+            loglike = logmin
+
+        if neg:
+            return -loglike
+        else:
+            return loglike
+
 
 class Posterior(object):
 
@@ -382,7 +436,7 @@ class Posterior(object):
         y : iterable
             The ordinate or dependent variable of the data.
 
-        model: astropy.modeling.models class instance
+        model : astropy.modeling.models class instance
             The parametric model supposed to represent the data. For details
             see the astropy.modeling documentation
 
@@ -423,7 +477,14 @@ class Posterior(object):
             raise LikelihoodUndefinedError("There is no likelihood implemented. " +
                                            "Cannot calculate posterior!")
 
-        lpost = self.loglikelihood(t0) + self.logprior(t0)
+
+        logpr = self.logprior(t0)
+        loglike = self.loglikelihood(t0)
+
+        if np.isclose(logpr, logmin):
+            lpost = logmin
+        else:
+            lpost = logpr + loglike
 
         if neg is True:
             return -lpost
@@ -446,10 +507,10 @@ class PSDPosterior(Posterior):
 
         Parameters
         ----------
-        ps: {Powerspectrum | AveragedPowerspectrum} instance
+        ps : {Powerspectrum | AveragedPowerspectrum} instance
             the Powerspectrum object containing the data
 
-        model: instance of any subclass of parameterclass.ParametricModel
+        model : instance of any subclass of parameterclass.ParametricModel
             The model for the power spectrum. Note that in order to define
             the posterior properly, the ParametricModel subclass must be
             instantiated with the hyperpars parameter set, or there won't
@@ -467,23 +528,23 @@ class PSDPosterior(Posterior):
             this module. Note that it is impossible to call the posterior object
             itself or the `self.logposterior` method without defining a prior.
 
-        m: int, default 1
+        m : int, default 1
             The number of averaged periodograms or frequency bins in ps.
             Useful for binned/averaged periodograms, since the value of
             m will change the likelihood function!
 
         Attributes
         ----------
-        ps: {Powerspectrum | AveragedPowerspectrum} instance
+        ps : {Powerspectrum | AveragedPowerspectrum} instance
             the Powerspectrum object containing the data
 
-        x: numpy.ndarray
+        x : numpy.ndarray
             The independent variable (list of frequencies) stored in ps.freq
 
-        y: numpy.ndarray
+        y : numpy.ndarray
             The dependent variable (list of powers) stored in ps.power
 
-        model: instance of any subclass of parameterclass.ParametricModel
+        model : instance of any subclass of parameterclass.ParametricModel
                The model for the power spectrum. Note that in order to define
                the posterior properly, the ParametricModel subclass must be
                instantiated with the hyperpars parameter set, or there won't
@@ -518,7 +579,7 @@ class PoissonPosterior(Posterior):
         y : numpy.ndarray
             The dependent variable (e.g. counts per bin of a light curve)
 
-        model: instance of any subclass of parameterclass.ParametricModel
+        model : instance of any subclass of parameterclass.ParametricModel
             The model for the power spectrum. Note that in order to define
             the posterior properly, the ParametricModel subclass must be
             instantiated with the hyperpars parameter set, or there won't
@@ -538,13 +599,13 @@ class PoissonPosterior(Posterior):
 
         Attributes
         ----------
-        x: numpy.ndarray
+        x : numpy.ndarray
             The independent variable (list of frequencies) stored in ps.freq
 
-        y: numpy.ndarray
+        y : numpy.ndarray
             The dependent variable (list of powers) stored in ps.power
 
-        model: instance of any subclass of parameterclass.ParametricModel
+        model : instance of any subclass of parameterclass.ParametricModel
                The model for the power spectrum. Note that in order to define
                the posterior properly, the ParametricModel subclass must be
                instantiated with the hyperpars parameter set, or there won't
@@ -572,16 +633,16 @@ class GaussianPosterior(Posterior):
 
         Parameters
         ----------
-        x: numpy.ndarray
+        x : numpy.ndarray
             independent variable
 
-        y: numpy.ndarray
+        y : numpy.ndarray
             dependent variable
 
-        yerr: numpy.ndarray
+        yerr : numpy.ndarray
             measurement uncertainties for y
 
-        model: instance of any subclass of parameterclass.ParametricModel
+        model : instance of any subclass of parameterclass.ParametricModel
             The model for the power spectrum. Note that in order to define
             the posterior properly, the ParametricModel subclass must be
             instantiated with the hyperpars parameter set, or there won't
@@ -590,6 +651,41 @@ class GaussianPosterior(Posterior):
 
         """
         self.loglikelihood = GaussianLogLikelihood(x, y, yerr, model)
+
+        Posterior.__init__(self, x, y, model)
+
+        self.yerr = yerr
+
+        if not priors is None:
+            self.logprior = set_logprior(self, priors)
+
+class LaplacePosterior(Posterior):
+
+    def __init__(self, x, y, yerr, model, priors=None):
+        """
+        A general class for two-dimensional data following a Gaussian
+        sampling distribution.
+
+        Parameters
+        ----------
+        x : numpy.ndarray
+            independent variable
+
+        y : numpy.ndarray
+            dependent variable
+
+        yerr : numpy.ndarray
+            measurement uncertainties for y, in standard deviation
+
+        model : instance of any subclass of parameterclass.ParametricModel
+            The model for the power spectrum. Note that in order to define
+            the posterior properly, the ParametricModel subclass must be
+            instantiated with the hyperpars parameter set, or there won't
+            be a prior to be calculated! If all this object is used
+            for a maximum likelihood-style analysis, no prior is required.
+
+        """
+        self.loglikelihood = LaplaceLogLikelihood(x, y, yerr, model)
 
         Posterior.__init__(self, x, y, model)
 

@@ -8,6 +8,8 @@ Contents
    :maxdepth: 3
 
    api
+   modeling
+   pulse
    simulator
 
 

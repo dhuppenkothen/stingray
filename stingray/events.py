@@ -19,8 +19,8 @@ __all__ = ['EventList']
 
 
 class EventList(object):
-    def __init__(self, time=None, energy=None, ncounts=None, mjdref=0, dt=0, notes="",
-            gti=None, pi=None):
+    def __init__(self, time=None, energy=None, ncounts=None, mjdref=0, dt=0,
+                 notes="", gti=None, pi=None):
         """
         Make an event list object from an array of time stamps
 
@@ -50,6 +50,9 @@ class EventList(object):
         pi : integer, numpy.ndarray
             PI channels
 
+        notes : str
+            Any useful annotations
+
         Attributes
         ----------
         time: numpy.ndarray
@@ -76,7 +79,7 @@ class EventList(object):
             PI channels
 
         """
-        
+
         self.energy = None if energy is None else np.array(energy)
         self.notes = notes
         self.dt = dt
@@ -142,7 +145,7 @@ class EventList(object):
         """
 
         # Multiply times by number of counts
-        times = [[i] * j for i,j in zip(lc.time, lc.counts)]
+        times = [[i] * int(j) for i,j in zip(lc.time, lc.counts)]
         # Concatenate all lists
         times = [i for j in times for i in j]
 
@@ -192,28 +195,29 @@ class EventList(object):
             return
 
         if isinstance(spectrum, list) or isinstance(spectrum, np.ndarray):
-            
+
             energy = np.array(spectrum)[0]
             fluxes = np.array(spectrum)[1]
 
             if not isinstance(energy, np.ndarray):
                 raise IndexError("Spectrum must be a 2-d array or list")
-        
+
         else:
             raise TypeError("Spectrum must be a 2-d array or list")
-        
+
         # Create a set of probability values
         prob = fluxes / float(sum(fluxes))
 
         # Calculate cumulative probability
         cum_prob = np.cumsum(prob)
 
-        # Draw N random numbers between 0 and 1, where N is the size of event list
+        # Draw N random numbers between 0 and 1, where N is the size of event
+        # list
         R = ra.uniform(0, 1, self.ncounts)
 
         # Assign energies to events corresponding to the random numbers drawn
         self.energy = np.array([energy[np.argwhere(cum_prob ==
-            min(cum_prob[(cum_prob - r) > 0]))] for r in R])
+            np.min(cum_prob[(cum_prob - r) > 0]))] for r in R])
 
     def join(self, other):
         """
@@ -258,7 +262,7 @@ class EventList(object):
 
         ev_new.time = np.concatenate([self.time, other.time])
         order = np.argsort(ev_new.time)
-        ev_new.time = ev_new.time[order] 
+        ev_new.time = ev_new.time[order]
 
         if (self.pi is None) and (other.pi is None):
             ev_new.pi = None
@@ -274,7 +278,8 @@ class EventList(object):
         if (self.energy is None) and (other.energy is None):
             ev_new.energy = None
         elif (self.energy is None) or (other.energy is None):
-            self.energy = assign_value_if_none(self.energy, np.zeros_like(self.time))
+            self.energy = assign_value_if_none(self.energy,
+                                               np.zeros_like(self.time))
             other.energy = assign_value_if_none(other.energy,
                                              np.zeros_like(other.time))
 
@@ -284,14 +289,14 @@ class EventList(object):
 
         if self.gti is None and other.gti is not None and len(self.time) > 0:
             self.gti = \
-                assign_value_if_none(self.gti,
-                                     np.asarray([[self.time[0] - self.dt / 2,
-                                                  self.time[-1] + self.dt / 2]]))
+                assign_value_if_none(
+                    self.gti, np.asarray([[self.time[0] - self.dt / 2,
+                                           self.time[-1] + self.dt / 2]]))
         if other.gti is None and self.gti is not None and len(other.time) > 0:
             other.gti = \
-                assign_value_if_none(other.gti,
-                                     np.asarray([[other.time[0] - other.dt / 2,
-                                                  other.time[-1] + other.dt / 2]]))
+                assign_value_if_none(
+                    other.gti, np.asarray([[other.time[0] - other.dt / 2,
+                                            other.time[-1] + other.dt / 2]]))
 
         if (self.gti is None) and (other.gti is None):
             ev_new.gti = None
@@ -330,11 +335,11 @@ class EventList(object):
         if format_ == 'ascii':
             time = np.array(data.columns[0])
             return EventList(time=time)
-        
+
         elif format_ == 'hdf5' or format_ == 'fits':
             keys = data.keys()
             values = []
-            
+
             if format_ == 'fits':
                 attributes = [a.upper() for a in attributes]
 
@@ -344,9 +349,10 @@ class EventList(object):
 
                 else:
                     values.append(None)
-                    
-            return EventList(time=values[0], energy=values[1], ncounts=values[2],
-                mjdref=values[3], dt=values[4], notes=values[5], gti=values[6], pi=values[7])
+
+            return EventList(time=values[0], energy=values[1],
+                             ncounts=values[2], mjdref=values[3], dt=values[4],
+                             notes=values[5], gti=values[6], pi=values[7])
 
         elif format_ == 'pickle':
             return data
@@ -377,8 +383,8 @@ class EventList(object):
             write(self, filename, format_)
 
         elif format_ == 'fits':
-            write(self, filename, format_, tnames=['EVENTS', 'GTI'], 
-                colsassign={'gti':'GTI'})
+            write(self, filename, format_, tnames=['EVENTS', 'GTI'],
+                  colsassign={'gti':'GTI'})
 
         else:
             raise KeyError("Format not understood.")

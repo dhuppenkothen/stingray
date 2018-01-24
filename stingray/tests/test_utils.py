@@ -114,3 +114,77 @@ class TestUtils(object):
 
         with pytest.raises(ValueError):
             utils.get_random_state('foobar')
+
+class TestCreateWindow(object):
+    @classmethod
+    def setup_class(cls):
+        cls.N = 5
+        cls.uniform_window = 'uniform'
+        cls.parzen_window = 'parzen'
+        cls.hamming_window = 'hamming'
+        cls.hanning_window = 'hanning'
+        cls.triangular_window = 'triangular'
+        cls.welch_window = 'welch'
+        cls.blackmann_window = 'blackmann'
+        cls.flattop_window = 'flat-top'
+
+    def test_bad_N(self):
+        N_bad = 'abc'
+        with pytest.raises(TypeError):
+            window = utils.create_window(N_bad, self.uniform_window)
+
+    def test_bad_window_type(self):
+        window_bad = 123
+        with pytest.raises(TypeError):
+            window = utils.create_window(self.N, window_bad)
+
+    def test_not_available_window(self):
+        window_not = 'kaiser'
+        with pytest.raises(ValueError):
+            window = utils.create_window(self.N, window_not)
+
+    def test_N_equals_zero(self):
+        N = 0
+        window = utils.create_window(N)
+        assert len(window) == 0
+
+    def test_uniform_window(self):
+        result = np.ones(self.N)
+        window = utils.create_window(self.N)
+        assert np.allclose(window, result)
+
+    def test_parzen_window(self):
+        result = np.array([0, 0.25, 1, 0.25, 0])
+        window = utils.create_window(self.N, self.parzen_window)
+        assert np.allclose(window, result)
+
+    def test_hamming_window(self):
+        result = np.array([0.08, 0.54, 1, 0.54, 0.08])
+        window = utils.create_window(self.N, self.hamming_window)
+        assert np.allclose(window, result)
+
+    def test_hanning_window(self):
+        result = np.array([0, 0.5, 1, 0.5, 0])
+        window = utils.create_window(self.N, self.hanning_window)
+        assert np.allclose(window, result)
+
+    def test_triangular_window(self):
+        result = np.array([0.6, 0.8, 1, 0.8, 0.6])
+        window = utils.create_window(self.N, self.triangular_window)
+        assert np.allclose(window, result)
+
+    def test_welch_window(self):
+        result = np.array([0, 0.75, 1, 0.75, 0])
+        window = utils.create_window(self.N, self.welch_window)
+        assert np.allclose(window, result)
+
+    def test_blackmann_window(self):
+        result = np.array([0.006879, 0.349741, 0.999999, 0.349741, 0.006879])
+        window = utils.create_window(self.N, self.blackmann_window)
+        assert np.allclose(window, result)
+
+    def test_flat_top_window(self):
+        result = np.array([8.67361738e-17, -2.62000000e-01, 4.63600000e+00, -2.62000000e-01,
+                           8.67361738e-17])
+        window = utils.create_window(self.N, self.flattop_window)
+        assert np.allclose(window, result)

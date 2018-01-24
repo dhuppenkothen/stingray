@@ -6,8 +6,10 @@ from stingray.pulse.pulsar import fold_events
 import numpy as np
 from stingray import Lightcurve
 from stingray.events import EventList
+import pytest
 
 np.random.seed(20150907)
+
 
 class TestAll(object):
     """Unit tests for the stingray.pulse.search module."""
@@ -21,7 +23,8 @@ class TestAll(object):
         cls.times = np.arange(cls.tstart, cls.tend, cls.dt) + cls.dt / 2
         cls.counts = \
             100 + 20 * np.cos(2 * np.pi * cls.times * cls.pulse_frequency)
-        lc = Lightcurve(cls.times, cls.counts, gti=[[cls.tstart, cls.tend]])
+        cls.gti = [[cls.tstart, cls.tend]]
+        lc = Lightcurve(cls.times, cls.counts, gti=cls.gti, err_dist='gauss')
         events = EventList()
         events.simulate_times(lc)
         cls.event_times = events.time
@@ -35,6 +38,26 @@ class TestAll(object):
         assert np.all(times < 25.6)
         assert np.any(times > 25)
         assert np.all((phases >= 0)&(phases <= 2))
+
+    def test_phaseogram_bad_weights(self):
+        with pytest.raises(ValueError) as excinfo:
+            phaseogr, phases, times, additional_info = \
+                phaseogram(self.event_times, self.pulse_frequency,
+                           weights=[0, 2])
+        assert 'must match' in str(excinfo)
+
+    def test_phaseogram_weights(self):
+        phaseogr, phases, times, additional_info = \
+            phaseogram(self.times, self.pulse_frequency, weights=self.counts,
+                       nph=16)
+        assert np.all(times < 25.6)
+        assert np.any(times > 25)
+        assert np.all((phases >= 0)&(phases <= 2))
+        import matplotlib.pyplot as plt
+        fig = plt.figure('Phaseogram direct weights')
+        plot_phaseogram(phaseogr, phases, times)
+        plt.savefig('phaseogram_weights.png')
+        plt.close(fig)
 
     def test_phaseogram_mjdref(self):
         phaseogr, phases, times, additional_info = \
@@ -72,7 +95,7 @@ class TestAll(object):
     def test_plot_profile(self):
         import matplotlib.pyplot as plt
         phase, prof, _ = fold_events(self.event_times,
-                                            self.pulse_frequency)
+                                     self.pulse_frequency)
         ax = plot_profile(phase, prof)
         plt.savefig('profile_direct.png')
         plt.close(plt.gcf())
@@ -105,40 +128,188 @@ class TestAll(object):
 
     def test_epoch_folding_search(self):
         """Test pulse phase calculation, frequency only."""
-        frequencies = np.arange(9.85, 9.95, 0.1/self.tseg)
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg)
         freq, stat = epoch_folding_search(self.event_times, frequencies,
-                                          nbin=16)
+                                          nbin=43)
 
         minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
         maxstatbin = freq[np.argmax(stat)]
-        assert maxstatbin == frequencies[minbin]
+        assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1/self.tseg)
+
+    def test_epoch_folding_search_fdot(self):
+        """Test pulse phase calculation, frequency only."""
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg)
+        fdots = [-0.1, 0, 0.1]
+        freq, fdot, stat = epoch_folding_search(self.event_times, frequencies,
+                                                nbin=43, fdots=fdots)
+
+        minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
+        maxstatbin = freq.flatten()[np.argmax(stat)]
+        assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1/self.tseg)
+        maxfdot = fdot.flatten()[np.argmax(stat)]
+        assert np.allclose(maxfdot, 0.0, atol=0.1/self.tseg)
+
+    def test_epoch_folding_search_fdot_longdouble(self):
+        """Test pulse phase calculation, frequency only."""
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg, dtype=np.longdouble)
+        fdots = np.array([-0.1, 0, 0.1], dtype=np.longdouble)
+        freq, fdot, stat = \
+            epoch_folding_search(self.event_times.astype(np.longdouble),
+                                 frequencies, nbin=43, fdots=fdots)
+
+        minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
+        maxstatbin = freq.flatten()[np.argmax(stat)]
+        assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1/self.tseg)
+        maxfdot = fdot.flatten()[np.argmax(stat)]
+        assert np.allclose(maxfdot, 0.0, atol=0.1/self.tseg)
+
+    def test_epoch_folding_search_expocorr_fails(self):
+        """Test pulse phase calculation, frequency only."""
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg)
+        with pytest.raises(ValueError) as excinfo:
+            freq, stat = epoch_folding_search(self.event_times, frequencies,
+                                              nbin=23, expocorr=True)
+        assert 'To calculate exposure correction' in str(excinfo)
 
     def test_epoch_folding_search_expocorr(self):
         """Test pulse phase calculation, frequency only."""
-        frequencies = np.arange(9.89, 9.91, 0.1/self.tseg)
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg)
         freq, stat = epoch_folding_search(self.event_times, frequencies,
-                                          nbin=16, expocorr=True)
+                                          nbin=42, expocorr=True, gti=self.gti)
 
         minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
         maxstatbin = freq[np.argmax(stat)]
-        assert maxstatbin == frequencies[minbin]
+        assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1/self.tseg)
+
+    def test_epoch_folding_search_expocorr_fdot(self):
+        """Test pulse phase calculation, frequency only."""
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg)
+        fdots = [-0.1, 0, 0.1]
+        freq, fdot, stat = \
+            epoch_folding_search(self.event_times, frequencies,
+                                 nbin=42, expocorr=True, gti=self.gti,
+                                 fdots=fdots)
+
+        minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
+        maxstatbin = freq.flatten()[np.argmax(stat)]
+
+        assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1/self.tseg)
+        maxfdot = fdot.flatten()[np.argmax(stat)]
+        assert np.allclose(maxfdot, 0.0, atol=0.1/self.tseg)
+
+    def test_epoch_folding_search_weights(self):
+        """Test pulse phase calculation, frequency only."""
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg)
+        freq, stat = epoch_folding_search(self.times, frequencies,
+                                          nbin=16, weights=self.counts)
+
+        minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
+        maxstatbin = freq[np.argmax(stat)]
+        assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1/self.tseg)
+
+    def test_epoch_folding_search_weights_fdot(self):
+        """Test pulse phase calculation, frequency only."""
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg)
+        fdots = [-0.1, 0, 0.1]
+        freq, fdot, stat = epoch_folding_search(self.times, frequencies,
+                                                nbin=16, weights=self.counts,
+                                                fdots=fdots)
+
+        minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
+        maxstatbin = freq.flatten()[np.argmax(stat)]
+        assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1/self.tseg)
+        maxfdot = fdot.flatten()[np.argmax(stat)]
+        assert np.allclose(maxfdot, 0.0, atol=0.1/self.tseg)
 
     def test_z_n_search(self):
         """Test pulse phase calculation, frequency only."""
-        frequencies = np.arange(9.85, 9.95, 0.3/self.tseg)
-        freq, stat = z_n_search(self.event_times, frequencies, nbin=16,
-                                nharm=1)
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg)
+        freq, stat = z_n_search(self.event_times, frequencies, nbin=25,
+                                nharm=2)
 
         minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
         maxstatbin = freq[np.argmax(stat)]
-        assert maxstatbin == frequencies[minbin]
+        assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1/self.tseg)
+
+    def test_z_n_search_fdot(self):
+        """Test pulse phase calculation, frequency only."""
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg)
+        fdots = [-0.1, 0, 0.1]
+        freq, fdot, stat = z_n_search(self.event_times, frequencies, nbin=25,
+                                      nharm=2, fdots=fdots)
+
+        minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
+        maxstatbin = freq.flatten()[np.argmax(stat)]
+        assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1/self.tseg)
+        maxfdot = fdot.flatten()[np.argmax(stat)]
+        assert np.allclose(maxfdot, 0.0, atol=0.1/self.tseg)
+
+    def test_z_n_search_fdot_longdouble(self):
+        """Test pulse phase calculation, frequency only."""
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg, dtype=np.longdouble)
+        fdots = np.array([-0.1, 0, 0.1], dtype=np.longdouble)
+        freq, fdot, stat = z_n_search(self.event_times.astype(np.longdouble),
+                                      frequencies, nbin=25,
+                                      nharm=2, fdots=fdots)
+
+        minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
+        maxstatbin = freq.flatten()[np.argmax(stat)]
+        assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1/self.tseg)
+        maxfdot = fdot.flatten()[np.argmax(stat)]
+        assert np.allclose(maxfdot, 0.0, atol=0.1/self.tseg)
 
     def test_z_n_search_expocorr(self):
         """Test pulse phase calculation, frequency only."""
-        frequencies = np.arange(9.89, 9.91, 0.1/self.tseg)
-        freq, stat = z_n_search(self.event_times, frequencies, nbin=16,
-                                nharm=1, expocorr=True)
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg)
+        freq, stat = z_n_search(self.event_times, frequencies, nbin=64,
+                                nharm=2, expocorr=True, gti=self.gti)
 
         minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
         maxstatbin = freq[np.argmax(stat)]
-        assert maxstatbin == frequencies[minbin]
+        assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1/self.tseg)
+
+    def test_z_n_search_expocorr_fdot(self):
+        """Test pulse phase calculation, frequency only."""
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg)
+        fdots = [-0.1, 0, 0.1]
+        freq, fdot, stat = z_n_search(self.event_times, frequencies, nbin=64,
+                                      nharm=2, expocorr=True, gti=self.gti,
+                                      fdots=fdots)
+
+        minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
+        maxstatbin = freq.flatten()[np.argmax(stat)]
+        assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1/self.tseg)
+        maxfdot = fdot.flatten()[np.argmax(stat)]
+        assert np.allclose(maxfdot, 0.0, atol=0.1/self.tseg)
+
+    def test_z_n_search_expocorr_fails(self):
+        """Test pulse phase calculation, frequency only."""
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg)
+        with pytest.raises(ValueError) as excinfo:
+            freq, stat = z_n_search(self.event_times, frequencies, nharm=1,
+                                    nbin=35, expocorr=True)
+        assert 'To calculate exposure correction' in str(excinfo)
+
+    def test_z_n_search_weights(self):
+        """Test pulse phase calculation, frequency only."""
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg)
+        freq, stat = z_n_search(self.times, frequencies, nbin=44,
+                                nharm=1, weights=self.counts)
+
+        minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
+        maxstatbin = freq[np.argmax(stat)]
+        assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1/self.tseg)
+
+    def test_z_n_search_weights_fdot(self):
+        """Test pulse phase calculation, frequency only."""
+        frequencies = np.arange(9.8, 9.99, 0.1/self.tseg)
+        fdots = [-0.1, 0, 0.1]
+        freq, fdot, stat = z_n_search(self.times, frequencies, nbin=44,
+                                      nharm=1, weights=self.counts,
+                                      fdots=fdots)
+
+        minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
+        maxstatbin = freq.flatten()[np.argmax(stat)]
+        assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1/self.tseg)
+        maxfdot = fdot.flatten()[np.argmax(stat)]
+        assert np.allclose(maxfdot, 0.0, atol=0.1/self.tseg)

@@ -105,8 +105,13 @@ def sinc_square_deriv(x, amplitude=1., mean=0., width=1.):
     return [d_amplitude, d_mean, d_width]
 
 
-SincSquareModel = models.custom_model(sinc_square_model,
-                                      fit_deriv=sinc_square_deriv)
+_SincSquareModel = models.custom_model(sinc_square_model,
+                                       fit_deriv=sinc_square_deriv)
+
+class SincSquareModel(_SincSquareModel):
+    def __reduce__(cls):
+        members = dict(cls.__dict__)
+        return (type(cls), (), members)
 
 
 def fit_sinc(x, y, amp=1.5, mean=0., width=1., tied={}, fixed={}, bounds={},

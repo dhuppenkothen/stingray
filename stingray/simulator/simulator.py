@@ -29,7 +29,7 @@ class Simulator(object):
         red_noise : int, default 1
             multiple of real length of light curve, by
             which to simulate, to avoid red noise leakage
-        seed : int, default None
+        random_state : int, default None
             seed value for random processes
         """
 
@@ -55,68 +55,62 @@ class Simulator(object):
 
         Examples
         --------
-        - x = simulate(beta)
-            For generating a light curve using power law spectrum.
+        * x = simulate(beta):
+           For generating a light curve using power law spectrum.
 
-            Parameters
-            ----------
-            beta : float
-                Defines the shape of spectrum
+              Parameters:
+                * beta : float
+                  Defines the shape of spectrum
 
-        - x = simulate(s)
-            For generating a light curve from user-provided spectrum.
+        * x = simulate(s):
+           For generating a light curve from user-provided spectrum.
 
-            Parameters
-            ----------
-            s : array-like
-                power spectrum
+              Parameters:
+                * s : array-like
+                  power spectrum
 
-        - x = simulate(model)
-            For generating a light curve from pre-defined model
+        * x = simulate(model):
+           For generating a light curve from pre-defined model
 
-            Parameters
-            ----------
-            model : astropy.modeling.Model
-                the pre-defined model
+              Parameters:
+                * model : astropy.modeling.Model
+                  the pre-defined model
 
-        - x = simulate('model', params)
-            For generating a light curve from pre-defined model
+        * x = simulate('model', params):
+           For generating a light curve from pre-defined model
 
-            Parameters
-            ----------
-            model : string
-                the pre-defined model
-            params : list iterable or dict
-                the parameters for the pre-defined model
+              Parameters:
+                * model : string
+                  the pre-defined model
+                * params : list iterable or dict
+                  the parameters for the pre-defined model
 
-        - x = simulate(s, h)
-            For generating a light curve using impulse response.
+        * x = simulate(s, h):
+           For generating a light curve using impulse response.
 
-            Parameters
-            ----------
-            s : array-like
-                Underlying variability signal
-            h : array-like
-                Impulse response
+              Parameters:
+                * s : array-like
+                  Underlying variability signal
+                * h : array-like
+                  Impulse response
 
-        - x = simulate(s, h, 'same')
-            For generating a light curve of same length as input
-            signal, using impulse response.
+        * x = simulate(s, h, 'same'):
+           For generating a light curve of same length as input signal,
+           using impulse response.
 
-            Parameters
-            ----------
-            s : array-like
-                Underlying variability signal
-            h : array-like
-                Impulse response
-            mode : str
-                mode can be 'same', 'filtered, or 'full'.
-                'same' indicates that the length of output light
-                curve is same as that of input signal.
-                'filtered' means that length of output light curve
-                is len(s) - lag_delay
-                'full' indicates that the length of output light
-                curve is len(s) + len(h) -1
+              Parameters:
+                * s : array-like
+                  Underlying variability signal
+                * h : array-like
+                  Impulse response
+                * mode : str
+                  mode can be 'same', 'filtered, or 'full'.
+                  'same' indicates that the length of output light
+                  curve is same as that of input signal.
+                  'filtered' means that length of output light curve
+                  is len(s) - lag_delay
+                  'full' indicates that the length of output light
+                  curve is len(s) + len(h) -1
 
         Parameters
         ----------
@@ -149,7 +143,6 @@ class Simulator(object):
 
         else:
             raise ValueError("Length of arguments must be 1, 2 or 3.")
-
 
     def simulate_channel(self, channel, *args):
         """

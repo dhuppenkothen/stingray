@@ -1,4 +1,3 @@
-.. _stingray-simulator:
 
 Stingray Simulator (`stingray.simulator`)
 *****************************************
@@ -178,4 +177,3 @@ Reference/API
 .. autoclass:: stingray.simulator.simulator.Simulator
    :members:
    :undoc-members:
-

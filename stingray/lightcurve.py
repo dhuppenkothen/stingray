@@ -11,9 +11,9 @@ import stingray.io as io
 import stingray.utils as utils
 from stingray.exceptions import StingrayError
 from stingray.utils import simon, assign_value_if_none, baseline_als
+from stingray.utils import poisson_symmetrical_errors
 from stingray.gti import cross_two_gtis, join_gtis, gti_border_bins
-from stingray.gti import check_gtis, create_gti_mask, bin_intervals_from_gtis
-from astropy.stats import poisson_conf_interval
+from stingray.gti import check_gtis, create_gti_mask_complete, create_gti_mask, bin_intervals_from_gtis
 
 __all__ = ["Lightcurve"]
 
@@ -38,13 +38,13 @@ class Lightcurve(object):
             input the count range, i.e. counts/second, otherwise use
             counts/bin).
 
-        err: iterable, optional, default None:
+        err: iterable, optional, default None
             A list or array of the uncertainties in each bin corresponding to
             the bins defined in `time` (note: use `input_counts=False` to
             input the count rage, i.e. counts/second, otherwise use
             counts/bin). If None, we assume the data is poisson distributed
-            and calculate the error from the average of the lower and upper 
-            1-sigma confidence intervals for the Poissonian distribution with 
+            and calculate the error from the average of the lower and upper
+            1-sigma confidence intervals for the Poissonian distribution with
             mean equal to `counts`.
 
         input_counts: bool, optional, default True
@@ -58,7 +58,7 @@ class Lightcurve(object):
             They will be used by other methods to have an indication of the
             "safe" time intervals to use during analysis.
 
-        err_dist: str, optional, default=None
+        err_dist: str, optional, default None
             Statistic of the Lightcurve, it is used to calculate the
             uncertainties and other statistical values apropriately.
             Default makes no assumptions and keep errors equal to zero.
@@ -154,13 +154,7 @@ class Lightcurve(object):
             if err_dist.lower() == 'poisson':
                 # Instead of the simple square root, we use confidence
                 # intervals (should be valid for low fluxes too)
-                err_low, err_high = poisson_conf_interval(np.asarray(counts),
-                    interval='frequentist-confidence', sigma=1)
-                # calculate approximately symmetric uncertainties
-                err_low -= np.asarray(counts)
-                err_high -= np.asarray(counts)
-                err = (np.absolute(err_low) + np.absolute(err_high))/2.0
-                # other estimators can be implemented for other statistics
+                err = poisson_symmetrical_errors(counts)
             else:
                 simon("Stingray only uses poisson err_dist at the moment, "
                       "We are setting your errors to zero. "
@@ -187,7 +181,6 @@ class Lightcurve(object):
                                             [[self.tstart,
                                               self.tstart + self.tseg]]))
         check_gtis(self.gti)
-
         good = create_gti_mask(self.time, self.gti)
 
         self.time = self.time[good]
@@ -260,8 +253,8 @@ class Lightcurve(object):
         # ValueError is raised by Numpy while asserting np.equal over arrays
         # with different dimensions.
         try:
-            assert np.all(np.equal(self.time[mask_self],
-                                   other.time[mask_other]))
+            diff = np.abs((self.time[mask_self] - other.time[mask_other]))
+            assert np.all(diff < self.dt / 100)
         except (ValueError, AssertionError):
             raise ValueError("GTI-filtered time arrays of both light curves "
                              "must be of same dimension and equal.")
@@ -298,8 +291,8 @@ class Lightcurve(object):
 
         GTIs are crossed, so that only common intervals are saved.
 
-        Example
-        -------
+        Examples
+        --------
         >>> time = [5, 10, 15]
         >>> count1 = [300, 100, 400]
         >>> count2 = [600, 1200, 800]
@@ -324,8 +317,8 @@ class Lightcurve(object):
 
         GTIs are crossed, so that only common intervals are saved.
 
-        Example
-        -------
+        Examples
+        --------
         >>> time = [10, 20, 30]
         >>> count1 = [600, 1200, 800]
         >>> count2 = [300, 100, 400]
@@ -347,8 +340,8 @@ class Lightcurve(object):
         The negation operator ``-`` is supposed to invert the sign of the count
         values of a light curve object.
 
-        Example
-        -------
+        Examples
+        --------
         >>> time = [1, 2, 3]
         >>> count1 = [100, 200, 300]
         >>> count2 = [200, 300, 400]
@@ -371,8 +364,8 @@ class Lightcurve(object):
         This method implements overrides the len function over a Lightcurve
         object and returns the length of the time and count arrays.
 
-        Example
-        -------
+        Examples
+        --------
         >>> time = [1, 2, 3]
         >>> count = [100, 200, 300]
         >>> lc = Lightcurve(time, count)
@@ -388,15 +381,19 @@ class Lightcurve(object):
 
         This method adds functionality to retrieve the count value at
         a particular index. This also can be used for slicing and generating
-        a new Lightcurve object.
+        a new Lightcurve object. GTIs are recalculated based on the new light
+        curve segment
+
+        If the slice object is of kind start:stop:step, GTIs are also sliced,
+        and rewritten as zip(time - self.dt /2, time + self.dt / 2)
 
         Parameters
         ----------
         index : int or slice instance
             Index value of the time array or a slice object.
 
-        Example
-        -------
+        Examples
+        --------
         >>> time = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         >>> count = [11, 22, 33, 44, 55, 66, 77, 88, 99]
         >>> lc = Lightcurve(time, count)
@@ -408,14 +405,50 @@ class Lightcurve(object):
         if isinstance(index, int):
             return self.counts[index]
         elif isinstance(index, slice):
-            new_counts = self.counts[index.start:index.stop:index.step]
-            new_time = self.time[index.start:index.stop:index.step]
-            return Lightcurve(new_time, new_counts, mjdref=self.mjdref)
+            start = assign_value_if_none(index.start, 0)
+            stop = assign_value_if_none(index.stop, len(self.counts))
+            step = assign_value_if_none(index.step, 1)
+
+            new_counts = self.counts[start:stop:step]
+            new_time = self.time[start:stop:step]
+            new_gti = [[self.time[start] - 0.5 * self.dt,
+                        self.time[stop - 1] + 0.5 * self.dt]]
+            new_gti = np.asarray(new_gti)
+            if step > 1:
+                new_gt1 = np.array(list(zip(new_time - self.dt / 2,
+                                            new_time + self.dt / 2)))
+                new_gti = cross_two_gtis(new_gti, new_gt1)
+
+            new_gti = cross_two_gtis(self.gti, new_gti)
+            return Lightcurve(new_time, new_counts, mjdref=self.mjdref,
+                              gti=new_gti)
         else:
             raise IndexError("The index must be either an integer or a slice "
                              "object !")
 
-    def baseline(self, lam, p, niter=10):
+    def __eq__(self,other_lc):
+        """
+        Compares two :class:`Lightcurve` objects.
+
+        Light curves are equal only if their counts as well as times at which those counts occur equal.
+
+        Example
+        -------
+        >>> time = [1, 2, 3]
+        >>> count1 = [100, 200, 300]
+        >>> count2 = [100, 200, 300]
+        >>> lc1 = Lightcurve(time, count1)
+        >>> lc2 = Lightcurve(time, count2)
+        >>> lc1 == lc2
+        True
+        """
+        if not isinstance(other_lc, Lightcurve):
+            raise ValueError('Lightcurve can only be compared with a Lightcurve Object')
+        if (np.allclose(self.time, other_lc.time) and np.allclose(self.counts, other_lc.counts)):
+            return True
+        return False
+
+    def baseline(self, lam, p, niter=10, offset_correction=False):
         """Calculate the baseline of the light curve, accounting for GTIs.
 
         Parameters
@@ -424,18 +457,30 @@ class Lightcurve(object):
             "smoothness" parameter. Larger values make the baseline stiffer
             Typically 1e2 < lam < 1e9
         p : float
-            "asymmetry" parameter. Smaller values make the baseline more 
+            "asymmetry" parameter. Smaller values make the baseline more
             "horizontal". Typically 0.001 < p < 0.1, but not necessary.
+
+        Other parameters
+        ----------------
+        offset_correction : bool, default False
+            by default, this method does not align to the running mean of the
+            light curve, but it goes below the light curve. Setting align to
+            True, an additional step is done to shift the baseline so that it
+            is shifted to the middle of the light curve noise distribution.
         """
         baseline = np.zeros_like(self.time)
         for g in self.gti:
             good = create_gti_mask(self.time, [g])
-            baseline[good] = baseline_als(self.counts[good], lam, p, niter)
+            _, baseline[good] = \
+                baseline_als(self.time[good], self.counts[good], lam, p,
+                             niter, offset_correction=offset_correction,
+                             return_baseline=True)
 
         return baseline
 
     @staticmethod
-    def make_lightcurve(toa, dt, tseg=None, tstart=None, gti=None, mjdref=0):
+    def make_lightcurve(toa, dt, tseg=None, tstart=None, gti=None, mjdref=0,
+                        use_hist=False):
 
         """
         Make a light curve out of photon arrival times.
@@ -467,13 +512,17 @@ class Lightcurve(object):
             [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
             Good Time Intervals
 
+        use_hist : bool
+            Use `np.histogram` instead of `np.bincounts`. Might be advantageous
+            for very short datasets.
+
         Returns
         -------
         lc: :class:`Lightcurve` object
             A light curve object with the binned light curve
-
         """
 
+        toa = np.asarray(toa)
         # tstart is an optional parameter to set a starting time for
         # the light curve in case this does not coincide with the first photon
         if tstart is None:
@@ -486,23 +535,24 @@ class Lightcurve(object):
         # are not throwing away good events.
 
         if tseg is None:
-            tseg = toa[-1] - toa[0]
+            tseg = toa[-1] - tstart
 
         logging.info("make_lightcurve: tseg: " + str(tseg))
 
-        timebin = np.int(tseg/dt)
+        timebin = np.int64(tseg/dt)
         logging.info("make_lightcurve: timebin:  " + str(timebin))
 
-        tend = tstart + timebin*dt
-
-        counts, histbins = np.histogram(toa, bins=timebin,
-                                        range=[tstart, tend])
-
-        dt = histbins[1] - histbins[0]
-
-        time = histbins[:-1] + 0.5*dt
-
-        counts = np.asarray(counts)
+        tend = tstart + timebin * dt
+        good = (tstart <= toa) & (toa < tend)
+        if not use_hist:
+            binned_toas = ((toa[good] - tstart) // dt).astype(np.int64)
+            counts = \
+                np.bincount(binned_toas, minlength=timebin)
+            time = tstart + np.arange(0.5, 0.5 + len(counts)) * dt
+        else:
+            histbins = np.arange(tstart, tend + dt, dt)
+            counts, histbins = np.histogram(toa[good], bins=histbins)
+            time = histbins[:-1] + 0.5 * dt
 
         return Lightcurve(time, counts, gti=gti, mjdref=mjdref, dt=dt)
 
@@ -545,12 +595,39 @@ class Lightcurve(object):
             raise ValueError("New time resolution must be larger than "
                              "old time resolution!")
 
-        bin_time, bin_counts, bin_err, _ = \
-            utils.rebin_data(self.time, self.counts, dt_new,
-                             yerr=self.counts_err, method=method)
+
+        if self.gti is None:
+
+            bin_time, bin_counts, bin_err, _ = \
+                utils.rebin_data(self.time, self.counts, dt_new,
+                                 yerr=self.counts_err, method=method)
+
+        else:
+            bin_time, bin_counts, bin_err = [], [], []
+            gti_new = []
+            for g  in self.gti:
+                if g[1] - g[0] < dt_new:
+                    continue
+                else:
+                    # find start and end of GTI segment in data
+                    start_ind = self.time.searchsorted(g[0])
+                    end_ind = self.time.searchsorted(g[1])
+
+                    t_temp = self.time[start_ind:end_ind]
+                    c_temp = self.counts[start_ind:end_ind]
+                    e_temp = self.counts_err[start_ind:end_ind]
+
+                    bin_t, bin_c, bin_e, _ = \
+                        utils.rebin_data(t_temp, c_temp, dt_new,
+                                         yerr=e_temp, method=method)
+
+                    bin_time.extend(bin_t)
+                    bin_counts.extend(bin_c)
+                    bin_err.extend(bin_e)
+                    gti_new.append(g)
 
         lc_new = Lightcurve(bin_time, bin_counts, err=bin_err,
-                            mjdref=self.mjdref, dt=dt_new)
+                            mjdref=self.mjdref, dt=dt_new, gti=gti_new)
         return lc_new
 
     def join(self, other):
@@ -576,8 +653,8 @@ class Lightcurve(object):
         lc_new : Lightcurve object
             The resulting lightcurve object.
 
-        Example
-        -------
+        Examples
+        --------
         >>> time1 = [5, 10, 15]
         >>> count1 = [300, 100, 400]
         >>> time2 = [20, 25, 30]
@@ -619,7 +696,7 @@ class Lightcurve(object):
 
             elif self.err_dist.lower() in valid_statistics:
                 valid_err = True
-            # More conditions can be implemented for other statistics 
+            # More conditions can be implemented for other statistics
             else:
                 raise StingrayError("Statistics not recognized."
                                     " Please use one of these: "
@@ -635,7 +712,7 @@ class Lightcurve(object):
                 counts_err[time] = first_lc.counts_err[i]
 
             for i, time in enumerate(second_lc.time):
-            
+
                 if (counts.get(time) != None): #Common time
 
                     counts[time] = (counts[time] + second_lc.counts[i]) / 2  #avg
@@ -651,7 +728,7 @@ class Lightcurve(object):
                 new_counts_err = list(counts_err.values())
             else:
                 new_counts_err = np.zeros_like(new_counts)
-            
+
             del[counts, counts_err]
 
         else:
@@ -693,8 +770,8 @@ class Lightcurve(object):
             the values are treated as indices of the counts array, or
             if set to "time", the values are treated as actual time values.
 
-        Example
-        -------
+        Examples
+        --------
         >>> time = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         >>> count = [10, 20, 30, 40, 50, 60, 70, 80, 90]
         >>> lc = Lightcurve(time, count)
@@ -771,8 +848,8 @@ class Lightcurve(object):
         reverse : boolean, default False
             If True then the object is sorted in reverse order.
 
-        Example
-        -------
+        Examples
+        --------
         >>> time = [1, 2, 3]
         >>> count = [200, 100, 300]
         >>> lc = Lightcurve(time, count)
@@ -987,6 +1064,8 @@ class Lightcurve(object):
                 plt.savefig('out.png')
             else:
                 plt.savefig(filename)
+        else:
+            plt.show(block=False)
 
     def write(self, filename, format_='pickle', **kwargs):
         """
@@ -1065,10 +1144,11 @@ class Lightcurve(object):
         """Apply GTIs to a light curve after modification."""
         check_gtis(self.gti)
 
-        good = create_gti_mask(self.time, self.gti)
+        good = create_gti_mask(self.time, self.gti, dt=self.dt)
 
         self.time = self.time[good]
         self.counts = self.counts[good]
+
         self.counts_err = self.counts_err[good]
         self.countrate = self.countrate[good]
         self.countrate_err = self.countrate_err[good]

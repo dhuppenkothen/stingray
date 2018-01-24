@@ -182,7 +182,7 @@ class Powerspectrum(Crossspectrum):
 
         return bin_ps
 
-    def compute_rms(self, min_freq, max_freq):
+    def compute_rms(self, min_freq, max_freq, white_noise_offset=0.):
         """
         Compute the fractional rms amplitude in the periodgram
         between two frequencies.
@@ -195,6 +195,14 @@ class Powerspectrum(Crossspectrum):
         max_freq: float
             The upper frequency bound for the calculation
 
+        Other parameters
+        ----------------
+        white_noise_offset : float, default 0
+            This is the white noise level, in Leahy normalization. In the ideal
+            case, this is 2. Dead time and other instrumental effects can alter
+            it. The user can fit the white noise level outside this function
+            and it will get subtracted from powers here.
+
         Returns
         -------
         rms: float
@@ -205,16 +213,18 @@ class Powerspectrum(Crossspectrum):
         minind = self.freq.searchsorted(min_freq)
         maxind = self.freq.searchsorted(max_freq)
         powers = self.power[minind:maxind]
+        nphots = self.nphots
 
         if self.norm.lower() == 'leahy':
-            rms = np.sqrt(np.sum(powers) / self.nphots)
-
+            powers_leahy = powers.copy()
         elif self.norm.lower() == "frac":
-            rms = np.sqrt(np.sum(powers * self.df))
+            powers_leahy = \
+                self.unnorm_power[minind:maxind].real * 2 / nphots
         else:
             raise TypeError("Normalization not recognized!")
 
-        rms_err = self._rms_error(powers)
+        rms = np.sqrt(np.sum(powers_leahy - white_noise_offset) / nphots)
+        rms_err = self._rms_error(powers_leahy)
 
         return rms, rms_err
 
@@ -226,6 +236,10 @@ class Powerspectrum(Crossspectrum):
         strictly correct. We should be using the underlying power spectrum,
         but in the absence of an estimate of that, this will have to do.
 
+        $r = \sqrt{P}$
+
+        $\delta r = \frac{1}{2 * \sqrt{P}} \delta P$
+
         Parameters
         ----------
         powers: iterable
@@ -236,9 +250,16 @@ class Powerspectrum(Crossspectrum):
         delta_rms: float
             the error on the fractional rms amplitude
         """
-        p_err = scipy.stats.chi2(2.0 * self.m).var() * powers / self.m
-        drms_dp = 1 / (2 * np.sqrt(np.sum(powers) * self.df))
-        delta_rms = np.sum(p_err * drms_dp * self.df)
+        nphots = self.nphots
+        p_err = scipy.stats.chi2(2.0 * self.m).var() * powers / self.m / nphots
+
+        rms = np.sum(powers) / nphots
+        pow = np.sqrt(rms)
+
+        drms_dp = 1 / (2 * pow)
+
+        sq_sum_err = np.sqrt(np.sum(p_err**2))
+        delta_rms = sq_sum_err * drms_dp
         return delta_rms
 
     def classical_significances(self, threshold=1, trial_correction=False):

@@ -54,9 +54,10 @@ class TestAll(object):
 
         mjdstart, mjdstop = mjds[0] - 1, mjds[-1] + 1
 
-        correction_sec, correction_mjd = \
+        correction_sec, correction_mjd, model = \
             get_orbital_correction_from_ephemeris_file(mjdstart, mjdstop,
-                                                       parfile, ntimes=1000)
+                                                       parfile, ntimes=1000,
+                                                       return_pint_model=True)
 
         mjdref = 50000
         toa_sec = (mjds - mjdref) * 86400
