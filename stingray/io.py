@@ -808,9 +808,10 @@ def _isattribute(data):
         True if the data is a single number, False if it is an iterable.
     """
 
-    if isinstance(data, np.ndarray) or isinstance(data, list):
+    try:
+        _ = (i for i in data)
         return False
-    else:
+    except TypeError:
         return True
 
 
