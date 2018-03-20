@@ -83,6 +83,69 @@ def time_lag(lc1, lc2):
 
     return lag
 
+def _pvalue_cospectrum(power, m):
+    """
+    Helper function for calculating the p-values (right tail event,
+    null hypothesis: there is no signal in the data) of the powers in a cospectrum.
+    Assumtions:
+    1. the powers in the cospectrum follow the distribution described in [1]
+       (for M=1: distribution is a Laplace distribution)
+    2. the power spectrum is normalized according to [2], such
+       that the powers have a mean of 2 and a variance of 4
+
+    Parameters
+    ----------
+    power : float
+        The real part of a Fourier amplitude product of a cospectrum to be evaluated
+
+    m : int
+        number of spectra or frequency bins averaged. m changes the theoretical underlying distribution
+
+    Returns
+    -------
+    pval : float
+        The p-value of the observed power being consistent with the null hypothesis
+
+    References
+    ----------
+    [1] [Huppenkothen] https://arxiv.org/pdf/1709.09666.pdf
+    [2] [Leahy 1983] https://ui.adsabs.harvard.edu/#abs/1983ApJ...266..160L/abstract
+    """
+
+    if not np.isfinite(power):
+        raise ValueError("power must be a finite floating point number!")
+
+    if not np.isfinite(m):
+        raise ValueError("m must be a finite integer number")
+
+    if m < 1:
+        raise ValueError("m must be larger or equal to 1")
+
+    if not np.isclose(m % 1, 0):
+        raise ValueError("m must be an integer number!")
+    
+    # helper function that calculates factorials
+    def logsum(i1, i2):
+        sum = 0.
+        for i in range(i1, i2+1):
+            sum += np.log(i)
+        return sum
+
+    # calculation of the CDF for power>0, power<0
+    sum = 0.
+
+    for j in range(m):
+        gammaterm = 0.
+        for i in range(m-j):
+            gammaterm += np.exp(-np.abs(m*power)+i*np.log(np.abs(m*power))-logsum(1,i))
+        if power>0.:
+            sum += np.exp(logsum(m, m-1+j)-logsum(1,j)-(m+j)*np.log(2))*(2-gammaterm)
+        else:
+            sum += np.exp(logsum(m, m-1+j)-logsum(1,j)-(m+j)*np.log(2))*gammaterm
+
+    # return survival function
+    return 1-sum
+
 
 class Crossspectrum(object):
     """
@@ -540,6 +603,65 @@ class Crossspectrum(object):
         else:
             raise AttributeError("Object has no attribute named 'time_lag' !")
 
+    def cospectrum_significances(self, threshold=1, trial_correction=False):
+        """
+        Compute the significances for the powers in the cospectrum,
+        assuming an underlying noise distribution that follows a Laplace distribution
+        for M=1 and a more more complicated one (see [1]), where M is the
+        number of powers averaged in each bin.
+
+        The following assumptions must be fulfilled in order to produce correct results:
+
+        1. The cross spectrum is Leahy-normalized
+        2. ...
+
+        The method produces ``(p-values,indices)`` for all powers in the cospectrum.
+        If a ``threshold`` is set, then only powers with p-values *below* 
+        that threshold are returned with their respective indices. If
+        ``trial_correction`` is set to ``True``, then the threshold will be
+        corrected for the number of trials (frequencies) in the cospectrum 
+        before being used.
+        
+        Parameters
+        ----------
+        threshold : float, optional, default ``1``
+            The threshold to be used when reporting p-values of potentially
+            significant powers. Must be between 0 and 1.
+            Default is ``1`` (all p-values will be reported).
+
+        trial_correction : bool, optional, default ``False``
+            A Boolean flag that sets whether the ``threshold`` will be corrected
+            by the number of frequencies before being applied. This decreases
+            the ``threshold`` (p-values need to be lower to count as significant).
+            Default is ``False`` (report all powers) though for any application
+            where `threshold`` is set to something meaningful, this should also
+            be applied!
+
+        Returns
+        -------
+        pvals : iterable
+            A list of ``(p-values, indices)`` tuples for all powers that have p-values
+            lower than the threshold specified in ``threshold``.
+
+        References
+        ----------
+        [1] [Huppenkothen] https://arxiv.org/pdf/1709.09666.pdf
+        """
+
+        if not self.norm == "leahy":
+            raise ValueError("This method only works on "
+                             "Leahy-normalized power spectra!")
+
+        pv = np.array([_pvalue_cospectrum(power, self.m)
+                        for power in self.power])
+
+        # correction of threshold in case of trial_correction
+        if trial_correction:
+            threshold /= self.power.shape[0]
+
+        indices = np.where(pv < threshold)[0]
+
+        return np.vstack([pv[indices], indices])
 
 class AveragedCrossspectrum(Crossspectrum):
     """
