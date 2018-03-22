@@ -802,17 +802,22 @@ def _isattribute(data):
     ----------
     data : object
         The object to be checked.
+        The object must be list, list of tuples, tuple, tuple of tuples, tuple of lists and ndarrays.
 
     Returns:
         bool
         True if the data is a single number, False if it is an iterable.
     """
 
+    data = np.asarray(data)
+    return (np.size(data)==1)
+
+"""
     if isinstance(data, np.ndarray) or isinstance(data, list):
         return False
-    else:
-        return True
-
+    else:    
+        return True        
+"""
 
 def write(input_, filename, format_='pickle', **kwargs):
     """
