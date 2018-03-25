@@ -807,17 +807,33 @@ def _isattribute(data):
     Returns:
         bool
         True if the data is a single number, False if it is an iterable.
+    
+    Examples
+    ----------
+    >>> _isattribute(1)
+    True   
+    >>> _isattribute([1])
+    True
+    >>> _isattribute((1,2))
+    False
+    >>> _isattribute([1,2])
+    False
+    >>> _isattribute([1,2,3])
+    False
+    
+    some more subtle examples:
+    >>> _isattribute([[1]]))
+    True
+    >>> _isattribute([[1],[2]]))
+    False
+    >>> _isattribute([[1,2]]))
+    False
     """
 
     data = np.asarray(data)
     return (np.size(data)==1)
 
-"""
-    if isinstance(data, np.ndarray) or isinstance(data, list):
-        return False
-    else:    
-        return True        
-"""
+
 
 def write(input_, filename, format_='pickle', **kwargs):
     """
