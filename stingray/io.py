@@ -822,9 +822,9 @@ def _isattribute(data):
     False
     
     some more subtle examples:
-    >>> _isattribute([[1]]))
+    >>> _isattribute([[1]])
     True
-    >>> _isattribute([[1],[2]]))
+    >>> _isattribute([[1],[2]])
     False
     >>> _isattribute([[1,2]])
     False
