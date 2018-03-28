@@ -826,7 +826,7 @@ def _isattribute(data):
     True
     >>> _isattribute([[1],[2]]))
     False
-    >>> _isattribute([[1,2]]))
+    >>> _isattribute([[1,2]])
     False
     """
 
