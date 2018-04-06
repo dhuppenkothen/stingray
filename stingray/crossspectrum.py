@@ -83,9 +83,9 @@ def time_lag(lc1, lc2):
 
     return lag
 
-def _pvalue_cospectrum(power, m):
+def cospectrum_pvalue(power, m):
     """
-    Helper function for calculating the p-values (right tail event,
+    Function for calculating the p-values (right tail event,
     null hypothesis: there is no signal in the data) of the powers in a cospectrum.
     Assumtions:
     1. the powers in the cospectrum follow the distribution described in [1]
@@ -130,6 +130,8 @@ def _pvalue_cospectrum(power, m):
         for i in range(i1, i2+1):
             sum += np.log(i)
         return sum
+
+    m = int(m)
 
     # calculation of the CDF for power>0, power<0
     sum = 0.
@@ -654,9 +656,14 @@ class Crossspectrum(object):
         if not self.norm == "leahy":
             raise ValueError("This method only works on "
                              "Leahy-normalized power spectra!")
-
-        pv = np.array([_pvalue_cospectrum(power, self.m)
-                        for power in self.power])
+        
+        if np.size(self.m) == 1:
+            # calculate p-values for all powers
+            pv = np.array([cospectrum_pvalue(power, self.m)
+                           for power in self.power])
+        else:
+            pv = np.array([cospectrum_pvalue(power, m)
+                           for power, m in zip(self.power, self.m)])
 
         # correction of threshold in case of trial_correction
         if trial_correction:
