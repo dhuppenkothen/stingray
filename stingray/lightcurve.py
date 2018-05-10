@@ -13,7 +13,8 @@ from stingray.exceptions import StingrayError
 from stingray.utils import simon, assign_value_if_none, baseline_als
 from stingray.utils import poisson_symmetrical_errors
 from stingray.gti import cross_two_gtis, join_gtis, gti_border_bins
-from stingray.gti import check_gtis, create_gti_mask_complete, create_gti_mask, bin_intervals_from_gtis
+from stingray.gti import check_gtis, create_gti_mask_complete, \
+                         create_gti_mask, bin_intervals_from_gtis
 
 __all__ = ["Lightcurve"]
 
@@ -207,7 +208,6 @@ class Lightcurve(object):
                   "This could cause problems with Fourier transforms. "
                   "Please make the input time evenly sampled.")
 
-
     def change_mjdref(self, new_mjdref):
         """Change the MJDREF of the light curve.
 
@@ -269,7 +269,7 @@ class Lightcurve(object):
             new_counts_err = np.zeros_like(new_counts)
         elif self.err_dist.lower() in valid_statistics:
                 new_counts_err = np.sqrt(np.add(self.counts_err[mask_self]**2,
-                                                other.counts_err[mask_other]**2))
+                                              other.counts_err[mask_other]**2))
             # More conditions can be implemented for other statistics
         else:
             raise StingrayError("Statistics not recognized."
@@ -309,7 +309,8 @@ class Lightcurve(object):
 
     def __sub__(self, other):
         """
-        Subtract two light curves element by element having the same time array.
+        Subtract two light curves element by element having the same time
+        array.
 
         This magic method subtracts two Lightcurve objects having the same
         time array such that the corresponding counts arrays interferes with
@@ -426,11 +427,12 @@ class Lightcurve(object):
             raise IndexError("The index must be either an integer or a slice "
                              "object !")
 
-    def __eq__(self,other_lc):
+    def __eq__(self, other_lc):
         """
         Compares two :class:`Lightcurve` objects.
 
-        Light curves are equal only if their counts as well as times at which those counts occur equal.
+        Light curves are equal only if their counts as well as times at which
+        those counts occur equal.
 
         Example
         -------
@@ -443,8 +445,10 @@ class Lightcurve(object):
         True
         """
         if not isinstance(other_lc, Lightcurve):
-            raise ValueError('Lightcurve can only be compared with a Lightcurve Object')
-        if (np.allclose(self.time, other_lc.time) and np.allclose(self.counts, other_lc.counts)):
+            raise ValueError('Lightcurve can only be compared with a '
+                             'Lightcurve Object.')
+        if (np.allclose(self.time, other_lc.time) and np.allclose(self.counts,
+                                                            other_lc.counts)):
             return True
         return False
 
@@ -595,7 +599,6 @@ class Lightcurve(object):
             raise ValueError("New time resolution must be larger than "
                              "old time resolution!")
 
-
         if self.gti is None:
 
             bin_time, bin_counts, bin_err, _ = \
@@ -605,7 +608,7 @@ class Lightcurve(object):
         else:
             bin_time, bin_counts, bin_err = [], [], []
             gti_new = []
-            for g  in self.gti:
+            for g in self.gti:
                 if g[1] - g[0] < dt_new:
                     continue
                 else:
@@ -673,7 +676,7 @@ class Lightcurve(object):
         if self.dt != other.dt:
             utils.simon("The two light curves have different bin widths.")
 
-        if( self.tstart < other.tstart ):
+        if self.tstart < other.tstart:
             first_lc = self
             second_lc = other
         else:
@@ -692,7 +695,6 @@ class Lightcurve(object):
             if self.err_dist.lower() != other.err_dist.lower():
                 simon("Lightcurves have different statistics!"
                       "We are setting the errors to zero.")
-
 
             elif self.err_dist.lower() in valid_statistics:
                 valid_err = True
@@ -713,10 +715,10 @@ class Lightcurve(object):
 
             for i, time in enumerate(second_lc.time):
 
-                if (counts.get(time) != None): #Common time
-
-                    counts[time] = (counts[time] + second_lc.counts[i]) / 2  #avg
-                    counts_err[time] = np.sqrt(( ((counts_err[time]**2) + (second_lc.counts_err[i] **2)) / 2))
+                if (counts.get(time) is not None):  # Common time
+                    counts[time] = (counts[time] + second_lc.counts[i]) / 2  # avg
+                    counts_err[time] = np.sqrt(( ((counts_err[time] ** 2) +
+                                         (second_lc.counts_err[i] ** 2)) / 2))
 
                 else:
                     counts[time] = second_lc.counts[i]
@@ -735,7 +737,8 @@ class Lightcurve(object):
 
             new_time = np.concatenate([first_lc.time, second_lc.time])
             new_counts = np.concatenate([first_lc.counts, second_lc.counts])
-            new_counts_err = np.concatenate([first_lc.counts_err, second_lc.counts_err])
+            new_counts_err = np.concatenate([first_lc.counts_err,
+                                             second_lc.counts_err])
 
         new_time = np.asarray(new_time)
         new_counts = np.asarray(new_counts)
@@ -746,7 +749,6 @@ class Lightcurve(object):
                             mjdref=self.mjdref, dt=self.dt)
 
         return lc_new
-
 
     def truncate(self, start=0, stop=None, method="index"):
         """
@@ -866,7 +868,10 @@ class Lightcurve(object):
             arrays.
         """
 
-        new_counts, new_time, new_counts_err = zip(*sorted(zip(self.counts, self.time, self.counts_err) , reverse=reverse))
+        new_counts, new_time, new_counts_err = zip(*sorted(zip(self.counts,
+                                                               self.time,
+                                                               self.counts_err),
+                                                           reverse=reverse))
 
         self.time = np.asarray(new_time)
         self.counts = np.asarray(new_counts)
@@ -938,9 +943,10 @@ class Lightcurve(object):
         Other parameters
         ----------------
         fraction_step : float
-            If the step is not a full chunk_length but less (e.g. a moving window),
-            this indicates the ratio between step step and `chunk_length` (e.g.
-            0.5 means that the window shifts of half chunk_length)
+            If the step is not a full chunk_length but less (e.g. a moving
+            window), this indicates the ratio between step step and
+            `chunk_length` (e.g. 0.5 means that the window shifts of half
+            chunk_length)
         kwargs : keyword arguments
             These additional keyword arguments, if present, they will be passed
             to `func`
