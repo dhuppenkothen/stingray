@@ -143,10 +143,10 @@ class Powerspectrum(Crossspectrum):
         Attributes
         ----------
         norm: {"leahy" | "frac" | "abs" | "none"}
-            the normalization of the periodogram
+            The normalization of the periodogram.
 
         freq: numpy.ndarray
-            The array of mid-bin frequencies that the Fourier transform samples
+            The array of mid-bin frequencies in Hz that the Fourier transform samples.
 
         power: numpy.ndarray
             The array of normalized squared absolute values of Fourier
@@ -160,16 +160,16 @@ class Powerspectrum(Crossspectrum):
             realization (m=1) the error is equal to the power.
 
         df: float
-            The frequency resolution
+            The frequency resolution in Hz.
 
         m: int
-            The number of averaged powers in each bin
+            The number of averaged powers in each bin.
 
         n: int
-            The number of data points in the light curve
+            The number of data points in the light curve.
 
         nphots: float
-            The total number of photons in the light curve
+            The total number of photons in the light curve.
 
         """
 
@@ -347,7 +347,7 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
             The light curve data to be Fourier-transformed.
 
         segment_size: float
-            The size of each segment to average. Note that if the total
+            The duration of each segment to average. Note that if the total
             duration of each Lightcurve object in lc is not an integer multiple
             of the segment_size, then any fraction left-over at the end of the
             time series will be lost.

@@ -488,10 +488,10 @@ class Lightcurve(object):
         Parameters
         ----------
         toa: iterable
-            list of photon arrival times
+            List of photon arrival times.
 
         dt: float
-            time resolution of the light curve (the bin width)
+            Time resolution of the light curve (the bin width).
 
         tseg: float, optional, default None
             The total duration of the light curve.
@@ -566,8 +566,8 @@ class Lightcurve(object):
         Parameters
         ----------
         dt_new: float
-            The new time resolution of the light curve. Must be larger than
-            the time resolution of the old light curve!
+            The new time resolution of the light curve.
+            Must be larger than the time resolution of the old light curve!
 
         method: {"sum" | "mean" | "average"}, optional, default "sum"
             This keyword argument sets whether the counts in the new bins
@@ -576,7 +576,7 @@ class Lightcurve(object):
         Other Parameters
         ----------------
         f: float
-            the rebin factor. If specified, it substitutes dt_new with
+            The rebin factor. If specified, it substitutes dt_new with
             f*self.dt
 
         Returns

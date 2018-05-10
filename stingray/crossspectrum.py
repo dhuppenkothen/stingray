@@ -245,9 +245,12 @@ class Crossspectrum(object):
 
         Returns
         -------
-        fr: numpy.ndarray
-            The squared absolute value of the Fourier amplitudes
+        freqs: numpy.ndarray
+            The positive Fourier frequencies.
 
+        cross: numpy.ndarray
+            The squared absolute value of the Fourier amplitudes at positive
+            Fourier frequencies.
         """
         fourier_1 = scipy.fftpack.fft(lc1.counts)  # do Fourier transform 1
         fourier_2 = scipy.fftpack.fft(lc2.counts)  # do Fourier transform 2
@@ -345,7 +348,7 @@ class Crossspectrum(object):
             The unnormalized cross spectrum.
 
         tseg: int
-            The length of the Fourier segment, in seconds.
+            Duration of the Fourier segment.
 
         Returns
         -------
@@ -375,8 +378,8 @@ class Crossspectrum(object):
             power = c * 2. * tseg / (actual_mean ** 2.0)
 
         elif self.norm.lower() == 'abs':
-            c = unnorm_power.real / np.float(self.n ** 2.)
-            power = c * (2. * tseg)
+            c = unnorm_power.real
+            power = c * 2. / np.float(tseg)
 
         elif self.norm.lower() == 'none':
             power = unnorm_power
