@@ -82,8 +82,8 @@ class Crossspectrum(object):
             The uncertainties of `power`.
             An approximation for each bin given by "power_err= power/Sqrt(m)".
             Where `m` is the number of power averaged in each bin (by frequency
-            binning, or averaging more than one spectra). Note that for a single
-            realization (m=1) the error is equal to the power.
+            binning, or averaging more than one spectra). Note that for a
+            single realization (m=1) the error is equal to the power.
 
         df: float
             The frequency resolution
@@ -229,8 +229,8 @@ class Crossspectrum(object):
 
     def _fourier_cross(self, lc1, lc2):
         """
-        Fourier transform the two light curves, then compute the cross spectrum.
-        Computed as CS = lc1 x lc2* (where lc2 is the one that gets
+        Fourier transform the two light curves, then compute the cross
+        spectrum. Computed as CS = lc1 x lc2* (where lc2 is the one that gets
         complex-conjugated)
 
         Parameters
@@ -331,7 +331,8 @@ class Crossspectrum(object):
             if self.type == 'powerspectrum':
                 pass
             else:
-                raise AttributeError('Spectrum has no attribute named nphots2.')
+                raise AttributeError('Spectrum has no attribute named '
+                                     'nphots2.')
 
         bin_cs.m = np.rint(step_size * self.m)
 
@@ -753,7 +754,7 @@ class AveragedCrossspectrum(Crossspectrum):
 
         # Calculate uncertainty
         uncertainty = (2 ** 0.5 * coh * (1 - coh)) / (
-        np.abs(coh) * self.m ** 0.5)
+                      np.abs(coh) * self.m ** 0.5)
 
         return (coh, uncertainty)
 
