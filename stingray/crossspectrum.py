@@ -434,7 +434,7 @@ class Crossspectrum(object):
             power = c * 2. * tseg / (actual_mean ** 2.0)
 
         elif self.norm.lower() == 'abs':
-            c = unnorm_power.real / np.float(self.n ** 2.)
+            c = unnorm_power.real
             power = c * (2. * tseg)
 
         elif self.norm.lower() == 'none':
