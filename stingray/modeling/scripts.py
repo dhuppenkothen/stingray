@@ -2,7 +2,7 @@ from __future__ import division
 import numpy as np
 from astropy.modeling import models
 
-from stingray.modeling import PSDParEst, PSDPosterior, PSDLogLikelihood
+from stingray.modeling import PSDParEst, PSDPosterior, PSDLogLikelihood, GaussianPosterior, GaussianLogLikelihood
 from stingray import Powerspectrum
 
 __all__ = ["fit_powerspectrum", "fit_lorentzians"]
@@ -125,6 +125,73 @@ def fit_powerspectrum(ps, model, starting_pars=None, max_post=False,
 
     parest = PSDParEst(ps, fitmethod=fitmethod, max_post=max_post)
     res = parest.fit(lpost, starting_pars, neg=True)
+
+    return parest, res
+
+
+def fit_crossspectrum(cs, model, starting_pars=None, max_post=False,
+                      priors=None, fitmethod="L-BFGS-B"):
+    """
+    Fit a number of Lorentzians to a cross spectrum, possibly including white
+    noise. Each Lorentzian has three parameters (amplitude, centroid position,
+    full-width at half maximum), plus one extra parameter if the white noise
+    level should be fit as well. Priors for each parameter can be included in
+    case `max_post = True`, in which case the function will attempt a
+    Maximum-A-Posteriori fit. Priors must be specified as a dictionary with one
+    entry for each parameter.
+    The parameter names are `(amplitude_i, x_0_i, fwhm_i)` for each `i` out of
+    a total of `N` Lorentzians. The white noise level has a parameter
+    `amplitude_(N+1)`. For example, a model with two Lorentzians and a
+    white noise level would have parameters:
+    [amplitude_0, x_0_0, fwhm_0, amplitude_1, x_0_1, fwhm_1, amplitude_2].
+
+    Parameters
+    ----------
+    cs : Crossspectrum
+        A Crossspectrum object with the data to be fit
+
+    model: astropy.modeling.models class instance
+        The parametric model supposed to represent the data. For details
+        see the astropy.modeling documentation
+
+    starting_pars : iterable, optional, default None
+        The list of starting guesses for the optimizer. If it is not provided,
+        then default parameters are taken from `model`. See explanation above
+        for ordering of parameters in this list.
+
+    max_post : bool, optional, default False
+        If True, perform a Maximum-A-Posteriori fit of the data rather than a
+        Maximum Likelihood fit. Note that this requires priors to be specified,
+        otherwise this will cause an exception!
+
+    priors : {dict | None}, optional, default None
+        Dictionary with priors for the MAP fit. This should be of the form
+        {"parameter name": probability distribution, ...}
+
+    fitmethod : string, optional, default "L-BFGS-B"
+        Specifies an optimization algorithm to use. Supply any valid option for
+        `scipy.optimize.minimize`.
+
+    Returns
+    -------
+    parest : PSDParEst object
+        A PSDParEst object for further analysis
+
+    res : OptimizationResults object
+        The OptimizationResults object storing useful results and quantities
+        relating to the fit
+    """
+    if not starting_pars:
+        starting_pars = model.parameters
+    if priors:
+        lgauss = GaussianPosterior(cs.freq, np.abs(cs.power), model,
+                                   priors=priors, yerr=cs.power_err)
+    else:
+        lgauss = GaussianLogLikelihood(cs.freq, np.abs(cs.power), model=model,
+                                       yerr=cs.power_err)
+
+    parest = PSDParEst(cs, fitmethod=fitmethod, max_post=max_post)
+    res = parest.fit(lgauss, starting_pars, neg=True)
 
     return parest, res
 

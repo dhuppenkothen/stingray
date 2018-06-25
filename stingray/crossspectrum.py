@@ -102,8 +102,8 @@ class Crossspectrum(object):
     norm: {``frac``, ``abs``, ``leahy``, ``none``}, default ``none``
         The normalization of the (real part of the) cross spectrum.
 
-    amplitude: bool, optional, default ``False``
-        Parameter to choose between real component and amplitude of the cross spectrum.
+    power_type: string, optional, default ``real`` Parameter to choose among
+    complete, real part and magnitude of the cross spectrum.
 
     Other Parameters
     ----------------
@@ -143,7 +143,7 @@ class Crossspectrum(object):
     nphots2: float
         The total number of photons in light curve 2
     """
-    def __init__(self, lc1=None, lc2=None, norm='none', gti=None, amplitude=False):
+    def __init__(self, lc1=None, lc2=None, norm='none', gti=None, power_type="real"):
 
         if isinstance(norm, str) is False:
             raise TypeError("norm must be a string")
@@ -172,7 +172,7 @@ class Crossspectrum(object):
         self.gti = gti
         self.lc1 = lc1
         self.lc2 = lc2
-        self.amplitude = amplitude
+        self.power_type = power_type
 
         self._make_crossspectrum(lc1, lc2)
 
@@ -189,8 +189,8 @@ class Crossspectrum(object):
             Two light curves used for computing the cross spectrum.
         """
         if lc1 is not lc2 and isinstance(lc1, Lightcurve):
-            self.pds1 = Crossspectrum(lc1, lc1, norm='none')
-            self.pds2 = Crossspectrum(lc2, lc2, norm='none')
+            self.pds1 = Crossspectrum(lc1, lc1, norm='none', power_type=self.power_type)
+            self.pds2 = Crossspectrum(lc2, lc2, norm='none', power_type=self.power_type)
 
     def _make_crossspectrum(self, lc1, lc2):
         """
@@ -411,9 +411,6 @@ class Crossspectrum(object):
         tseg: int
             The length of the Fourier segment, in seconds.
 
-        amp: bool, optional, default ``False``
-            Parameter to choose between real component and amplitude of the cross spectrum
-
         Returns
         -------
         power: numpy.nd.array
@@ -433,10 +430,14 @@ class Crossspectrum(object):
         assert actual_mean > 0.0, \
             "Mean count rate is <= 0. Something went wrong."
 
-        if self.amplitude:
+        if self.power_type == "all":
+            c_num = unnorm_power
+        elif self.power_type == "real":
+            c_num = unnorm_power.real
+        elif self.power_type == "absolute":
             c_num = np.abs(unnorm_power)
         else:
-            c_num = unnorm_power.real
+            raise Exception("`power_type` not recognized!")
 
         if self.norm.lower() == 'leahy':
             c = c_num
@@ -654,6 +655,9 @@ class AveragedCrossspectrum(Crossspectrum):
         This choice overrides the GTIs in the single light curves. Use with
         care!
 
+    power_type: string, optional, default ``real`` Parameter to choose among
+    complete, real part and magnitude of the cross spectrum.
+
     Attributes
     ----------
     freq: numpy.ndarray
@@ -691,7 +695,7 @@ class AveragedCrossspectrum(Crossspectrum):
 
     """
     def __init__(self, lc1=None, lc2=None, segment_size=None,
-                 norm='none', gti=None):
+                 norm='none', gti=None, power_type="real"):
 
         self.type = "crossspectrum"
 
@@ -702,7 +706,7 @@ class AveragedCrossspectrum(Crossspectrum):
 
         self.segment_size = segment_size
 
-        Crossspectrum.__init__(self, lc1, lc2, norm, gti=gti)
+        Crossspectrum.__init__(self, lc1, lc2, norm, gti=gti, power_type=power_type)
 
         return
 
@@ -719,10 +723,10 @@ class AveragedCrossspectrum(Crossspectrum):
         if lc1 is not lc2 and isinstance(lc1, Lightcurve):
             self.pds1 = AveragedCrossspectrum(lc1, lc1,
                                               segment_size=self.segment_size,
-                                              norm='none', gti=lc1.gti)
+                                              norm='none', gti=lc1.gti, power_type=self.power_type)
             self.pds2 = AveragedCrossspectrum(lc2, lc2,
                                               segment_size=self.segment_size,
-                                              norm='none', gti=lc2.gti)
+                                              norm='none', gti=lc2.gti, power_type=self.power_type)
 
     def _make_segment_spectrum(self, lc1, lc2, segment_size):
         """
@@ -797,7 +801,7 @@ class AveragedCrossspectrum(Crossspectrum):
                                  err_dist=lc2.err_dist,
                                  gti=gti2,
                                  dt=lc2.dt)
-            cs_seg = Crossspectrum(lc1_seg, lc2_seg, norm=self.norm)
+            cs_seg = Crossspectrum(lc1_seg, lc2_seg, norm=self.norm, power_type=self.power_type)
             cs_all.append(cs_seg)
             nphots1_all.append(np.sum(lc1_seg.counts))
             nphots2_all.append(np.sum(lc2_seg.counts))

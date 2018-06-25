@@ -5,14 +5,14 @@ from astropy.modeling import models
 
 from stingray import Powerspectrum
 
-from stingray.modeling.scripts import fit_lorentzians#, fit_powerspectrum_bounds
+from stingray.modeling.scripts import fit_lorentzians  # , fit_powerspectrum_bounds
 from stingray.modeling.scripts import fit_powerspectrum
+
 
 class TestFitLorentzians(object):
 
     @classmethod
     def setup_class(cls):
-
         np.random.seed(150)
         cls.nlor = 3
 
@@ -52,16 +52,15 @@ class TestFitLorentzians(object):
         cls.parest, cls.res = fit_lorentzians(cls.ps, cls.nlor, cls.t0)
 
     def test_function_creates_right_number_of_lorentians(self):
-        assert (len(self.parest.lpost.model.parameters)-1)/3 == self.nlor
+        assert (len(self.parest.lpost.model.parameters) - 1) / 3 == self.nlor
 
     def test_correct_parameters_without_whitenoise(self):
         parest, res = fit_lorentzians(self.ps, self.nlor, self.t0[:-1],
                                       fit_whitenoise=False)
 
-        assert len(parest.lpost.model.parameters)/3 == self.nlor
+        assert len(parest.lpost.model.parameters) / 3 == self.nlor
 
     def test_parameters_in_right_ballpark(self):
-
         true_pars = [self.amplitude_0, self.x_0_0, self.fwhm_0,
                      self.amplitude_1, self.x_0_1, self.fwhm_1,
                      self.amplitude_2, self.x_0_2, self.fwhm_2,
@@ -70,8 +69,8 @@ class TestFitLorentzians(object):
         assert np.all(np.isclose(true_pars, self.res.p_opt, rtol=0.5))
 
     def test_fitting_with_tied_pars(self):
-        double_f = lambda model : model.x_0_0 * 4
-        triple_f = lambda model : model.x_0_0 * 15
+        double_f = lambda model: model.x_0_0 * 4
+        triple_f = lambda model: model.x_0_0 * 15
         model = self.model.copy()
         model.x_0_1.tied = double_f
         model.x_0_2.tied = triple_f
@@ -79,13 +78,13 @@ class TestFitLorentzians(object):
         # model.bounds = {}
 
         t0 = np.array([self.amplitude_0, self.x_0_0, self.fwhm_0,
-              self.amplitude_1, self.fwhm_1,
-              self.amplitude_2, self.fwhm_2,
-              self.whitenoise])
+                       self.amplitude_1, self.fwhm_1,
+                       self.amplitude_2, self.fwhm_2,
+                       self.whitenoise])
 
         parest, res = fit_powerspectrum(self.ps, model,
-                                np.random.normal(t0,
-                                                 t0 / 10))
+                                        np.random.normal(t0,
+                                                         t0 / 10))
 
         true_pars = [self.amplitude_0,
                      self.x_0_0, self.fwhm_0,
@@ -95,7 +94,6 @@ class TestFitLorentzians(object):
 
         assert np.all(np.isclose(true_pars, res.p_opt, rtol=0.5))
 
-
     def test_fitting_with_fixed_pars(self):
         model = self.model.copy()
         model.amplitude_0 = self.t0[0]
@@ -103,14 +101,13 @@ class TestFitLorentzians(object):
         # model.bounds = {}
 
         t0 = np.array([self.x_0_0, self.fwhm_0,
-              self.amplitude_1, self.x_0_1, self.fwhm_1,
-              self.amplitude_2, self.x_0_2, self.fwhm_2,
-              self.whitenoise])
-
+                       self.amplitude_1, self.x_0_1, self.fwhm_1,
+                       self.amplitude_2, self.x_0_2, self.fwhm_2,
+                       self.whitenoise])
 
         parest, res = fit_powerspectrum(self.ps, model,
-                                  np.random.normal(t0,
-                                                   t0 / 10))
+                                        np.random.normal(t0,
+                                                         t0 / 10))
 
         true_pars = [self.x_0_0, self.fwhm_0,
                      self.amplitude_1, self.x_0_1, self.fwhm_1,
@@ -118,3 +115,6 @@ class TestFitLorentzians(object):
                      self.whitenoise]
 
         assert np.all(np.isclose(true_pars, res.p_opt, rtol=0.5))
+
+    def test_fit_crossspectrum(self):
+        assert True == True
