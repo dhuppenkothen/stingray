@@ -186,18 +186,25 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
     y = np.asarray(y)
     yerr = np.asarray(apply_function_if_none(yerr, y, np.zeros_like))
 
+<<<<<<< HEAD
     dx_old = np.diff(x)
 
+=======
+    #dx_old = assign_value_if_none(dx, np.median(np.diff(x)))
+    dx_old = np.diff(x)
+
+
+>>>>>>> New version of binning function, allows for variable binning
     if np.any(dx_new < dx_old):
         raise ValueError("New frequency resolution must be larger than "
                          "old frequency resolution.")
 
 
     # left and right bin edges
-    # assumes that the points given in `x` correspond to 
+    # assumes that the points given in `x` correspond to
     # the left bin edges
     xedges = np.hstack([x, x[-1]+np.diff(x)[-1]])
- 
+
     # new regularly binned resolution
     xbin = np.arange(xedges[0], xedges[-1]+dx_old[-1], dx_new)
 
@@ -213,21 +220,22 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
         xmax = xbin[i+1]
         min_ind = xedges.searchsorted(xmin)
         max_ind = xedges.searchsorted(xmax)
-        
+
         total += np.sum(y[min_ind:max_ind-1])
         total_err += np.sum(yerr[min_ind:max_ind-1])
         nn += len(y[min_ind:max_ind-1])
- 
+
         prev_dx = xedges[min_ind] - xedges[min_ind-1]
         prev_frac = (xedges[min_ind] - xmin)/prev_dx
         total += y[min_ind-1]*prev_frac
         total_err += yerr[min_ind-1]*prev_frac
-        nn += prev_frac        
+        nn += prev_frac
 
         dx_post = xedges[max_ind] - xedges[max_ind-1]
         post_frac = (xmax-xedges[max_ind-1])/dx_post
         total += y[max_ind-1]*post_frac
         total_err += yerr[max_ind-1]*post_frac
+
         nn += prev_frac
 
         output.append(total)
