@@ -227,48 +227,13 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
         dx_post = xedges[max_ind] - xedges[max_ind-1]
         post_frac = (xmax-xedges[max_ind-1])/dx_post
         total += y[max_ind-1]*post_frac
-<<<<<<< HEAD
         total_err += yerr[max_ind-1]*post_frac
         nn += prev_frac
 
         output.append(total)
         outputerr.append(total_err)
         step_size.append(nn)
-=======
-        total_err += yerrr[max_ind-1]*post_frac
-        nn += prev_frac
->>>>>>> New version of binning function, allows for variable binning
 
-        output.append(total)
-        outputerr.append(total_err)
-        step_size.append(nn)
-
-#    step_size = dx_new / dx_old
-#
-#    output = []
-#    outputerr = []
-#    for i in np.arange(0, y.shape[0], step_size):
-#        total = 0
-#        totalerr = 0
-#
-#        int_i = int(i)
-#        prev_frac = int_i + 1 - i
-#        prev_bin = int_i
-#        total += prev_frac * y[prev_bin]
-#        totalerr += prev_frac * (yerr[prev_bin] ** 2)
-#
-#        if i + step_size < len(x):
-#            # Fractional part of next bin:
-#            next_frac = i + step_size - int(i + step_size)
-#            next_bin = int(i + step_size)
-#            total += next_frac * y[next_bin]
-#            totalerr += next_frac * (yerr[next_bin] ** 2)
-#
-#        total += sum(y[int(i + 1):int(i + step_size)])
-#        totalerr += sum(yerr[int(i + 1):int(step_size)] ** 2)
-#        output.append(total)
-#        outputerr.append(np.sqrt(totalerr))
-#
     output = np.asarray(output)
     outputerr = np.asarray(outputerr)
 
