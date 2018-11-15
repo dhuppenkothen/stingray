@@ -186,37 +186,53 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
     y = np.asarray(y)
     yerr = np.asarray(apply_function_if_none(yerr, y, np.zeros_like))
 
-    dx_old = apply_function_if_none(dx, np.diff(x), np.median)
+    dx_old = np.diff(x)
 
-    if dx_new < dx_old:
+    if np.any(dx_new < dx_old):
         raise ValueError("New frequency resolution must be larger than "
                          "old frequency resolution.")
 
-    step_size = dx_new / dx_old
 
-    output = []
-    outputerr = []
-    for i in np.arange(0, y.shape[0], step_size):
+    # left and right bin edges
+    # assumes that the points given in `x` correspond to 
+    # the left bin edges
+    xedges = np.hstack([x, x[-1]+np.diff(x)[-1]])
+ 
+    # new regularly binned resolution
+    xbin = np.arange(xedges[0], xedges[-1]+dx_old[-1], dx_new)
+
+    output, outputerr, step_size = [], [], []
+
+    for i in range(len(xbin)-1):
         total = 0
-        totalerr = 0
+        total_err = 0
 
-        int_i = int(i)
-        prev_frac = int_i + 1 - i
-        prev_bin = int_i
-        total += prev_frac * y[prev_bin]
-        totalerr += prev_frac * (yerr[prev_bin] ** 2)
+        nn = 0
 
-        if i + step_size < len(x):
-            # Fractional part of next bin:
-            next_frac = i + step_size - int(i + step_size)
-            next_bin = int(i + step_size)
-            total += next_frac * y[next_bin]
-            totalerr += next_frac * (yerr[next_bin] ** 2)
+        xmin = xbin[i]
+        xmax = xbin[i+1]
+        min_ind = xedges.searchsorted(xmin)
+        max_ind = xedges.searchsorted(xmax)
+        
+        total += np.sum(y[min_ind:max_ind-1])
+        total_err += np.sum(yerr[min_ind:max_ind-1])
+        nn += len(y[min_ind:max_ind-1])
+ 
+        prev_dx = xedges[min_ind] - xedges[min_ind-1]
+        prev_frac = (xedges[min_ind] - xmin)/prev_dx
+        total += y[min_ind-1]*prev_frac
+        total_err += yerr[min_ind-1]*prev_frac
+        nn += prev_frac        
 
-        total += sum(y[int(i + 1):int(i + step_size)])
-        totalerr += sum(yerr[int(i + 1):int(i + step_size)] ** 2)
+        dx_post = xedges[max_ind] - xedges[max_ind-1]
+        post_frac = (xmax-xedges[max_ind-1])/dx_post
+        total += y[max_ind-1]*post_frac
+        total_err += yerrr[max_ind-1]*post_frac
+        nn += prev_frac
+
         output.append(total)
-        outputerr.append(np.sqrt(totalerr))
+        outputerr.append(total_err)
+        step_size.append(nn)
 
     output = np.asarray(output)
     outputerr = np.asarray(outputerr)
