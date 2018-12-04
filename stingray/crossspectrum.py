@@ -87,9 +87,9 @@ def time_lag(lc1, lc2):
 class Crossspectrum(object):
     """
     Make a cross spectrum from a (binned) light curve.
-    You can also make an empty :class:`Crossspectrum` object to populate with your
-    own Fourier-transformed data (this can sometimes be useful when making
-    binned power spectra).
+    You can also make an empty :class:`Crossspectrum` object to populate with
+    your own Fourier-transformed data (this can sometimes be useful when
+    making binned power spectra).
 
     Parameters
     ----------
@@ -154,7 +154,8 @@ class Crossspectrum(object):
         self.norm = norm.lower()
 
         # check if input data is a Lightcurve object, if not make one or
-        # make an empty Crossspectrum object if lc1 == ``None`` or lc2 == ``None``
+        # make an empty Crossspectrum object if lc1 == ``None`` or
+        #  lc2 == ``None``
         if lc1 is None or lc2 is None:
             if lc1 is not None or lc2 is not None:
                 raise TypeError("You can't do a cross spectrum with just one "
@@ -190,8 +191,10 @@ class Crossspectrum(object):
             Two light curves used for computing the cross spectrum.
         """
         if lc1 is not lc2 and isinstance(lc1, Lightcurve):
-            self.pds1 = Crossspectrum(lc1, lc1, norm='none', power_type=self.power_type)
-            self.pds2 = Crossspectrum(lc2, lc2, norm='none', power_type=self.power_type)
+            self.pds1 = Crossspectrum(lc1, lc1, norm='none',
+                                      power_type=self.power_type)
+            self.pds2 = Crossspectrum(lc2, lc2, norm='none',
+                                      power_type=self.power_type)
 
     def _make_crossspectrum(self, lc1, lc2):
         """
@@ -296,9 +299,9 @@ class Crossspectrum(object):
 
     def _fourier_cross(self, lc1, lc2):
         """
-        Fourier transform the two light curves, then compute the cross spectrum.
-        Computed as CS = lc1 x lc2* (where lc2 is the one that gets
-        complex-conjugated)
+        Fourier transform the two light curves, then compute the cross
+        spectrum. Computed as CS = lc1 x lc2* (where lc2 is the one that gets
+        complex-conjugated).
 
         Parameters
         ----------
@@ -336,7 +339,8 @@ class Crossspectrum(object):
         Other Parameters
         ----------------
         f: float
-            the rebin factor. If specified, it substitutes df with ``f*self.df``
+            the rebin factor. If specified, it substitutes df with
+            ``f*self.df``
 
         Returns
         -------
@@ -344,8 +348,8 @@ class Crossspectrum(object):
             The newly binned cross spectrum or power spectrum.
             Note: this object will be of the same type as the object
             that called this method. For example, if this method is called
-            from :class:`AveragedPowerspectrum`, it will return an object of class
-            :class:`AveragedPowerspectrum`, too.
+            from :class:`AveragedPowerspectrum`, it will return an object of
+            class :class:`AveragedPowerspectrum`, too.
         """
 
         if f is None and df is None:
@@ -481,7 +485,8 @@ class Crossspectrum(object):
             The newly binned cross spectrum or power spectrum.
             Note: this object will be of the same type as the object
             that called this method. For example, if this method is called
-            from :class:`AveragedPowerspectrum`, it will return an object of class
+            from :class:`AveragedPowerspectrum`, it will return an object of
+            class :class:`AveragedPowerspectrum`.
         """
 
         binfreq, binpower, binpower_err, nsamples = \
@@ -562,7 +567,8 @@ class Crossspectrum(object):
     def plot(self, labels=None, axis=None, title=None, marker='-', save=False,
              filename=None):
         """
-        Plot the amplitude of the cross spectrum vs. the frequency using ``matplotlib``.
+        Plot the amplitude of the cross spectrum vs. the frequency using
+        ``matplotlib``.
 
         Parameters
         ----------
@@ -570,9 +576,10 @@ class Crossspectrum(object):
             A list of tuple with ``xlabel`` and ``ylabel`` as strings.
 
         axis : list, tuple, string, default ``None``
-            Parameter to set axis properties of the ``matplotlib`` figure. For example
-            it can be a list like ``[xmin, xmax, ymin, ymax]`` or any other
-            acceptable argument for the``matplotlib.pyplot.axis()`` method.
+            Parameter to set axis properties of the ``matplotlib`` figure. For
+            example it can be a list like ``[xmin, xmax, ymin, ymax]`` or any
+            other acceptable argument for the``matplotlib.pyplot.axis()``
+            method.
 
         title : str, default ``None``
             The title of the plot.
@@ -638,20 +645,24 @@ class AveragedCrossspectrum(Crossspectrum):
 
     Parameters
     ----------
-    lc1: :class:`stingray.Lightcurve` object OR iterable of :class:`stingray.Lightcurve` objects
-        A light curve from which to compute the cross spectrum. In some cases, this would
-        be the light curve of the wavelength/energy/frequency band of interest.
+    lc1: :class:`stingray.Lightcurve` object OR iterable of \
+         :class:`stingray.Lightcurve` objects
+        A light curve from which to compute the cross spectrum. In some cases,
+        this would be the light curve of the wavelength/energy/frequency band
+        of interest.
 
-    lc2: :class:`stingray.Lightcurve` object OR iterable of :class:`stingray.Lightcurve` objects
-        A second light curve to use in the cross spectrum. In some cases, this would be
-        the wavelength/energy/frequency reference band to compare the band of interest with.
+    lc2: :class:`stingray.Lightcurve` object OR iterable of \
+         :class:`stingray.Lightcurve` objects
+        A second light curve to use in the cross spectrum. In some cases, this
+        would be the wavelength/energy/frequency reference band to compare the
+        band of interest with.
 
     segment_size: float
         The size of each segment to average. Note that if the total
-        duration of each :class:`Lightcurve` object in ``lc1`` or ``lc2`` is not an
-        integer multiple of the ``segment_size``, then any fraction left-over
-        at the end of the time series will be lost. Otherwise you introduce
-        artifacts.
+        duration of each :class:`Lightcurve` object in ``lc1`` or ``lc2`` is
+        not an integer multiple of the ``segment_size``, then any fraction
+        left-over at the end of the time series will be lost. Otherwise you
+        introduce artifacts.
 
     norm: {``frac``, ``abs``, ``leahy``, ``none``}, default ``none``
         The normalization of the (real part of the) cross spectrum.
@@ -723,7 +734,8 @@ class AveragedCrossspectrum(Crossspectrum):
 
     def _make_auxil_pds(self, lc1, lc2):
         """
-        Helper method to create the power spectrum of both light curves independently.
+        Helper method to create the power spectrum of both light curves
+        independently.
 
         Parameters
         ----------
@@ -734,15 +746,17 @@ class AveragedCrossspectrum(Crossspectrum):
         if lc1 is not lc2 and isinstance(lc1, Lightcurve):
             self.pds1 = AveragedCrossspectrum(lc1, lc1,
                                               segment_size=self.segment_size,
-                                              norm='none', gti=lc1.gti, power_type=self.power_type)
+                                              norm='none', gti=lc1.gti,
+                                              power_type=self.power_type)
             self.pds2 = AveragedCrossspectrum(lc2, lc2,
                                               segment_size=self.segment_size,
-                                              norm='none', gti=lc2.gti, power_type=self.power_type)
+                                              norm='none', gti=lc2.gti,
+                                              power_type=self.power_type)
 
     def _make_segment_spectrum(self, lc1, lc2, segment_size):
         """
-        Split the light curves into segments of size ``segment_size``, and calculate a cross spectrum for
-        each.
+        Split the light curves into segments of size ``segment_size``, and
+        calculate a cross spectrum for each.
 
         Parameters
         ----------
@@ -755,10 +769,13 @@ class AveragedCrossspectrum(Crossspectrum):
         Returns
         -------
         cs_all : list of :class:`Crossspectrum`` objects
-            A list of cross spectra calculated independently from each light curve segment
+            A list of cross spectra calculated independently from each light
+            curve segment.
 
-        nphots1_all, nphots2_all : ``numpy.ndarray` for each of ``lc1`` and ``lc2``
-            Two lists containing the number of photons for all segments calculated from ``lc1`` and ``lc2``.
+        nphots1_all, nphots2_all : ``numpy.ndarray` for each of ``lc1`` and \
+                                   ``lc2``
+            Two lists containing the number of photons for all segments
+            calculated from ``lc1`` and ``lc2``.
 
         """
 
@@ -812,7 +829,8 @@ class AveragedCrossspectrum(Crossspectrum):
                                  err_dist=lc2.err_dist,
                                  gti=gti2,
                                  dt=lc2.dt)
-            cs_seg = Crossspectrum(lc1_seg, lc2_seg, norm=self.norm, power_type=self.power_type)
+            cs_seg = Crossspectrum(lc1_seg, lc2_seg, norm=self.norm,
+                                   power_type=self.power_type)
             cs_all.append(cs_seg)
             nphots1_all.append(np.sum(lc1_seg.counts))
             nphots2_all.append(np.sum(lc2_seg.counts))
@@ -821,10 +839,12 @@ class AveragedCrossspectrum(Crossspectrum):
 
     def _make_crossspectrum(self, lc1, lc2):
         """
-        Auxiliary method computing the normalized cross spectrum from two light curves.
-        This includes checking for the presence of and applying Good Time Intervals, computing the
-        unnormalized Fourier cross-amplitude, and then renormalizing using the required normalization.
-        Also computes an uncertainty estimate on the cross spectral powers.
+        Auxiliary method computing the normalized cross spectrum from two
+        light curves. This includes checking for the presence of and applying
+        Good Time Intervals, computing the unnormalized Fourier
+        cross-amplitude, and then renormalizing using the required
+        normalization. Also computes an uncertainty estimate on the cross
+        spectral powers.
 
         Parameters
         ----------
@@ -915,8 +935,8 @@ class AveragedCrossspectrum(Crossspectrum):
         is a tuple with first element as the coherence function and the second
         element as the corresponding uncertainty associated with it.
 
-        Note : The uncertainty in coherence function is strictly valid for Gaussian \
-               statistics only.
+        Note : The uncertainty in coherence function is strictly valid for \
+        Gaussian statistics only.
 
         Returns
         -------
