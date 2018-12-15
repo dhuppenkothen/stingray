@@ -30,6 +30,7 @@ env:
         - PIP_DEPENDENCIES='emcee statsmodels corner'
         - CONDA_DEPENDENCIES='scipy h5py matplotlib'
         - SETUP_XVFB=True
+        - MPLBACKEND=TkAgg
 
 matrix:
     fast_finish: true
@@ -57,7 +58,7 @@ matrix:
         - env: PYTHON_VERSION=3.5 PIP_DEPENDENCIES='emcee'
 
         - env: PYTHON_VERSION=3.5 PIP_DEPENDENCIES='nbsphinx' SETUP_CMD='build_docs -w'
-        
+
         # Try older scipy versions
         - env: PYTHON_VERSION=3.4 SCIPY_VERSION=0.16.0 NUMPY_VERSION=1.13 ASTROPY_VERSION=lts
 
