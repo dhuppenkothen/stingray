@@ -44,7 +44,7 @@ class TestAll(object):
             phaseogr, phases, times, additional_info = \
                 phaseogram(self.event_times, self.pulse_frequency,
                            weights=[0, 2])
-        assert 'must match' in str(excinfo)
+        assert 'must match' in str(excinfo.value)
 
     def test_phaseogram_weights(self):
         phaseogr, phases, times, additional_info = \
@@ -169,7 +169,7 @@ class TestAll(object):
         with pytest.raises(ValueError) as excinfo:
             freq, stat = epoch_folding_search(self.event_times, frequencies,
                                               nbin=23, expocorr=True)
-        assert 'To calculate exposure correction' in str(excinfo)
+        assert 'To calculate exposure correction' in str(excinfo.value)
 
     def test_epoch_folding_search_expocorr(self):
         """Test pulse phase calculation, frequency only."""
@@ -288,7 +288,7 @@ class TestAll(object):
         with pytest.raises(ValueError) as excinfo:
             freq, stat = z_n_search(self.event_times, frequencies, nharm=1,
                                     nbin=35, expocorr=True)
-        assert 'To calculate exposure correction' in str(excinfo)
+        assert 'To calculate exposure correction' in str(excinfo.value)
 
     def test_z_n_search_weights(self):
         """Test pulse phase calculation, frequency only."""
