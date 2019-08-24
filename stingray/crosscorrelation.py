@@ -91,7 +91,7 @@ class CrossCorrelation(object):
 
             else:
                 if cross is None:
-                    # all object input params are ``None`` 
+                    # all object input params are ``None``
                     self.corr = None
                     self.time_shift = None
                     self.time_lags = None
@@ -118,7 +118,8 @@ class CrossCorrelation(object):
 
         if not isinstance(cross, crossspectrum.Crossspectrum):
             if not isinstance(cross, crossspectrum.AveragedCrossspectrum):
-                raise TypeError("cross must be a crossspectrum.Crossspectrum or crossspectrum.AveragedCrossspectrum object")
+                raise TypeError("cross must be a crossspectrum.Crossspectrum \
+                        or crossspectrum.AveragedCrossspectrum object")
 
         if self.cross is None:
             self.cross = cross
@@ -127,7 +128,7 @@ class CrossCorrelation(object):
         # So ifft produces a curve that is basically mirrored around zero,
         # but in the opposite way that we would like
 
-        prelim_corr = ifft(cross.power).real #keep only the real, pads with zeros
+        prelim_corr = ifft(cross.power).real  # keep only the real
         self.n = len(prelim_corr)
 
         # Splitting and correcting the mirrored correlation data from the ifft
@@ -215,9 +216,9 @@ class CrossCorrelation(object):
                     raise StingrayError('lc1 and lc2 should be provided to \
                             calculate correlation and time_shift')
             else:
-                # This will cover very rare case of assigning self.lc1 and self.lc2 
+                # This will cover very rare case of assigning self.lc1 and lc2
                 # or self.cross and also self.corr = ``None``.
-                # In this case, correlation is calculated using self.lc1 
+                # In this case, correlation is calculated using self.lc1
                 # and self.lc2 and using that correlation data,
                 # time_shift is calculated.
                 if self.cross is not None:
