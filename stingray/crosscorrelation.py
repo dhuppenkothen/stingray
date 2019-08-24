@@ -70,7 +70,7 @@ class CrossCorrelation(object):
     """
 
     def __init__(self, lc1=None, lc2=None, cross=None, mode='same'):
-     
+
         self.auto = False
         if isinstance(mode, str) is False:
             raise TypeError("mode must be a string")
@@ -91,8 +91,7 @@ class CrossCorrelation(object):
 
             else:
                 if cross is None:
-                    # all object input params are ``None`` .
-                  
+                    # all object input params are ``None`` 
                     self.corr = None
                     self.time_shift = None
                     self.time_lags = None
@@ -106,41 +105,40 @@ class CrossCorrelation(object):
 
     def _make_cross_corr(self, cross):
 
-         """
-         Do some checks on the cross spectrum supplied to the method, and then calculate the time
-         shifts, time lags and cross correlation.
+        """
+        Do some checks on the cross spectrum supplied to the method,
+        and then calculate the time shifts, time lags and cross correlation.
 
-         Parameters
-         ----------
-         cross: :class:`stingray.Crossspectrum` object
-             The crossspectrum, averaged or not.
+        Parameters
+        ----------
+        cross: :class:`stingray.Crossspectrum` object
+            The crossspectrum, averaged or not.
 
-         """
-         print(type(cross))   
-         if not isinstance(cross, crossspectrum.Crossspectrum):
-             if not isinstance(cross, crossspectrum.AveragedCrossspectrum):
-                 raise TypeError("cross must be a crossspectrum.Crossspectrum or crossspectrum.AveragedCrossspectrum object")
- 
-         if self.cross is None:
-             self.cross = cross
-             self.dt = 1/(cross.df * cross.n)
-         
-         #So ifft produces a curve that is basically mirrored around zero, but in the opposite way that we would like
-         #need to adjust for that
+        """
 
-         prelim_corr = ifft(cross.power).real #keep only the real, pads with zeros
-         self.n = len(prelim_corr)
-         
-         # Splitting and correcting the mirrored correlation data from the ifft
-         temp_corr = np.zeros(self.n)
-         half = int(self.n/2)
-         temp_corr[half:] = prelim_corr[0:half+1]
-         temp_corr[:half+1] = prelim_corr[half:]
-         self.corr = temp_corr
-         
-         self.time_shift, self.time_lags, self.n = self.cal_timeshift(dt=self.dt)
+        if not isinstance(cross, crossspectrum.Crossspectrum):
+            if not isinstance(cross, crossspectrum.AveragedCrossspectrum):
+                raise TypeError("cross must be a crossspectrum.Crossspectrum or crossspectrum.AveragedCrossspectrum object")
 
-    
+        if self.cross is None:
+            self.cross = cross
+            self.dt = 1/(cross.df * cross.n)
+
+        # So ifft produces a curve that is basically mirrored around zero,
+        # but in the opposite way that we would like
+
+        prelim_corr = ifft(cross.power).real #keep only the real, pads with zeros
+        self.n = len(prelim_corr)
+
+        # Splitting and correcting the mirrored correlation data from the ifft
+        temp_corr = np.zeros(self.n)
+        half = int(self.n/2)
+        temp_corr[half:] = prelim_corr[0:half+1]
+        temp_corr[:half+1] = prelim_corr[half:]
+        self.corr = temp_corr
+
+        self.time_shift, self.time_lags, self.n = self.cal_timeshift(dt=self.dt)
+
 
     def _make_corr(self, lc1, lc2):
 
@@ -157,12 +155,12 @@ class CrossCorrelation(object):
             The second light curve data.
 
         """
-        
+
         if not isinstance(lc1, lightcurve.Lightcurve):
             raise TypeError("lc1 must be a lightcurve.Lightcurve object")
         if not isinstance(lc2, lightcurve.Lightcurve):
             raise TypeError("lc2 must be a lightcurve.Lightcurve object")
-        
+
         if not np.isclose(lc1.dt, lc2.dt):
             raise StingrayError("Light curves do not have "
                                 "same time binning dt.")
@@ -211,18 +209,22 @@ class CrossCorrelation(object):
         if self.corr is None:
             if self.lc1 is None or self.lc2 is None:
                 if self.cross is None:
-                    raise StingrayError('Please provide a stingray object or your own data to calculate correlation and timeshift')
+                    raise StingrayError('Please provide a stingray object or \
+                            data to calculate correlation and timeshift')
                 else:
-                    raise StingrayError('lc1 and lc2 should be provided to calculate correlation and time_shift')
+                    raise StingrayError('lc1 and lc2 should be provided to \
+                            calculate correlation and time_shift')
             else:
-                # This will cover very rare case of assigning self.lc1 and self.lc2 or self.cross and also self.corr = ``None``.
-                # In this case, correlation is calculated using self.lc1 and self.lc2 and using that correlation data,
+                # This will cover very rare case of assigning self.lc1 and self.lc2 
+                # or self.cross and also self.corr = ``None``.
+                # In this case, correlation is calculated using self.lc1 
+                # and self.lc2 and using that correlation data,
                 # time_shift is calculated.
                 if self.cross is not None:
                     self._make_cross_corr(self.cross)
                 else:
                     self._make_corr(self.lc1, self.lc2)
-                
+
         self.n = len(self.corr)
         dur = int(self.n / 2)
         # Correlation against all possible lags, positive as well as negative lags are stored
