@@ -266,7 +266,7 @@ class TestCrossspectrum(object):
         csT = Crossspectrum(self.lc1, self.lc2, fullspec=True)
         assert csT.fullspec == True
         assert self.cs.fullspec == False
-        assert csT.n == cs.n
+        assert csT.n == self.cs.n
         assert csT.n == len(csT.power)
         assert self.cs.n != len(self.cs.power)
         assert len(csT.power) >= len(self.cs.power)
