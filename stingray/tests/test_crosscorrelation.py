@@ -75,6 +75,23 @@ class TestCrossCorrelation(object):
         assert cr.mode == 'same'
         assert cr.auto is False
 
+     def test_crossparam_input(self):
+        # need to create new results to check against
+        spec = Crossspectrum(self.lc1, self.lc2)
+        ifft = abs(scipy.fftpack.ifft(spec.power).real)
+        time = scipy.fftpack.fftfreq(len(ifft), spec.df)
+        time, resultifft = (list(t) for t in zip(*sorted(zip(time, ifft))))
+        cr2 = CrossCorrelation(cross=spec)
+
+        assert np.allclose(cr2.cross.power, spec.power)
+        assert np.allclose(cr2.cross.freq, spec.freq)
+        assert np.allclose(cr2.corr, resultifft)
+        assert np.isclose(cr2.dt, self.lc1.dt)
+        assert cr2.n == 5
+        assert np.allclose(cr2.time_lags, lags_result)
+        assert cr2.mode == 'same'
+        assert cr2.auto is False
+
     def test_cross_correlation_with_unequal_lc(self):
         result = np.array([-0.66666667, -0.33333333, -1., 0.66666667, 3.13333333])
         lags_result = np.array([-2, -1, 0, 1, 2])
