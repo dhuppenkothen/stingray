@@ -124,20 +124,23 @@ class CrossCorrelation(object):
         if self.cross is None:
             self.cross = cross
             self.dt = 1/(cross.df * cross.n)
+        if self.dt is None:
+            self.dt = 1/(cross.df * cross.n)
 
-        # So ifft produces a curve that is basically mirrored around zero,
-        # but in the opposite way that we would like
 
-        prelim_corr = ifft(cross.power).real  # keep only the real
+        prelim_corr = abs(ifft(cross.power).real) #keep only the real
         self.n = len(prelim_corr)
 
-        # Splitting and correcting the mirrored correlation data from the ifft
-        temp_corr = np.zeros(self.n)
-        half = int(self.n/2)
-        temp_corr[half:] = prelim_corr[0:half+1]
-        temp_corr[:half+1] = prelim_corr[half:]
-        self.corr = temp_corr
+        # ifft spits out an array that looks like [0,1,...n,-n,...-1]
+        # where n is the last positive frequency
+        # correcting for this by putting them in order
 
+        times = np.fft.fftfreq(self.n, cross.df)
+        time, corr = (list(t) for t in zip(*sorted(zip(times, prelim_corr))))
+        time = np.array(time) #this could be used in place of time_lags below
+        corr = np.array(corr)
+        self.corr = corr
+        
         self.time_shift, self.time_lags, self.n = self.cal_timeshift(dt=self.dt)
 
 
