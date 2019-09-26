@@ -6,6 +6,7 @@ import os
 
 from stingray import Lightcurve
 from stingray.crosscorrelation import CrossCorrelation, AutoCorrelation
+from stingray.crossspectrum import Crossspectrum
 from stingray.exceptions import StingrayError
 
 try:
