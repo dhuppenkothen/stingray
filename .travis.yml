@@ -46,13 +46,8 @@ matrix:
         - env: PYTHON_VERSION=3.7  CONDA_DEPENDENCIES='scipy matplotlib numba'
 
         # Try without using corner
-        - env: PYTHON_VERSION=3.5 PIP_DEPENDENCIES='emcee statsmodels'
-
-        # Try without using emcee
-        - env: PYTHON_VERSION=3.5 PIP_DEPENDENCIES='statsmodels'
-
-        # Try without using statsmodels
-        - env: PYTHON_VERSION=3.5 PIP_DEPENDENCIES='emcee'
+        - env: PYTHON_VERSION=3.5 PIP_DEPENDENCIES='emcee statsmodels' 
+               NUMPY_VERSION=1.14
 
         - env: PYTHON_VERSION=3.6 PIP_DEPENDENCIES='nbsphinx' SETUP_CMD='build_docs -w'
 
