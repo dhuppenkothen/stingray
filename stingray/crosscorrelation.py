@@ -3,7 +3,8 @@ import numpy as np
 from scipy import signal
 from scipy.fftpack import ifft
 
-from stingray import lightcurve, crossspectrum
+from stingray.lightcurve import Lightcurve
+from stingray.crossspectrum import Crossspectrum, AveragedCrossspectrum
 from stingray.exceptions import StingrayError
 import stingray.utils as utils
 
@@ -116,9 +117,9 @@ class CrossCorrelation(object):
 
         """
 
-        if not isinstance(cross, crossspectrum.Crossspectrum):
-            if not isinstance(cross, crossspectrum.AveragedCrossspectrum):
-                raise TypeError("cross must be a crossspectrum.Crossspectrum \
+        if not isinstance(cross, Crossspectrum):
+            if not isinstance(cross, AveragedCrossspectrum):
+                raise TypeError("cross must be a crosspectrum.Crossspectrum \
                         or crossspectrum.AveragedCrossspectrum object")
 
         if self.cross is None:
@@ -136,9 +137,7 @@ class CrossCorrelation(object):
         # correcting for this by putting them in order
 
         times = np.fft.fftfreq(self.n, cross.df)
-        time, corr = (list(t) for t in zip(*sorted(zip(times, prelim_corr))))
-        time = np.array(time) #this could be used in place of time_lags below
-        corr = np.array(corr)
+        time, corr = np.array(sorted(zip(times, prelim_corr))).T
         self.corr = corr
         
         self.time_shift, self.time_lags, self.n = self.cal_timeshift(dt=self.dt)
@@ -160,9 +159,9 @@ class CrossCorrelation(object):
 
         """
 
-        if not isinstance(lc1, lightcurve.Lightcurve):
+        if not isinstance(lc1, Lightcurve):
             raise TypeError("lc1 must be a lightcurve.Lightcurve object")
-        if not isinstance(lc2, lightcurve.Lightcurve):
+        if not isinstance(lc2, Lightcurve):
             raise TypeError("lc2 must be a lightcurve.Lightcurve object")
 
         if not np.isclose(lc1.dt, lc2.dt):
