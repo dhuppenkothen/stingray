@@ -6,6 +6,7 @@ import os
 
 from stingray import Lightcurve
 from stingray.crosscorrelation import CrossCorrelation, AutoCorrelation
+from stingray.crossspectrum import Crossspectrum
 from stingray.exceptions import StingrayError
 
 try:
@@ -75,7 +76,7 @@ class TestCrossCorrelation(object):
         assert cr.mode == 'same'
         assert cr.auto is False
 
-     def test_crossparam_input(self):
+    def test_crossparam_input(self):
         # need to create new results to check against
         spec = Crossspectrum(self.lc1, self.lc2)
         ifft = abs(scipy.fftpack.ifft(spec.power).real)
