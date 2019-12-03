@@ -1,4 +1,4 @@
-from __future__ import division, print_function
+
 import numpy as np
 import collections
 from .pulsar import stat, fold_events, z_n, pulse_phase

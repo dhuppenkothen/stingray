@@ -1,5 +1,5 @@
+import copy
 import numpy as np
-
 from astropy.tests.helper import pytest
 import warnings
 import os
@@ -30,6 +30,124 @@ def evar_fun(lc):
     from stingray.utils import excess_variance
     return excess_variance(lc, normalization='none')
 
+
+class TestProperties(object):
+    @classmethod
+    def setup_class(cls):
+        dt = 0.1
+        tstart = 0
+        tstop = 1
+        times = np.arange(tstart, tstop, dt)
+        cls.gti = np.array([[tstart - dt/2, tstop - dt/2]])
+        # Simulate something *clearly* non-constant
+        counts = np.zeros_like(times) + 100
+
+        cls.lc = Lightcurve(times, counts, gti=cls.gti)
+        cls.lc_lowmem = Lightcurve(times, counts, gti=cls.gti, low_memory=True)
+
+    def test_time(self):
+        lc = copy.deepcopy(self.lc)
+        assert lc._bin_lo is None
+        # When I call bin_lo, _bin_lo gets set
+        _ = lc.bin_lo
+        assert lc._bin_lo is not None
+
+        # When I set time, _bin_lo gets deleted.
+        lc.time = lc.time / 10
+        assert lc._bin_lo is None
+        _ = lc.bin_lo
+        assert lc._bin_lo is not None
+
+    def test_gti(self):
+        lc = copy.deepcopy(self.lc)
+        assert lc._mask is None
+        _ = lc.mask
+        assert lc._mask is not None
+        lc.gti = [[0, 1]]
+        assert lc._mask is None
+
+    def test_counts_and_countrate(self):
+        lc = copy.deepcopy(self.lc)
+        # At initialization, _countrate is None and _counts is not.
+        assert lc._countrate is None
+        assert lc._counts is not None
+        assert lc._meancounts is None
+        # Now we retrieve meancounts; it gets calculated.
+        _ = lc.meancounts
+        assert lc._meancounts is not None
+        # Now we retrieve countrate, and it gets calculated
+        _ = lc.countrate
+        assert lc._countrate is not None
+        # Now I set counts; countrate gets deleted together with the other
+        # statistics.
+        lc.counts = np.zeros_like(lc.counts) + 3
+        assert lc._countrate is None
+        assert lc._meancounts is None
+        assert lc._meanrate is None
+        # Now I retrieve meanrate. It gets calculated
+        _ = lc.meanrate
+        assert lc._meanrate is not None
+        # Finally, we set count rate and test that the rest has been deleted.
+        lc.countrate = np.zeros_like(lc.countrate) + 3
+        lc.countrate_err = np.zeros_like(lc.countrate) + 3
+        assert lc._counts is None
+        assert lc._counts_err is None
+        assert lc._meancounts is None
+        _ = lc.counts_err
+        assert lc._counts_err is not None
+
+    def test_counts_and_countrate_lowmem(self):
+        lc = copy.deepcopy(self.lc_lowmem)
+        # At initialization, _countrate is None and _counts is not.
+        assert lc._countrate is None
+        assert lc._counts is not None
+        assert lc._meancounts is None
+        # Now we retrieve meancounts; it gets calculated.
+        _ = lc.meancounts
+        assert lc._meancounts is not None
+        # Now we retrieve countrate, and it gets calculated but not saved
+        # (because low_memory)
+        _ = lc.countrate
+        assert lc._countrate is None
+        _ = lc.countrate_err
+        assert lc._countrate_err is None
+        # Now I set counts; countrate gets deleted together with the other
+        # statistics.
+        lc.counts = np.zeros_like(lc.counts) + 3
+        assert lc.input_counts
+        assert lc._countrate is None
+        assert lc._meancounts is None
+        assert lc._meanrate is None
+        # Now I retrieve meanrate. It gets calculated
+        _ = lc.meanrate
+        assert lc._meanrate is not None
+        # Finally, we set count rate and test that the rest has been deleted,
+        # AND input_counts is changed to False.
+        lc.countrate = np.zeros_like(lc.countrate) + 3
+        assert lc._counts is None
+        assert lc._meancounts is None
+        assert not lc.input_counts
+        _ = lc.counts
+        # Now we retrieve counts, and it gets calculated but not saved
+        # (because low_memory, and input_counts is now False)
+        assert lc._counts is None
+        _ = lc.counts_err
+        # Now we retrieve counts, and it gets calculated but not saved
+        # (because low_memory, and input_counts is now False)
+        assert lc._counts_err is None
+
+
+    @pytest.mark.parametrize('property', 'time,counts,counts_err,'
+                                         'countrate,countrate_err'.split(','))
+    def test_assign_bad_shape_fails(self, property):
+        lc = copy.deepcopy(self.lc)
+        # Same shape passes
+        setattr(lc, property, np.zeros_like(lc.time))
+        # Different shape doesn't
+        with pytest.raises(ValueError):
+            setattr(lc, property, 3)
+        with pytest.raises(ValueError):
+            setattr(lc, property, np.arange(2))
 
 class TestChunks(object):
     @classmethod
@@ -119,12 +237,11 @@ class TestLightcurve(object):
         times = [1, 2, 3, 4, 5]
         counts = [2, 2, 2, 2, 2]
         warn_str = ("SIMON says: Stingray only uses poisson err_dist at "
-                    "the moment, We are setting your errors to zero. Sorry for "
-                    "the inconvenience.")
+                    "the moment")
 
         with warnings.catch_warnings(record=True) as w:
             lc = Lightcurve(times, counts, err_dist='gauss')
-            assert np.any([str(wi.message) == warn_str for wi in w])
+            assert np.any([warn_str in str(wi.message) for wi in w])
 
     def test_dummy_err_dist_fail(self):
         """
@@ -147,6 +264,11 @@ class TestLightcurve(object):
 
         with pytest.raises(ValueError):
             lc = Lightcurve(times, [2]*5, err=counts_err)
+
+        times[2] = np.inf
+
+        with pytest.raises(ValueError):
+            lc = Lightcurve(times, [2]*5)
 
     def test_n(self):
         lc = Lightcurve(self.times, self.counts)
@@ -632,11 +754,14 @@ class TestLightcurve(object):
     def test_sort(self):
         _times = [2, 1, 3, 4]
         _counts = [40, 10, 20, 5]
-        lc = Lightcurve(_times, _counts, mjdref=57000)
+        _counts_err = [4, 1, 2, 0.5]
+
+        lc = Lightcurve(_times, _counts, err=_counts_err, mjdref=57000)
         mjdref = lc.mjdref
 
         lc_new = lc.sort()
 
+        assert np.all(lc_new.counts_err == np.array([1, 4, 2, 0.5]))
         assert np.all(lc_new.counts == np.array([10, 40, 20, 5]))
         assert np.all(lc_new.time == np.array([1, 2, 3, 4]))
         assert lc_new.mjdref == mjdref
@@ -664,8 +789,6 @@ class TestLightcurve(object):
         assert np.all(lc_new.counts == np.array([40, 20, 10,  5]))
         assert np.all(lc_new.time == np.array([1, 3, 2, 4]))
         assert lc_new.mjdref == mjdref
-
-
 
     def test_sort_reverse(self):
         times = np.arange(1000)
@@ -753,9 +876,9 @@ class TestLightcurve(object):
 
         if _H5PY_INSTALLED:
             data = lc.read('lc.hdf5', format_='hdf5')
-            assert np.all(data['time'] == self.times)
-            assert np.all(data['counts'] == self.counts)
-            assert np.all(data['gti'] == self.gti)
+            assert np.all(data.time == self.times)
+            assert np.all(data.counts == self.counts)
+            assert np.all(data.gti == self.gti)
             os.remove('lc.hdf5')
 
         else:
@@ -876,7 +999,8 @@ class TestLightcurveRebin(object):
         good = create_gti_mask(times, gti)
 
         counts[np.logical_not(good)] = 0
-        lc = Lightcurve(times, counts, gti=gti)
+        lc = Lightcurve(times, counts, gti=gti, skip_checks=True, dt=0.1)
+        lc.apply_gtis()
 
         lc_rebin = lc.rebin(1.0)
 
@@ -922,16 +1046,16 @@ class TestLightcurveRebin(object):
         lc_new = self.lc.change_mjdref(57000)
         assert lc_new.mjdref == 57000
 
-    def test_apply_gtis(self):
+    def testapply_gtis(self):
         time = np.arange(150)
         count = np.zeros_like(time) + 3
         lc = Lightcurve(time, count, gti=[[-0.5, 150.5]])
         lc.gti = [[-0.5, 2.5], [12.5, 14.5]]
-        lc._apply_gtis()
+        lc.apply_gtis()
         assert lc.n == 5
         assert np.all(lc.time == np.array([0, 1, 2, 13, 14]))
         lc.gti = [[-0.5, 10.5]]
-        lc._apply_gtis()
+        lc.apply_gtis()
         assert np.all(lc.time == np.array([0, 1, 2]))
 
     def test_eq_operator(self):

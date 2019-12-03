@@ -1,13 +1,14 @@
-from __future__ import (absolute_import, unicode_literals, division,
-                        print_function)
+
 
 import numpy as np
 import logging
+import warnings
 import collections
 import copy
 
 from astropy.io import fits
-from .utils import contiguous_regions, jit, assign_value_if_none
+from .utils import contiguous_regions, jit, HAS_NUMBA
+from .utils import assign_value_if_none, apply_function_if_none
 from stingray.exceptions import StingrayError
 
 __all__ = ['load_gtis', 'check_gtis',
@@ -174,7 +175,7 @@ def create_gti_mask_jit(time, gtis, mask, gti_mask, min_length=0):  # pragma: no
     return mask, gti_mask
 
 
-def create_gti_mask(time, gtis, safe_interval=0, min_length=0,
+def create_gti_mask(time, gtis, safe_interval=None, min_length=0,
                     return_new_gtis=False, dt=None, epsilon=0.001):
     """Create GTI mask.
 
@@ -191,13 +192,14 @@ def create_gti_mask(time, gtis, safe_interval=0, min_length=0,
 
     Other parameters
     ----------------
-    safe_interval : float or ``[float, float]``
+    safe_interval : float or ``[float, float]``, default None
         A safe interval to exclude at both ends (if single float) or the start
-        and the end (if pair of values) of GTIs.
+        and the end (if pair of values) of GTIs. If None, no safe interval
+        is applied to data.
 
     min_length : float
-        An optional minimum length for the GTIs to be applied. Only GTIs longer than ``min_length`` will
-        be considered when creating the mask.
+        An optional minimum length for the GTIs to be applied. Only GTIs longer
+        than ``min_length`` will be considered when creating the mask.
 
     return_new_gtis : bool
         If ``True```, return the list of new GTIs (if ``min_length > 0``)
@@ -216,41 +218,46 @@ def create_gti_mask(time, gtis, safe_interval=0, min_length=0,
     new_gtis : ``Nx2`` array
         An array of new GTIs created by this function
     """
-    if len(time) == 0:
+    gtis = np.array(gtis, dtype=np.longdouble)
+    if time.size == 0:
         raise ValueError("Passing an empty time array to create_gti_mask")
-    if len(gtis) == 0:
+    if gtis.size == 0:
         raise ValueError("Passing an empty GTI array to create_gti_mask")
 
-    try:
-        from numba import jit
-    except ImportError:
+    mask = np.zeros(len(time), dtype=bool)
+
+    if min_length > 0:
+        lengths = gtis[:, 1] - gtis[:, 0]
+        good = lengths >= np.max(min_length, dt)
+
+        if np.all(~good):
+            warnings.warn("No GTIs longer than "
+                          "min_length {}".format(min_length))
+            return mask
+        gtis = gtis[good]
+
+    if not HAS_NUMBA:
         return create_gti_mask_complete(time, gtis,
                                         safe_interval=safe_interval,
                                         min_length=min_length,
                                         return_new_gtis=return_new_gtis,
                                         dt=dt, epsilon=epsilon)
 
-    gtis = np.array(gtis, dtype=np.longdouble)
-
     check_gtis(gtis)
 
-    dt = assign_value_if_none(dt, np.median(np.diff(time)))
+    dt = apply_function_if_none(dt, time,
+                                lambda x: np.median(np.diff(x)))
 
-    lengths = gtis[:, 1] - gtis[:, 0]
-    good = lengths >= max(min_length, dt)
-
-    gtis = gtis[good]
-
-    mask = np.zeros(len(time), dtype=bool)
-
-    if not isinstance(safe_interval, collections.Iterable):
-        safe_interval = np.array([safe_interval, safe_interval])
-    gti_mask = np.zeros(len(gtis), dtype=bool)
-    # These are the gtis that will be returned (filtered!). They are only
-    # modified by the safe intervals
     gtis_new = copy.deepcopy(gtis)
-    gtis_new[:, 0] = gtis[:, 0] + safe_interval[0]
-    gtis_new[:, 1] = gtis[:, 1] - safe_interval[1]
+    gti_mask = np.zeros(len(gtis), dtype=bool)
+
+    if safe_interval is not None:
+        if not isinstance(safe_interval, collections.Iterable):
+            safe_interval = np.array([safe_interval, safe_interval])
+        # These are the gtis that will be returned (filtered!). They are only
+        # modified by the safe intervals
+        gtis_new[:, 0] = gtis[:, 0] + safe_interval[0]
+        gtis_new[:, 1] = gtis[:, 1] - safe_interval[1]
 
     # These are false gtis, they contain a few boundary modifications
     # in order to simplify the calculation of the mask, but they will _not_
@@ -263,6 +270,7 @@ def create_gti_mask(time, gtis, safe_interval=0, min_length=0,
         create_gti_mask_jit((time - time[0]).astype(np.float64),
                             (gtis_to_mask - time[0]).astype(np.float64),
                             mask, gti_mask=gti_mask, min_length=min_length)
+
     if return_new_gtis:
         return mask, gtis_new[gtimask]
     return mask
@@ -320,7 +328,9 @@ def create_gti_mask_complete(time, gtis, safe_interval=0, min_length=0,
 
     mask = np.zeros(len(time), dtype=bool)
 
-    if not isinstance(safe_interval, collections.Iterable):
+    if safe_interval is None:
+        safe_interval = [0, 0]
+    elif not isinstance(safe_interval, collections.Iterable):
         safe_interval = [safe_interval, safe_interval]
 
     newgtis = np.zeros_like(gtis)
@@ -662,7 +672,7 @@ def join_equal_gti_boundaries(gti):
         count += 1
     ng.append(new_gtis[-1])
     return np.asarray(ng)
-  
+
 
 def append_gtis(gti0, gti1):
     """Union of two non-overlapping GTIs.

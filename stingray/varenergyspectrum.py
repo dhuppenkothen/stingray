@@ -1,4 +1,4 @@
-from __future__ import division
+
 import numpy as np
 from stingray.gti import check_separate, cross_two_gtis, create_gti_mask
 from stingray.lightcurve import Lightcurve

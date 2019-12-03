@@ -1,4 +1,4 @@
-from __future__ import division, print_function
+
 import numpy as np
 import scipy.stats
 import os
@@ -512,10 +512,10 @@ if can_sample:
             self.samples = sampler.flatchain
 
             self.nwalkers = np.float(sampler.chain.shape[0])
-            self.niter = np.float(sampler.iterations)
+            self.niter = np.float(sampler.chain.shape[1])
 
             # store number of dimensions
-            self.ndim = sampler.dim
+            self.ndim = sampler.chain.shape[2]
 
             # compute and store acceptance fraction
             self.acceptance = np.nanmean(sampler.acceptance_fraction)

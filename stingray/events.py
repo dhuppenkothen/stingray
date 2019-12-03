@@ -3,7 +3,7 @@ Definition of :class:`EventList`.
 
 :class:`EventList` is used to handle photon arrival times.
 """
-from __future__ import absolute_import, division, print_function
+
 
 from .io import read, write
 from .utils import simon, assign_value_if_none

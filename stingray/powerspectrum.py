@@ -1,10 +1,9 @@
-from __future__ import division
+
 import numpy as np
 import scipy
 import scipy.stats
 import scipy.fftpack
 import scipy.optimize
-import logging
 
 import stingray.lightcurve as lightcurve
 import stingray.utils as utils
@@ -481,10 +480,14 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
 
         if self.gti is None:
             self.gti = lc.gti
+        else:
+            if not np.all(lc.gti == self.gti):
+                self.gti = np.vstack([self.gti, lc.gti])
+
         check_gtis(self.gti)
 
         start_inds, end_inds = \
-            bin_intervals_from_gtis(self.gti, segment_size, lc.time, dt=lc.dt)
+            bin_intervals_from_gtis(lc.gti, segment_size, lc.time, dt=lc.dt)
 
         power_all = []
         nphots_all = []
@@ -493,7 +496,8 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
             counts = lc.counts[start_ind:end_ind]
             counts_err = lc.counts_err[start_ind: end_ind]
             lc_seg = lightcurve.Lightcurve(time, counts, err=counts_err,
-                                           err_dist=lc.err_dist.lower())
+                                           err_dist=lc.err_dist.lower(),
+                                           skip_checks=True, dt=lc.dt)
             power_seg = Powerspectrum(lc_seg, norm=self.norm)
             power_all.append(power_seg)
             nphots_all.append(np.sum(lc_seg.counts))

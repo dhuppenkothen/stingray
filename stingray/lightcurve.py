@@ -4,7 +4,7 @@ Definition of :class::class:`Lightcurve`.
 :class::class:`Lightcurve` is used to create light curves out of photon counting data
 or to save existing light curves in a class that's easy to use.
 """
-from __future__ import division, print_function
+
 import logging
 import numpy as np
 import stingray.io as io
@@ -64,6 +64,14 @@ class Lightcurve(object):
     mjdref: float
         MJD reference (useful in most high-energy mission data)
 
+    skip_checks: bool
+        If True, the user specifies that data are already sorted and contain no
+        infinite or nan points. Use at your own risk
+
+    low_memory: bool
+        If True, all the lazily evaluated attribute (e.g., countrate and
+        countrate_err if input_counts is True) will _not_ be stored in memory,
+        but calculated every time they are requested.
 
     Attributes
     ----------
@@ -117,12 +125,256 @@ class Lightcurve(object):
 
     err_dist: string
         Statistic of the Lightcurve, it is used to calculate the
-        uncertainties and other statistical values apropriately.
+        uncertainties and other statistical values appropriately.
         It propagates to Spectrum classes.
 
     """
     def __init__(self, time, counts, err=None, input_counts=True,
-                 gti=None, err_dist='poisson', mjdref=0, dt=None):
+                 gti=None, err_dist='poisson', mjdref=0, dt=None,
+                 skip_checks=False, low_memory=False):
+
+        time = np.asarray(time)
+        counts = np.asarray(counts)
+        if err is not None:
+            err = np.asarray(err)
+
+        if not skip_checks:
+            time, counts, err = self.initial_optional_checks(time, counts, err)
+
+        if time.size != counts.size:
+            raise StingrayError("time and counts array are not "
+                                "of the same length!")
+
+        if time.size <= 1:
+            raise StingrayError("A single or no data points can not create "
+                                "a lightcurve!")
+
+        if err_dist.lower() not in valid_statistics:
+            # err_dist set can be increased with other statistics
+            raise StingrayError("Statistic not recognized."
+                                "Please select one of these: ",
+                                "{}".format(valid_statistics))
+        elif not err_dist.lower() == 'poisson':
+            simon("Stingray only uses poisson err_dist at the moment. "
+                  "All analysis in the light curve will assume Poisson "
+                  "errors. "
+                  "Sorry for the inconvenience.")
+
+        if err is not None:
+            err = np.asarray(err)
+            if not skip_checks and not np.all(np.isfinite(err)):
+                raise ValueError("There are inf or NaN values in "
+                                 "your err array")
+
+        self.mjdref = mjdref
+        self._time = time
+
+        if dt is None:
+            logging.warning("Computing the bin time ``dt``. This can take "
+                            "time. If you know the bin time, please specify it"
+                            " at light curve creation")
+            dt = np.median(np.diff(self._time))
+
+        self.dt = dt
+        self.err_dist = err_dist
+
+        self.tstart = self._time[0] - 0.5 * self.dt
+        self.tseg = self._time[-1] - self._time[0] + self.dt
+
+        self._gti = None
+        if gti is not None:
+            self._gti = np.asarray(gti)
+
+        self._mask = None
+        self._counts = None
+        self._counts_err = None
+        self._countrate = None
+        self._countrate_err = None
+        self._meanrate = None
+        self._meancounts = None
+        self._bin_lo = None
+        self._bin_hi = None
+        self._n = None
+
+        self.input_counts = input_counts
+        self.low_memory = low_memory
+        if input_counts:
+            self._counts = np.asarray(counts)
+            self._counts_err = err
+        else:
+            self._countrate = np.asarray(counts)
+            self._countrate_err = err
+
+        if not skip_checks:
+            self.check_lightcurve()
+
+    @property
+    def time(self):
+        return self._time
+
+    @time.setter
+    def time(self, value):
+        value = np.asarray(value)
+        if not value.shape == self.time.shape:
+            raise ValueError('Can only assign new times of the same shape as '
+                             'the original array')
+        self._time = value
+        self._bin_lo = None
+        self._bin_hi = None
+
+    @property
+    def gti(self):
+        if self._gti is None:
+            self._gti = \
+                np.asarray([[self.tstart, self.tstart + self.tseg]])
+        return self._gti
+
+    @gti.setter
+    def gti(self, value):
+        value = np.asarray(value)
+        self._gti = value
+        self._mask = None
+
+    @property
+    def mask(self):
+        if self._mask is None:
+            self._mask = create_gti_mask(self.time, self.gti, dt=self.dt)
+        return self._mask
+
+    @property
+    def n(self):
+        if self._n is None:
+            self._n = self.counts.shape[0]
+        return self._n
+
+    @property
+    def meanrate(self):
+        if self._meanrate is None:
+            self._meanrate = np.mean(self.countrate[self.mask])
+        return self._meanrate
+
+    @property
+    def meancounts(self):
+        if self._meancounts is None:
+            self._meancounts = np.mean(self.counts[self.mask])
+        return self._meancounts
+
+    @property
+    def counts(self):
+        counts = self._counts
+        if self._counts is None:
+            counts = self._countrate * self.dt
+            # If not in low-memory regime, cache the values
+            if not self.low_memory or self.input_counts:
+                self._counts = counts
+
+        return counts
+
+    @counts.setter
+    def counts(self, value):
+        value = np.asarray(value)
+        if not value.shape == self.counts.shape:
+            raise ValueError('Can only assign new counts array of the same '
+                             'shape as the original array')
+        self._counts = value
+        self._countrate = None
+        self._meancounts = None
+        self._meancountrate = None
+        self.input_counts = True
+
+    @property
+    def counts_err(self):
+        counts_err = self._counts_err
+        if counts_err is None and self._countrate_err is not None:
+            counts_err = self._countrate_err * self.dt
+        elif counts_err is None:
+            if self.err_dist.lower() == 'poisson':
+                counts_err = poisson_symmetrical_errors(self.counts)
+            else:
+                counts_err = np.zeros_like(self.counts)
+
+        # If not in low-memory regime, cache the values ONLY if they have
+        # been changed!
+        if self._counts_err is not counts_err:
+            if not self.low_memory or self.input_counts:
+                self._counts_err = counts_err
+
+        return counts_err
+
+    @counts_err.setter
+    def counts_err(self, value):
+        value = np.asarray(value)
+        if not value.shape == self.counts.shape:
+            raise ValueError('Can only assign new error array of the same '
+                             'shape as the original array')
+        self._counts_err = value
+        self._countrate_err = None
+
+    @property
+    def countrate(self):
+        countrate = self._countrate
+        if countrate is None:
+            countrate = self._counts / self.dt
+            # If not in low-memory regime, cache the values
+            if not self.low_memory or not self.input_counts:
+                self._countrate = countrate
+
+        return countrate
+
+    @countrate.setter
+    def countrate(self, value):
+        value = np.asarray(value)
+        if not value.shape == self.countrate.shape:
+            raise ValueError('Can only assign new countrate array of the same '
+                             'shape as the original array')
+        self._countrate = value
+        self._counts = None
+        self._meancounts = None
+        self._meancountrate = None
+        self.input_counts = False
+
+    @property
+    def countrate_err(self):
+        countrate_err = self._countrate_err
+        if countrate_err is None and self._counts_err is not None:
+            countrate_err = self._counts_err / self.dt
+        elif countrate_err is None:
+            countrate_err = 0
+
+        # If not in low-memory regime, cache the values ONLY if they have
+        # been changed!
+        if countrate_err is not self._countrate_err:
+            if not self.low_memory or not self.input_counts:
+                self._countrate_err = countrate_err
+
+        return countrate_err
+
+    @countrate_err.setter
+    def countrate_err(self, value):
+        value = np.asarray(value)
+        if not value.shape == self.countrate.shape:
+            raise ValueError('Can only assign new error array of the same '
+                             'shape as the original array')
+        self._countrate_err = value
+        self._counts_err = None
+
+    @property
+    def bin_lo(self):
+        if self._bin_lo is None:
+            self._bin_lo = self.time - 0.5 * self.dt
+        return self._bin_lo
+
+    @property
+    def bin_hi(self):
+        if self._bin_hi is None:
+            self._bin_hi = self.time + 0.5 * self.dt
+        return self._bin_hi
+
+    def initial_optional_checks(self, time, counts, err):
+        logging.warning("Checking if light curve is well behaved. This "
+                        "can take time, so if you are sure it is already "
+                        "sorted, specify skip_checks=True at light curve "
+                        "creation.")
 
         if not np.all(np.isfinite(time)):
             raise ValueError("There are inf or NaN values in "
@@ -132,93 +384,30 @@ class Lightcurve(object):
             raise ValueError("There are inf or NaN values in "
                              "your counts array!")
 
-        if len(time) != len(counts):
-
-            raise StingrayError("time and counts array are not "
-                                "of the same length!")
-
-        if len(time) <= 1:
-            raise StingrayError("A single or no data points can not create "
-                                "a lightcurve!")
-
-        if err is not None:
-            if not np.all(np.isfinite(err)):
-                raise ValueError("There are inf or NaN values in "
-                                 "your err array")
-        else:
-            if err_dist.lower() not in valid_statistics:
-                # err_dist set can be increased with other statistics
-                raise StingrayError("Statistic not recognized."
-                                    "Please select one of these: ",
-                                    "{}".format(valid_statistics))
-            if err_dist.lower() == 'poisson':
-                # Instead of the simple square root, we use confidence
-                # intervals (should be valid for low fluxes too)
-                err = poisson_symmetrical_errors(counts)
-            else:
-                simon("Stingray only uses poisson err_dist at the moment, "
-                      "We are setting your errors to zero. "
-                      "Sorry for the inconvenience.")
-                err = np.zeros_like(counts)
-
-        self.mjdref = mjdref
-        self.time = np.asarray(time)
-        dt_array = np.diff(np.sort(self.time))
-        dt_array_unsorted = np.diff(self.time)
-        unsorted = np.any(dt_array_unsorted < 0)
-
-        if dt is None:
-            if unsorted:
-                logging.warning("The light curve is unordered! This may cause "
-                                "unexpected behaviour in some methods! Use "
-                                "sort() to order the light curve in time and "
-                                "check that the time resolution `dt` is "
-                                "calculated correctly!")
-
-            self.dt = np.median(dt_array)
-        else:
-            self.dt = dt
-
-        self.bin_lo = self.time - 0.5 * self.dt
-        self.bin_hi = self.time + 0.5 * self.dt
-
-        self.err_dist = err_dist
+        logging.warning("Checking if light curve is sorted.")
+        dt_array = np.diff(time)
+        unsorted = np.any(dt_array < 0)
 
         if unsorted:
-            self.tstart = np.min(self.time) - 0.5 * self.dt
-            self.tseg = np.max(self.time) - np.min(self.time) + self.dt
-        else:
-            self.tstart = self.time[0] - 0.5 * self.dt
-            self.tseg = self.time[-1] - self.time[0] + self.dt
+            logging.warning("The light curve is unsorted. Now, sorting...")
+            order = np.argsort(time)
+            time = time[order]
+            counts = counts[order]
+            if err is not None:
+                err = err[order]
+        return time, counts, err
 
-        self.gti = \
-            np.asarray(assign_value_if_none(gti,
-                                            [[self.tstart,
-                                              self.tstart + self.tseg]]))
+    def check_lightcurve(self):
+        """Make various checks on the lightcurve.
+
+        It can be slow, use it if you are not sure about your
+        input data.
+        """
+        # Issue a warning if the input time iterable isn't regularly spaced,
+        # i.e. the bin sizes aren't equal throughout.
 
         check_gtis(self.gti)
 
-        good = create_gti_mask(self.time, self.gti, dt=self.dt)
-
-        self.time = self.time[good]
-
-        if input_counts:
-            self.counts = np.asarray(counts)[good]
-            self.countrate = self.counts / self.dt
-            self.counts_err = np.asarray(err)[good]
-            self.countrate_err = np.asarray(err)[good] / self.dt
-        else:
-            self.countrate = np.asarray(counts)[good]
-            self.counts = self.countrate * self.dt
-            self.counts_err = np.asarray(err)[good] * self.dt
-            self.countrate_err = np.asarray(err)[good]
-
-        self.meanrate = np.mean(self.countrate)
-        self.meancounts = np.mean(self.counts)
-        self.n = self.counts.shape[0]
-
-        # Issue a warning if the input time iterable isn't regularly spaced,
-        # i.e. the bin sizes aren't equal throughout.
         dt_array = []
         for g in self.gti:
             mask = create_gti_mask(self.time, [g], dt=self.dt)
@@ -269,12 +458,11 @@ class Lightcurve(object):
 
         """
         new_lc = Lightcurve(self.time + time_shift, self.counts,
-                            gti=self.gti + time_shift, mjdref=self.mjdref)
-        new_lc.countrate = self.countrate
-        new_lc.counts = self.counts
-        new_lc.counts_err = self.counts_err
-        new_lc.meanrate = np.mean(new_lc.countrate)
-        new_lc.meancounts = np.mean(new_lc.counts)
+                            err=self.counts_err,
+                            gti=self.gti + time_shift, mjdref=self.mjdref,
+                            dt=self.dt, err_dist=self.err_dist,
+                            skip_checks=True)
+
         return new_lc
 
     def _operation_with_other_lc(self, other, operation):
@@ -332,7 +520,8 @@ class Lightcurve(object):
 
         lc_new = Lightcurve(new_time, new_counts,
                             err=new_counts_err, gti=common_gti,
-                            mjdref=self.mjdref)
+                            mjdref=self.mjdref, skip_checks=True,
+                            dt=self.dt)
 
         return lc_new
 
@@ -353,8 +542,8 @@ class Lightcurve(object):
         >>> count2 = [600, 1200, 800]
         >>> gti1 = [[0, 20]]
         >>> gti2 = [[0, 25]]
-        >>> lc1 = Lightcurve(time, count1, gti=gti1)
-        >>> lc2 = Lightcurve(time, count2, gti=gti2)
+        >>> lc1 = Lightcurve(time, count1, gti=gti1, dt=5)
+        >>> lc2 = Lightcurve(time, count2, gti=gti2, dt=5)
         >>> lc = lc1 + lc2
         >>> lc.counts
         array([ 900, 1300, 1200])
@@ -382,8 +571,8 @@ class Lightcurve(object):
         >>> count2 = [300, 100, 400]
         >>> gti1 = [[0, 35]]
         >>> gti2 = [[0, 40]]
-        >>> lc1 = Lightcurve(time, count1, gti=gti1)
-        >>> lc2 = Lightcurve(time, count2, gti=gti2)
+        >>> lc1 = Lightcurve(time, count1, gti=gti1, dt=5)
+        >>> lc2 = Lightcurve(time, count2, gti=gti2, dt=5)
         >>> lc = lc1 - lc2
         >>> lc.counts
         array([ 300, 1100,  400])
@@ -411,7 +600,8 @@ class Lightcurve(object):
         """
         lc_new = Lightcurve(self.time, -1 * self.counts,
                             err=self.counts_err, gti=self.gti,
-                            mjdref=self.mjdref)
+                            mjdref=self.mjdref, skip_checks=True,
+                            dt=self.dt)
 
         return lc_new
 
@@ -427,7 +617,7 @@ class Lightcurve(object):
         --------
         >>> time = [1, 2, 3]
         >>> count = [100, 200, 300]
-        >>> lc = Lightcurve(time, count)
+        >>> lc = Lightcurve(time, count, dt=1)
         >>> len(lc)
         3
         """
@@ -455,7 +645,7 @@ class Lightcurve(object):
         --------
         >>> time = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         >>> count = [11, 22, 33, 44, 55, 66, 77, 88, 99]
-        >>> lc = Lightcurve(time, count)
+        >>> lc = Lightcurve(time, count, dt=1)
         >>> lc[2]
         33
         >>> lc[:2].counts
@@ -481,7 +671,7 @@ class Lightcurve(object):
             new_gti = cross_two_gtis(self.gti, new_gti)
 
             return Lightcurve(new_time, new_counts, mjdref=self.mjdref,
-                              gti=new_gti, dt=self.dt)
+                              gti=new_gti, dt=self.dt, skip_checks=True)
         else:
             raise IndexError("The index must be either an integer or a slice "
                              "object !")
@@ -497,8 +687,8 @@ class Lightcurve(object):
         >>> time = [1, 2, 3]
         >>> count1 = [100, 200, 300]
         >>> count2 = [100, 200, 300]
-        >>> lc1 = Lightcurve(time, count1)
-        >>> lc2 = Lightcurve(time, count2)
+        >>> lc1 = Lightcurve(time, count1, dt=1)
+        >>> lc2 = Lightcurve(time, count2, dt=1)
         >>> lc1 == lc2
         True
         """
@@ -623,7 +813,8 @@ class Lightcurve(object):
             counts, histbins = np.histogram(toa[good], bins=histbins)
             time = histbins[:-1] + 0.5 * dt
 
-        return Lightcurve(time, counts, gti=gti, mjdref=mjdref, dt=dt)
+        return Lightcurve(time, counts, gti=gti, mjdref=mjdref, dt=dt,
+                          skip_checks=True, err_dist='poisson')
 
     def rebin(self, dt_new=None, f=None, method='sum'):
         """
@@ -664,38 +855,35 @@ class Lightcurve(object):
             raise ValueError("New time resolution must be larger than "
                              "old time resolution!")
 
-        if self.gti is None:
+        bin_time, bin_counts, bin_err = [], [], []
+        gti_new = []
+        for g in self.gti:
+            if g[1] - g[0] < dt_new:
+                continue
+            else:
+                # find start and end of GTI segment in data
+                start_ind = self.time.searchsorted(g[0])
+                end_ind = self.time.searchsorted(g[1])
 
-            bin_time, bin_counts, bin_err, _ = \
-                utils.rebin_data(self.time, self.counts, dt_new,
-                                 yerr=self.counts_err, method=method)
+                t_temp = self.time[start_ind:end_ind]
+                c_temp = self.counts[start_ind:end_ind]
+                e_temp = self.counts_err[start_ind:end_ind]
 
-        else:
-            bin_time, bin_counts, bin_err = [], [], []
-            gti_new = []
-            for g in self.gti:
-                if g[1] - g[0] < dt_new:
-                    continue
-                else:
-                    # find start and end of GTI segment in data
-                    start_ind = self.time.searchsorted(g[0])
-                    end_ind = self.time.searchsorted(g[1])
+                bin_t, bin_c, bin_e, _ = \
+                    utils.rebin_data(t_temp, c_temp, dt_new,
+                                     yerr=e_temp, method=method)
 
-                    t_temp = self.time[start_ind:end_ind]
-                    c_temp = self.counts[start_ind:end_ind]
-                    e_temp = self.counts_err[start_ind:end_ind]
+                bin_time.extend(bin_t)
+                bin_counts.extend(bin_c)
+                bin_err.extend(bin_e)
+                gti_new.append(g)
 
-                    bin_t, bin_c, bin_e, _ = \
-                        utils.rebin_data(t_temp, c_temp, dt_new,
-                                         yerr=e_temp, method=method)
-
-                    bin_time.extend(bin_t)
-                    bin_counts.extend(bin_c)
-                    bin_err.extend(bin_e)
-                    gti_new.append(g)
+        if len(gti_new) == 0:
+            raise ValueError("No valid GTIs after rebin.")
 
         lc_new = Lightcurve(bin_time, bin_counts, err=bin_err,
-                            mjdref=self.mjdref, dt=dt_new, gti=gti_new)
+                            mjdref=self.mjdref, dt=dt_new, gti=gti_new,
+                            skip_checks=True)
         return lc_new
 
     def join(self, other):
@@ -727,8 +915,8 @@ class Lightcurve(object):
         >>> count1 = [300, 100, 400]
         >>> time2 = [20, 25, 30]
         >>> count2 = [600, 1200, 800]
-        >>> lc1 = Lightcurve(time1, count1)
-        >>> lc2 = Lightcurve(time2, count2)
+        >>> lc1 = Lightcurve(time1, count1, dt=5)
+        >>> lc2 = Lightcurve(time2, count2, dt=5)
         >>> lc = lc1.join(lc2)
         >>> lc.time
         array([ 5, 10, 15, 20, 25, 30])
@@ -851,7 +1039,7 @@ class Lightcurve(object):
         --------
         >>> time = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         >>> count = [10, 20, 30, 40, 50, 60, 70, 80, 90]
-        >>> lc = Lightcurve(time, count)
+        >>> lc = Lightcurve(time, count, dt=1)
         >>> lc_new = lc.truncate(start=2, stop=8)
         >>> lc_new.counts
         array([30, 40, 50, 60, 70, 80])
@@ -949,7 +1137,7 @@ class Lightcurve(object):
         -------
         >>> time = np.array([1, 2, 3, 6, 7, 8, 11, 12, 13])
         >>> counts = np.random.rand(time.shape[0])
-        >>> lc = Lightcurve(time, counts)
+        >>> lc = Lightcurve(time, counts, dt=1)
         >>> split_lc = lc.split(1.5)
 
         """
@@ -958,19 +1146,19 @@ class Lightcurve(object):
         # find all distances between time bins that are larger than `min_gap`
         gap_idx = np.where(tdiff >= min_gap)[0]
 
-        # tolerance for the newly created GTIs: Note that this seems to work with a 
-        # tolerance of 2, but not if I substitute 10, and I don't know why
+        # tolerance for the newly created GTIs: Note that this seems to work
+        # with a tolerance of 2, but not if I substitute 10. I don't know why
         epsilon = np.min(tdiff)/2.0
 
         # calculate new GTIs
         gti_start = np.hstack([self.time[0]-epsilon, self.time[gap_idx+1]-epsilon])
         gti_stop = np.hstack([self.time[gap_idx]+epsilon, self.time[-1]+epsilon])
-        
+
         gti = np.vstack([gti_start, gti_stop]).T
         if hasattr(self, 'gti') and self.gti is not None:
             gti = cross_two_gtis(self.gti, gti)
         self.gti = gti
-        
+
         lc_split = self.split_by_gti(min_points=min_points)
         return lc_split
 
@@ -991,7 +1179,7 @@ class Lightcurve(object):
         --------
         >>> time = [2, 1, 3]
         >>> count = [200, 100, 300]
-        >>> lc = Lightcurve(time, count)
+        >>> lc = Lightcurve(time, count, dt=1)
         >>> lc_new = lc.sort()
         >>> lc_new.time
         array([1, 2, 3])
@@ -1004,13 +1192,16 @@ class Lightcurve(object):
             The :class:`Lightcurve` object with sorted time and counts
             arrays.
         """
-
         new_time, new_counts, new_counts_err = \
             zip(*sorted(zip(self.time, self.counts, self.counts_err),
                         reverse=reverse))
+        new_time = np.asarray(new_time)
+        new_counts = np.asarray(new_counts)
+        new_counts_err = np.asarray(new_counts_err)
 
         new_lc = Lightcurve(new_time, new_counts, err=new_counts_err,
-                            gti=self.gti, dt=self.dt, mjdref=self.mjdref)
+                            gti=self.gti, dt=self.dt, mjdref=self.mjdref,
+                            skip_checks=True)
 
         return new_lc
 
@@ -1037,7 +1228,7 @@ class Lightcurve(object):
         --------
         >>> time = [1, 2, 3]
         >>> count = [200, 100, 300]
-        >>> lc = Lightcurve(time, count)
+        >>> lc = Lightcurve(time, count, dt=1)
         >>> lc_new = lc.sort_counts()
         >>> lc_new.time
         array([2, 1, 3])
@@ -1050,7 +1241,8 @@ class Lightcurve(object):
                         reverse=reverse))
 
         new_lc = Lightcurve(new_time, new_counts, err=new_counts_err,
-                            gti=self.gti, dt=self.dt, mjdref=self.mjdref)
+                            gti=self.gti, dt=self.dt, mjdref=self.mjdref,
+                            skip_checks=True)
 
         return new_lc
 
@@ -1080,13 +1272,13 @@ class Lightcurve(object):
         >>> import numpy as np
         >>> time = np.arange(150)
         >>> count = np.zeros_like(time) + 3
-        >>> lc = Lightcurve(time, count)
+        >>> lc = Lightcurve(time, count, dt=1)
         >>> lc.estimate_chunk_length(min_total_counts=10, min_time_bins=3)
         4.0
         >>> lc.estimate_chunk_length(min_total_counts=10, min_time_bins=5)
         5.0
         >>> count[2:4] = 1
-        >>> lc = Lightcurve(time, count)
+        >>> lc = Lightcurve(time, count, dt=1)
         >>> lc.estimate_chunk_length(min_total_counts=3, min_time_bins=1)
         4.0
         """
@@ -1144,7 +1336,7 @@ class Lightcurve(object):
         >>> import numpy as np
         >>> time = np.arange(0, 10, 0.1)
         >>> counts = np.zeros_like(time) + 10
-        >>> lc = Lightcurve(time, counts)
+        >>> lc = Lightcurve(time, counts, dt=0.1)
         >>> # Define a function that calculates the mean
         >>> mean_func = lambda x: np.mean(x)
         >>> # Calculate the mean in segments of 5 seconds
@@ -1268,21 +1460,20 @@ class Lightcurve(object):
         format\_: str
             Available options are 'pickle', 'hdf5', 'ascii'
         """
-
+        _ = self.counts, self.counts_err, \
+            self.countrate, self.countrate_err, \
+            self.gti
         if format_ == 'ascii':
-            io.write(np.array([self.time, self.counts]).T,
-                     filename, format_, fmt=["%s", "%s"])
-
+            io.write(np.array([self.time, self.counts, self.counts_err]).T,
+                     filename, format_, fmt=["%s", "%s", "%s"])
         elif format_ == 'pickle':
             io.write(self, filename, format_)
-
         elif format_ == 'hdf5':
             io.write(self, filename, format_)
-
         else:
             utils.simon("Format not understood.")
 
-    def read(self, filename, format_='pickle'):
+    def read(self, filename, format_='pickle', default_err_dist='gauss'):
         """
         Read a :class:`Lightcurve` object from file. Currently supported formats are
 
@@ -1298,6 +1489,15 @@ class Lightcurve(object):
         format\_: str
             Available options are 'pickle', 'hdf5', 'ascii'
 
+        Other parameters
+        ----------------
+
+        default_err_dist: str, default='gauss'
+            Default error distribution if not specified in the file (e.g. for
+            ASCII files). The default is 'gauss' just because it is likely
+            that people using ASCII light curves will want to specify Gaussian
+            error bars, if any.
+
         Returns
         --------
         lc : ``astropy.table`` or ``dict`` or :class:`Lightcurve` object
@@ -1306,14 +1506,42 @@ class Lightcurve(object):
             * If ``format\_`` is ``pickle``: :class:`Lightcurve` object is returned.
         """
 
-        if format_ == 'ascii' or format_ == 'hdf5':
-            return io.read(filename, format_)
+        if format_ == 'ascii':
+            data_raw = io.read(filename, format_,
+                               names=['time', 'counts', 'counts_err'])
 
+            data = {'time': np.array(data_raw['time']),
+                    'counts': np.array(data_raw['counts']),
+                    'counts_err': np.array(data_raw['counts_err'])}
+            data['dt'] = np.median(np.diff(data['time']))
+            data['gti'] = np.array([[data['time'][0] - data['dt'] / 0,
+                                     data['time'][-1] + data['dt'] / 0]])
+            # We use default_err_dist == 'gauss' just because people using
+            # ASCII files will generally use Gaussian errors. This can be
+            # changed from the command line.
+            data['err_dist'] = default_err_dist
+            data['mjdref'] = 0
+        elif format_ == 'hdf5':
+            data_raw = io.read(filename, format_)
+
+            data = {'time': np.array(data_raw['_time']),
+                    'counts': np.array(data_raw['_counts']),
+                    'counts_err': np.array(data_raw['_counts_err'])}
+            data['dt'] = data_raw['dt']
+            data['gti'] = None
+            if 'gti' in data_raw:
+                data['gti'] = data_raw['gti']
+            data['err_dist'] = data_raw['err_dist']
+            data['mjdref'] = data_raw['mjdref']
         elif format_ == 'pickle':
-            self = io.read(filename, format_)
-
+            return io.read(filename, format_)
         else:
             utils.simon("Format not understood.")
+            return None
+        return Lightcurve(data['time'], data['counts'], err=data['counts_err'],
+                          dt=data['dt'], skip_checks=True, gti=data['gti'],
+                          err_dist=data['err_dist'],
+                          mjdref=data['mjdref'])
 
     def split_by_gti(self, min_points=2):
         """
@@ -1348,29 +1576,35 @@ class Lightcurve(object):
             new_lc = Lightcurve(self.time[start:stop], self.counts[start:stop],
                                 err=self.counts_err[start:stop],
                                 mjdref=self.mjdref, gti=[self.gti[i]],
-                                dt=self.dt, err_dist=self.err_dist)
+                                dt=self.dt, err_dist=self.err_dist,
+                                skip_checks=True)
             list_of_lcs.append(new_lc)
 
         return list_of_lcs
 
-    def _apply_gtis(self):
+    def apply_gtis(self):
         """
-        Apply GTIs to a light curve. Filters the ``time``, ``counts``, ``countrate``, ``counts_err`` and
-        ``countrate_err`` arrays for all bins that fall into Good Time Intervals and recalculates mean
-        count(rate) and the number of bins.
+        Apply GTIs to a light curve. Filters the ``time``, ``counts``,
+        ``countrate``, ``counts_err`` and ``countrate_err`` arrays for all bins
+        that fall into Good Time Intervals and recalculates mean countrate
+        and the number of bins.
         """
         check_gtis(self.gti)
 
-        good = create_gti_mask(self.time, self.gti, dt=self.dt)
+        good = self.mask
 
-        self.time = self.time[good]
-        self.counts = self.counts[good]
+        # nota bene: We set the private properties, otherwise we'll get a
+        # ValueError from changing the shape of the arrays.
+        self._time = self.time[good]
+        self._counts = self.counts[good]
+        if self._counts_err is not None:
+            self._counts_err = self._counts_err[good]
+        self._countrate = None
+        self._countrate_err = None
+        self._mask = None
 
-        self.counts_err = self.counts_err[good]
-        self.countrate = self.countrate[good]
-        self.countrate_err = self.countrate_err[good]
-
-        self.meanrate = np.mean(self.countrate)
-        self.meancounts = np.mean(self.counts)
-        self.n = self.counts.shape[0]
+        self._meanrate = None
+        self._meancounts = None
+        self._n = None
         self.tseg = np.max(self.gti) - np.min(self.gti)
+        self.tstart = self.time - 0.5 * self.dt

@@ -37,22 +37,17 @@ matrix:
     include:
         - env: PYTHON_VERSION=3.7 SETUP_CMD='egg_info' SETUP_XVFB=False
 
-        - env: PYTHON_VERSION=3.7
+        - env: PYTHON_VERSION=3.8
 
         - env: PYTHON_VERSION=3.6
                PIP_DEPENDENCIES='git+https://git@github.com/nanograv/pint.git jplephem emcee statsmodels corner'
-               SETUP_CMD='test --remote-data --coverage' NUMPY_VERSION=1.14
+               SETUP_CMD='test --remote-data --coverage'
 
         - env: PYTHON_VERSION=3.7  CONDA_DEPENDENCIES='scipy matplotlib numba'
 
         # Try without using corner
         - env: PYTHON_VERSION=3.5 PIP_DEPENDENCIES='emcee statsmodels'
-
-        # Try without using emcee
-        - env: PYTHON_VERSION=3.5 PIP_DEPENDENCIES='statsmodels'
-
-        # Try without using statsmodels
-        - env: PYTHON_VERSION=3.5 PIP_DEPENDENCIES='emcee'
+               NUMPY_VERSION=1.14
 
         - env: PYTHON_VERSION=3.6 PIP_DEPENDENCIES='nbsphinx sphinx-astropy' SETUP_CMD='build_docs -w'
 
@@ -61,6 +56,7 @@ matrix:
 
     allow_failures:
 
+        - env: PYTHON_VERSION=3.8
         # Try Astropy development version
         - env: PYTHON_VERSION=3.7 ASTROPY_VERSION=development
 

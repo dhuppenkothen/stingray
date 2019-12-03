@@ -194,6 +194,10 @@ class TestUtils(object):
         assert utils.assign_value_if_none(None, 2) == 2
         assert utils.assign_value_if_none(1, 2) == 1
 
+    def test_apply_function_if_none(self):
+        assert utils.apply_function_if_none(None, [1, 2, 3], np.median) == 2
+        assert utils.apply_function_if_none(1, [1, 2, 3], np.median) == 1
+
     def test_contiguous(self):
         """A more complicated example of intersection of GTIs."""
         array = np.array([0, 1, 1, 0, 1, 1, 1], dtype=bool)

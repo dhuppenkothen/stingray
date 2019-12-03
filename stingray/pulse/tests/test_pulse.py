@@ -1,4 +1,4 @@
-from __future__ import division, print_function, absolute_import
+
 
 import numpy as np
 from stingray.pulse.pulsar import fold_events, get_TOA
@@ -6,7 +6,7 @@ from stingray.pulse.pulsar import stat, z_n, pulse_phase, phase_exposure
 from stingray.pulse.pulsar import fold_detection_level, z2_n_detection_level
 from stingray.pulse.pulsar import fold_profile_probability, z2_n_probability
 from stingray.pulse.pulsar import get_orbital_correction_from_ephemeris_file
-from ..pulsar import HAS_PINT
+from stingray.pulse.pulsar import HAS_PINT
 from astropy.tests.helper import remote_data
 import pytest
 import os
@@ -32,7 +32,7 @@ class TestAll(object):
     @pytest.mark.skipif('not HAS_PINT')
     def test_pint_installed_correctly(self):
         import pint.toa as toa
-        from pint.residuals import resids
+        from pint.residuals import Residuals
         import pint.models.model_builder as mb
         import astropy.units as u
         parfile = os.path.join(self.datadir, 'example_pint.par')
@@ -42,7 +42,7 @@ class TestAll(object):
                             planets=False, include_bipm=False)
         model = mb.get_model(parfile)
 
-        pint_resids_us = resids(toas, model, False).time_resids.to(u.s)
+        pint_resids_us = Residuals(toas, model, False).time_resids.to(u.s)
 
         # Due to the gps2utc clock correction. We are at 3e-8 seconds level.
         assert np.all(np.abs(pint_resids_us.value) < 3e-6)

@@ -1,4 +1,4 @@
-from __future__ import division, print_function, absolute_import
+
 import numpy as np
 import numbers
 from scipy import signal
@@ -68,7 +68,7 @@ class Simulator(object):
         * x = simulate(s):
            For generating a light curve from user-provided spectrum.
             **Note**: In this case, the `red_noise` parameter is provided.
-            You can generate a longer light curve by providing a higher 
+            You can generate a longer light curve by providing a higher
             frequency resolution on the input power spectrum.
 
               Parameters:
@@ -346,6 +346,7 @@ class Simulator(object):
         # Obtain time series
         long_lc = self._find_inverse(real, imaginary)
         lc = Lightcurve(self.time, self._extract_and_scale(long_lc),
+                        err=np.zeros_like(self.time) + np.sqrt(self.mean),
                         err_dist='gauss', dt=self.dt)
 
         return lc
@@ -378,6 +379,7 @@ class Simulator(object):
 
         lc = self._find_inverse(real, imaginary)
         lc = Lightcurve(self.time, self._extract_and_scale(lc),
+                        err=np.zeros_like(self.time) + np.sqrt(self.mean),
                         err_dist='gauss', dt=self.dt)
 
         return lc
@@ -414,6 +416,7 @@ class Simulator(object):
         long_lc = self._find_inverse(pos_real, pos_imag)
 
         lc = Lightcurve(self.time, self._extract_and_scale(long_lc),
+                        err=np.zeros_like(self.time) + np.sqrt(self.mean),
                         err_dist='gauss', dt=self.dt)
         return lc
 
@@ -456,6 +459,7 @@ class Simulator(object):
             long_lc = self._find_inverse(pos_real, pos_imag)
 
             lc = Lightcurve(self.time, self._extract_and_scale(long_lc),
+                            err=np.zeros_like(self.time) + np.sqrt(self.mean),
                             err_dist='gauss', dt=self.dt)
             return lc
         else:
@@ -495,7 +499,8 @@ class Simulator(object):
             lc = lc[(len(h) - 1):-(len(h) - 1)]
 
         time = self.dt * np.arange(len(lc)) + self.tstart
-        return Lightcurve(time, lc, err_dist='gauss', dt=self.dt)
+        return Lightcurve(time, lc, err_dist='gauss', dt=self.dt,
+                          err=np.zeros_like(self.time) + np.sqrt(self.mean))
 
     def _find_inverse(self, real, imaginary):
         """

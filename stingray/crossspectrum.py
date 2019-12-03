@@ -1,4 +1,5 @@
-from __future__ import division, absolute_import, print_function
+
+import warnings
 
 import numpy as np
 import scipy
@@ -6,14 +7,156 @@ import scipy.stats
 import scipy.fftpack
 import scipy.optimize
 
+# location of factorial moved between scipy versions
+try:
+    from scipy.misc import factorial
+except ImportError:
+    from scipy.special import factorial
+
+
 from stingray.lightcurve import Lightcurve
 from stingray.utils import rebin_data, simon, rebin_data_log
 from stingray.exceptions import StingrayError
 from stingray.gti import cross_two_gtis, bin_intervals_from_gtis, check_gtis
 import copy
 
-__all__ = ["Crossspectrum", "AveragedCrossspectrum", "coherence", "time_lag"]
+__all__ = ["Crossspectrum", "AveragedCrossspectrum",
+           "coherence", "time_lag", "cospectra_pvalue"]
 
+
+def _averaged_cospectra_cdf(xcoord, n):
+    """
+    Function calculating the cumulative distribution function for
+    averaged cospectra, Equation 19 of Huppenkothen & Bachetti (2018).
+
+    Parameters
+    ----------
+    xcoord : float or iterable
+        The cospectral power for which to calculate the CDF.
+
+    n : int
+        The number of averaged cospectra
+
+    Returns
+    -------
+    cdf : float
+        The value of the CDF at `xcoord` for `n` averaged cospectra
+    """
+    if np.size(xcoord) == 1:
+        xcoord = [xcoord]
+
+    cdf = np.zeros_like(xcoord)
+
+    for i, x in enumerate(xcoord):
+        prefac_bottom1 = factorial(n - 1)
+        # print("x: " + str(x))
+        for j in range(n):
+            # print("j: " + str(j))
+            prefac_top = factorial(n - 1 + j)
+            prefac_bottom2 = factorial(
+                n - 1 - j) * factorial(j)
+            prefac_bottom3 = 2.0 ** (n + j)
+
+            prefac = prefac_top / (
+            prefac_bottom1 * prefac_bottom2 * prefac_bottom3)
+
+            # print("prefac: " + str(prefac))
+            gf = -j + n
+
+            # print("gamma_fac: " + str(gf))
+            first_fac = scipy.special.gamma(gf)
+            # print("first_fac: " + str(first_fac))
+            if x >= 0:
+                second_fac = scipy.special.gammaincc(gf, n * x) * first_fac
+                # print("second_fac: " + str(second_fac))
+                fac = 2.0 * first_fac - second_fac
+            else:
+                fac = scipy.special.gammaincc(gf, -n * x) * first_fac
+
+            cdf[i] += (prefac * fac)
+        if np.size(xcoord) == 1:
+            return cdf[i]
+        else:
+            continue
+    return cdf
+
+
+def cospectra_pvalue(power, nspec):
+    """
+    This function computes the single-trial p-value that the power was
+    observed under the null hypothesis that there is no signal in
+    the data.
+
+    Important: the underlying assumption that make this calculation valid
+    is that the powers in the power spectrum follow a Laplace distribution,
+    and this requires that:
+
+    1. the co-spectrum is normalized according to [Leahy 1983]_
+    2. there is only white noise in the light curve. That is, there is no
+       aperiodic variability that would change the overall shape of the power
+       spectrum.
+
+    Also note that the p-value is for a *single trial*, i.e. the power
+    currently being tested. If more than one power or more than one power
+    spectrum are being tested, the resulting p-value must be corrected for the
+    number of trials (Bonferroni correction).
+
+    Mathematical formulation in [Huppenkothen 2017]_.
+
+    Parameters
+    ----------
+    power :  float
+        The squared Fourier amplitude of a spectrum to be evaluated
+
+    nspec : int
+        The number of spectra or frequency bins averaged in ``power``.
+        This matters because averaging spectra or frequency bins increases
+        the signal-to-noise ratio, i.e. makes the statistical distributions
+        of the noise narrower, such that a smaller power might be very
+        significant in averaged spectra even though it would not be in a single
+        power spectrum.
+
+    Returns
+    -------
+    pval : float
+        The classical p-value of the observed power being consistent with
+        the null hypothesis of white noise
+
+    References
+    ----------
+
+    * .. [Leahy 1983] https://ui.adsabs.harvard.edu/#abs/1983ApJ...266..160L/abstract
+    * .. [Huppenkothen 2017] http://adsabs.harvard.edu/abs/2018ApJS..236...13H
+
+    """
+    if not np.all(np.isfinite(power)):
+        raise ValueError("power must be a finite floating point number!")
+
+    #if power < 0:
+    #    raise ValueError("power must be a positive real number!")
+
+    if not np.isfinite(nspec):
+        raise ValueError("nspec must be a finite integer number")
+
+    if not np.isclose(nspec % 1, 0):
+        raise ValueError("nspec must be an integer number!")
+
+    if nspec < 1:
+        raise ValueError("nspec must be larger or equal to 1")
+
+    elif nspec == 1:
+        lapl = scipy.stats.laplace(0, 1)
+        pval = lapl.sf(power)
+
+    elif nspec > 50:
+        exp_sigma = np.sqrt(2) / np.sqrt(nspec)
+        gauss = scipy.stats.norm(0, exp_sigma)
+        pval = gauss.sf(power)
+
+    else:
+        pval = 1. - _averaged_cospectra_cdf(power, nspec)
+
+    return pval
 
 def coherence(lc1, lc2):
     """
@@ -647,6 +790,81 @@ class Crossspectrum(object):
         else:
             plt.show(block=False)
 
+    def classical_significances(self, threshold=1, trial_correction=False):
+        """
+        Compute the classical significances for the powers in the power
+        spectrum, assuming an underlying noise distribution that follows a
+        chi-square distributions with 2M degrees of freedom, where M is the
+        number of powers averaged in each bin.
+
+        Note that this function will *only* produce correct results when the
+        following underlying assumptions are fulfilled:
+
+        1. The power spectrum is Leahy-normalized
+        2. There is no source of variability in the data other than the
+           periodic signal to be determined with this method. This is important!
+           If there are other sources of (aperiodic) variability in the data, this
+           method will *not* produce correct results, but instead produce a large
+           number of spurious false positive detections!
+        3. There are no significant instrumental effects changing the
+           statistical distribution of the powers (e.g. pile-up or dead time)
+
+        By default, the method produces ``(index,p-values)`` for all powers in
+        the power spectrum, where index is the numerical index of the power in
+        question. If a ``threshold`` is set, then only powers with p-values
+        *below* that threshold with their respective indices. If
+        ``trial_correction`` is set to ``True``, then the threshold will be corrected
+        for the number of trials (frequencies) in the power spectrum before
+        being used.
+
+        Parameters
+        ----------
+        threshold : float, optional, default ``1``
+            The threshold to be used when reporting p-values of potentially
+            significant powers. Must be between 0 and 1.
+            Default is ``1`` (all p-values will be reported).
+
+        trial_correction : bool, optional, default ``False``
+            A Boolean flag that sets whether the ``threshold`` will be corrected
+            by the number of frequencies before being applied. This decreases
+            the ``threshold`` (p-values need to be lower to count as significant).
+            Default is ``False`` (report all powers) though for any application
+            where `threshold`` is set to something meaningful, this should also
+            be applied!
+
+        Returns
+        -------
+        pvals : iterable
+            A list of ``(index, p-value)`` tuples for all powers that have p-values
+            lower than the threshold specified in ``threshold``.
+
+        """
+        if not self.norm == "leahy":
+            raise ValueError("This method only works on "
+                             "Leahy-normalized power spectra!")
+
+        if np.size(self.m) == 1:
+            # calculate p-values for all powers
+            # leave out zeroth power since it just encodes the number of photons!
+            pv = np.array([cospectra_pvalue(power, self.m)
+                           for power in self.power])
+        else:
+            pv = np.array([cospectra_pvalue(power, m)
+                           for power, m in zip(self.power, self.m)])
+
+        # if trial correction is used, then correct the threshold for
+        # the number of powers in the power spectrum
+        if trial_correction:
+            threshold /= self.power.shape[0]
+
+        # need to add 1 to the indices to make up for the fact that
+        # we left out the first power above!
+        indices = np.where(pv < threshold)[0]
+
+        pvals = np.vstack([pv[indices], indices])
+
+        return pvals
+
 
 class AveragedCrossspectrum(Crossspectrum):
     """
@@ -764,6 +982,7 @@ class AveragedCrossspectrum(Crossspectrum):
                                               norm='none', gti=lc2.gti, power_type=self.power_type,
                                               fullspec=self.fullspec)
 
+
     def _make_segment_spectrum(self, lc1, lc2, segment_size):
         """
         Split the light curves into segments of size ``segment_size``, and calculate a cross spectrum for
@@ -803,11 +1022,15 @@ class AveragedCrossspectrum(Crossspectrum):
 
         # In case a small difference exists, ignore it
         lc1.dt = lc2.dt
+
+        gti = cross_two_gtis(lc1.gti, lc2.gti)
+        lc1.apply_gtis()
+        lc2.apply_gtis()
         if self.gti is None:
-            self.gti = cross_two_gtis(lc1.gti, lc2.gti)
-            lc1.gti = lc2.gti = self.gti
-            lc1._apply_gtis()
-            lc2._apply_gtis()
+            self.gti = gti
+        else:
+            if not np.all(self.gti == gti):
+                self.gti = np.vstack([self.gti, gti])
 
         check_gtis(self.gti)
 
@@ -815,10 +1038,12 @@ class AveragedCrossspectrum(Crossspectrum):
         nphots1_all = []
         nphots2_all = []
 
-        start_inds, end_inds = \
-            bin_intervals_from_gtis(self.gti, segment_size, lc1.time,
-                                    dt=lc1.dt)
 
+        start_inds, end_inds = \
+            bin_intervals_from_gtis(gti, segment_size, lc1.time,
+                                    dt=lc1.dt)
+        simon("Errorbars on cross spectra are not thoroughly tested. "
+              "Please report any inconsistencies.")
         for start_ind, end_ind in zip(start_inds, end_inds):
             time_1 = lc1.time[start_ind:end_ind]
             counts_1 = lc1.counts[start_ind:end_ind]
@@ -833,13 +1058,14 @@ class AveragedCrossspectrum(Crossspectrum):
             lc1_seg = Lightcurve(time_1, counts_1, err=counts_1_err,
                                  err_dist=lc1.err_dist,
                                  gti=gti1,
-                                 dt=lc1.dt)
+                                 dt=lc1.dt, skip_checks=True)
             lc2_seg = Lightcurve(time_2, counts_2, err=counts_2_err,
                                  err_dist=lc2.err_dist,
                                  gti=gti2,
                                  dt=lc2.dt)
             cs_seg = Crossspectrum(lc1_seg, lc2_seg, norm=self.norm, power_type=self.power_type,
                                  fullspec=self.fullspec)
+
             cs_all.append(cs_seg)
             nphots1_all.append(np.sum(lc1_seg.counts))
             nphots2_all.append(np.sum(lc2_seg.counts))

@@ -1,5 +1,4 @@
-from __future__ import (absolute_import, unicode_literals, division,
-                        print_function)
+
 
 import numpy as np
 import pytest
@@ -58,6 +57,15 @@ class TestGTI(object):
         # NOTE: the time bin has to be fully inside the GTI. That is why the
         # bin at times 0, 2, 4 and 5 are not in.
         assert np.all(mask == np.array([0, 1, 0, 0, 0, 0, 0], dtype=bool))
+
+    def test_gti_mask_none_longer_than_minlen(self):
+        arr = np.array([0, 1, 2, 3, 4, 5, 6])
+        gti = np.array([[0, 2.1], [3.9, 5]])
+        with pytest.warns(UserWarning) as record:
+            mask = create_gti_mask(arr, gti, min_length=10)
+        assert np.any(["No GTIs longer than"
+                       in r.message.args[0] for r in record])
+        assert np.all(~mask)
 
     def test_gti_mask_fails_empty_time(self):
         arr = np.array([])
@@ -244,10 +252,10 @@ class TestGTI(object):
         assert 'Empty' in str(excinfo.value)
 
     def test_join_boundaries(self):
-        gti = np.array([[1.16703354e+08, 1.16703386e+08], 
-                        [1.16703386e+08, 1.16703418e+08], 
-                        [1.16703418e+08, 1.16703450e+08], 
-                        [1.16703450e+08, 1.16703482e+08], 
+        gti = np.array([[1.16703354e+08, 1.16703386e+08],
+                        [1.16703386e+08, 1.16703418e+08],
+                        [1.16703418e+08, 1.16703450e+08],
+                        [1.16703450e+08, 1.16703482e+08],
                         [1.16703482e+08, 1.16703514e+08]])
         newg = join_equal_gti_boundaries(gti)
         assert np.allclose(newg, np.array([[1.16703354e+08, 1.16703514e+08]]))

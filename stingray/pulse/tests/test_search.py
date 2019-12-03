@@ -1,4 +1,4 @@
-from __future__ import division, print_function
+
 from stingray.pulse.search import epoch_folding_search, z_n_search
 from stingray.pulse.search import _profile_fast, phaseogram, plot_phaseogram
 from stingray.pulse.search import plot_profile
