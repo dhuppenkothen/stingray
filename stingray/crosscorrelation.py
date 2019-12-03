@@ -211,13 +211,9 @@ class CrossCorrelation(object):
             self.dt = dt
 
         if self.corr is None:
-            if self.lc1 is None or self.lc2 is None:
-                if self.cross is None:
-                    raise StingrayError('Please provide a stingray object or \
-                            data to calculate correlation and timeshift')
-                else:
-                    raise StingrayError('lc1 and lc2 should be provided to \
-                            calculate correlation and time_shift')
+            if (self.lc1 is None or self.lc2 is None) or (self.cross is None):
+                raise StingrayError('Please provide either two lightcurve objects or \
+                 a [average]crossspectrum object to calculate correlation and time_shift')
             else:
                 # This will cover very rare case of assigning self.lc1 and lc2
                 # or self.cross and also self.corr = ``None``.

@@ -270,6 +270,7 @@ class TestCrossspectrum(object):
         assert csT.n == len(csT.power)
         assert self.cs.n != len(self.cs.power)
         assert len(csT.power) >= len(self.cs.power)
+        assert len(csT.power) == len(self.lc1)
         assert csT.freq[csT.n//2] <= 0.
 
 class TestAveragedCrossspectrum(object):

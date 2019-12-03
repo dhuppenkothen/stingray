@@ -89,7 +89,8 @@ class Crossspectrum(object):
     Make a cross spectrum from a (binned) light curve.
     You can also make an empty :class:`Crossspectrum` object to populate with your
     own Fourier-transformed data (this can sometimes be useful when making
-    binned power spectra).
+    binned power spectra). Stingray uses the scipy.fftpack standards for the sign 
+    of the Nyquist frequency.
 
     Parameters
     ----------
@@ -850,7 +851,8 @@ class AveragedCrossspectrum(Crossspectrum):
         Auxiliary method computing the normalized cross spectrum from two light curves.
         This includes checking for the presence of and applying Good Time Intervals, computing the
         unnormalized Fourier cross-amplitude, and then renormalizing using the required normalization.
-        Also computes an uncertainty estimate on the cross spectral powers.
+        Also computes an uncertainty estimate on the cross spectral powers. Stingray uses the 
+        scipy.fftpack standards for the sign of the Nyquist frequency.
 
         Parameters
         ----------
