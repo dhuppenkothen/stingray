@@ -227,7 +227,7 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
         dx_post = xedges[max_ind] - xedges[max_ind-1]
         post_frac = (xmax-xedges[max_ind-1])/dx_post
         total += y[max_ind-1]*post_frac
-        total_err += yerrr[max_ind-1]*post_frac
+        total_err += yerr[max_ind-1]*post_frac
         nn += prev_frac
 
         output.append(total)
