@@ -186,15 +186,8 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
     y = np.asarray(y)
     yerr = np.asarray(apply_function_if_none(yerr, y, np.zeros_like))
 
-<<<<<<< HEAD
     dx_old = np.diff(x)
 
-=======
-    #dx_old = assign_value_if_none(dx, np.median(np.diff(x)))
-    dx_old = np.diff(x)
-
-
->>>>>>> New version of binning function, allows for variable binning
     if np.any(dx_new < dx_old):
         raise ValueError("New frequency resolution must be larger than "
                          "old frequency resolution.")
