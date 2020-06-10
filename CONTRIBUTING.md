@@ -1,7 +1,5 @@
 # Contributing to stingray
 
----
-
 > All great things have small beginnings.
 
 Hello there! We love and appreciate every small contribution you can make to improve stingray!
@@ -15,8 +13,6 @@ We are proudly open source and believe our(yes! yours as well) work will help en
 A successful project is not just built by amazing programmers but by an amalgamation of coders, testers,  reviewers and even documentation writers. There are a few guidelines that we need all contributors to follow so that we can have a chance of keeping on top of things.
 
 ## Contribution Guidelines
-
----
 
 Contributions from everyone, experienced and inexperienced, are welcome! If you don't know where to start, look at the [Open Issues](https://github.com/StingraySoftware/stingray/issues) and/or get involved in our [Slack channel](http://slack-invite.timelabtechnologies.com/) . This code is written in Python 3.5+. Tests run at each commit during Pull Requests, so it is easy to single out points in the code that break this compatibility.
 
@@ -54,8 +50,6 @@ Code Reviews are super-useful: another contributor can review the code, which me
 6. Don't merge using web interface if your branch falls behind master. Fetch and rebase.
 
 ## Coding Guidelines
-
----
 
 ### Compatibility and Dependencies
 
@@ -114,8 +108,6 @@ Code Reviews are super-useful: another contributor can review the code, which me
 
 ## Testing Guidelines
 
----
-
 The testing framework used by stingray is the pytest framework, it is accessed through the python [setup.py](http://setup.py/) test command. To run the tests, you will need to make sure you have the pytest package (version 3.1 or later) installed.
 
 - All tests should be py.test compliant: [http://pytest.org/latest/](http://pytest.org/latest/).
@@ -124,8 +116,6 @@ The testing framework used by stingray is the pytest framework, it is accessed t
 - Extra examples can go into an /examples folder in the main stingray directory, scripts that gather various data analysis tasks into longer procedures into a /scripts folder in the same location.
 
 ## Community Guidelines
-
----
 
 - Be kind and respectful to others.
 - Give and accept constructive criticism.
