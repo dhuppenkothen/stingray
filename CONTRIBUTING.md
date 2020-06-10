@@ -21,7 +21,7 @@ A successful project is not just built by amazing programmers but by an amalgama
 Contributions from everyone, experienced and inexperienced, are welcome! If you don't know where to start, look at the [Open Issues](https://github.com/StingraySoftware/stingray/issues) and/or get involved in our [Slack channel](http://slack-invite.timelabtechnologies.com/) . This code is written in Python 3.5+. Tests run at each commit during Pull Requests, so it is easy to single out points in the code that break this compatibility.
 
 - **Branches:**
-    - Don't use your master ****branch(forked) for anything. Consider deleting your master ****branch.
+    - Don't use your master branch(forked) for anything. **Consider deleting your master branch.
     - Make a new branch, called a feature branch, for each separable set of changes: “one task, one branch”.
     - Start that new feature branch from the most current development version of stingray.
     - Name of branch should be the purpose of change eg. *bugfix-for-issue20* or *refactor-lightcurve-code.*
@@ -129,4 +129,4 @@ The testing framework used by stingray is the pytest framework, it is accessed t
 
 - Be kind and respectful to others.
 - Give and accept constructive criticism.
-- Something from CODE_OF_CONDUCT.md??
+<!--- Something from CODE_OF_CONDUCT.md?? --->
