@@ -408,16 +408,13 @@ class Lightcurve(object):
 
         check_gtis(self.gti)
 
-        dt_array = []
-        for g in self.gti:
-            mask = create_gti_mask(self.time, [g], dt=self.dt)
-            t = self.time[mask]
-            dt_array.extend(np.diff(t))
-        dt_array = np.asarray(dt_array)
+        idxs = np.searchsorted(self.time, self.gti)
+        # FIXME: Check for idxs count and shape
+        time_diff = np.diff(self.time[idxs[0][0]:idxs[0][1]])
 
-        if not (np.allclose(dt_array, np.repeat(self.dt, dt_array.shape[0]))):
-            simon("Bin sizes in input time array aren't equal throughout! "
-                  "This could cause problems with Fourier transforms. "
+        if not (np.allclose(time_diff, np.repeat(self.dt, time_diff.shape[0]))):
+            simon("Bin sizes in input time array aren't equal throughout!"
+                  "This could cause problems with Fourier transforms."
                   "Please make the input time evenly sampled.")
 
     def change_mjdref(self, new_mjdref):
