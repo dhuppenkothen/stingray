@@ -175,7 +175,6 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum'):
         raise ValueError("New frequency resolution must be larger than "
                          "old frequency resolution.")
 
-
     # left and right bin edges
     # assumes that the points given in `x` correspond to 
     # the left bin edges
