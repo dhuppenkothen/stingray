@@ -123,14 +123,15 @@ def simon(message, **kwargs):
     warnings.warn("SIMON says: {0}".format(message), **kwargs)
 
 
-def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
+def rebin_data(x, y, dx_new, yerr=None, method='sum'):
     """Rebin some data to an arbitrary new data resolution. Either sum
     the data points in the new bins or average them.
 
     Parameters
     ----------
     x: iterable
-        The dependent variable with some resolution ``dx_old = x[1]-x[0]``
+        The dependent variable with some resolution, which can vary throughout 
+        the time series.
 
     y: iterable
         The independent variable to be binned
@@ -163,24 +164,6 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
 
     step_size: float
         The size of the binning step
-
-    Examples
-    --------
-    >>> x = np.arange(0, 100, 0.01)
-    >>> y = np.ones(x.size)
-    >>> yerr = np.ones(x.size)
-    >>> xbin, ybin, ybinerr, step_size = rebin_data(
-    ...     x, y, 4, yerr=yerr, method='sum')
-    >>> np.allclose(ybin, 400)
-    True
-    >>> np.allclose(ybinerr, 20)
-    True
-    >>> xbin, ybin, ybinerr, step_size = rebin_data(
-    ...     x, y, 4, yerr=yerr, method='mean')
-    >>> np.allclose(ybin, 1)
-    True
-    >>> np.allclose(ybinerr, 0.05)
-    True
     """
 
     y = np.asarray(y)
@@ -194,53 +177,44 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
 
 
     # left and right bin edges
-    # assumes that the points given in `x` correspond to
+    # assumes that the points given in `x` correspond to 
     # the left bin edges
     xedges = np.hstack([x, x[-1]+np.diff(x)[-1]])
 
     # new regularly binned resolution
-    xbin = np.arange(xedges[0], xedges[-1]+dx_old[-1], dx_new)
+    xbin = np.arange(xedges[0], xedges[-1]+dx_new, dx_new)
 
-    output, outputerr, step_size = [], [], []
+    output = np.zeros(xbin.shape[0] - 1)
+    outputerr = np.zeros(xbin.shape[0] - 1)
+    step_size = np.zeros(xbin.shape[0] - 1)
 
     for i in range(len(xbin)-1):
-        total = 0
-        total_err = 0
-
-        nn = 0
 
         xmin = xbin[i]
         xmax = xbin[i+1]
         min_ind = xedges.searchsorted(xmin)
         max_ind = xedges.searchsorted(xmax)
-
-        total += np.sum(y[min_ind:max_ind-1])
-        total_err += np.sum(yerr[min_ind:max_ind-1])
-        nn += len(y[min_ind:max_ind-1])
+        
+        output[i] = np.sum(y[min_ind:max_ind-1])
+        outputerr[i] = np.sum(yerr[min_ind:max_ind-1])
+        step_size[i] = len(y[min_ind:max_ind-1])
 
         prev_dx = xedges[min_ind] - xedges[min_ind-1]
         prev_frac = (xedges[min_ind] - xmin)/prev_dx
-        total += y[min_ind-1]*prev_frac
-        total_err += yerr[min_ind-1]*prev_frac
-        nn += prev_frac
+        output[i] += y[min_ind-1]*prev_frac
+        outputerr[i] += yerr[min_ind-1]*prev_frac
+        step_size[i] += prev_frac
 
-        dx_post = xedges[max_ind] - xedges[max_ind-1]
-        post_frac = (xmax-xedges[max_ind-1])/dx_post
-        total += y[max_ind-1]*post_frac
-        total_err += yerr[max_ind-1]*post_frac
-
-        nn += prev_frac
-
-        output.append(total)
-        outputerr.append(total_err)
-        step_size.append(nn)
-
-    output = np.asarray(output)
-    outputerr = np.asarray(outputerr)
-
+        if not max_ind == len(xedges):
+            dx_post = xedges[max_ind] - xedges[max_ind-1]
+            post_frac = (xmax-xedges[max_ind-1])/dx_post
+            output[i] += y[max_ind-1]*post_frac
+            outputerr[i] += yerr[max_ind-1]*post_frac
+            step_size[i] += post_frac
+        
     if method in ['mean', 'avg', 'average', 'arithmetic mean']:
-        ybin = output / np.float(step_size)
-        ybinerr = outputerr / np.float(step_size)
+        ybin = output / step_size
+        ybinerr = outputerr / step_size
 
     elif method == "sum":
         ybin = output
@@ -250,16 +224,18 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
         raise ValueError("Method for summing or averaging not recognized. "
                          "Please enter either 'sum' or 'mean'.")
 
-    tseg = x[-1] - x[0] + dx_old
+    tseg = x[-1] - x[0] + dx_old[-1]
 
     if (tseg / dx_new % 1) > 0:
         ybin = ybin[:-1]
         ybinerr = ybinerr[:-1]
-
-    new_x0 = (x[0] - (0.5 * dx_old)) + (0.5 * dx_new)
+        step_size = step_size[:-1]
+        
+    new_x0 = (x[0] - (0.5 * dx_old[0])) + (0.5 * dx_new)
     xbin = np.arange(ybin.shape[0]) * dx_new + new_x0
 
     return xbin, ybin, ybinerr, step_size
+
 
 
 def rebin_data_log(x, y, f, y_err=None, dx=None):

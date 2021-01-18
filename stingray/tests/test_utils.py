@@ -21,7 +21,7 @@ class TestRebinData(object):
         dx_new = 2.0
         xbin, ybin, yerr, step_size = utils.rebin_data(self.x, self.y, dx_new,
                                                        self.yerr)
-        assert step_size == dx_new / self.dx
+        assert np.all(step_size == dx_new / self.dx)
 
     def test_arrays(self):
         dx_new = 2.0
