@@ -200,8 +200,10 @@ class Multitaper(Crossspectrum):
             lc.counts, NW=NW, adaptive=adaptive, BW=bandwidth, jackknife=jackknife,
             low_bias=low_bias, sides="onesided")
 
-        unnorm_mtp = unnorm_mtp[1:]         # Making length same as self.freq
         self.unnorm_power = unnorm_mtp/2
+
+        len_correct = abs(len(unnorm_mtp)-len(self.freq))
+        self.unnorm_power = self.unnorm_power[len_correct:]  # Making length same as self.freq
 
     def rebin(self, df=None, f=None, method="mean"):
         """
