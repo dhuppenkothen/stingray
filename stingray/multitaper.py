@@ -175,7 +175,7 @@ class Multitaper(Crossspectrum):
 
     def __init__(self, data=None, norm="frac", gti=None,
                  dt=None, lc=None, NW=None, bandwidth=None, adaptive=False,
-                 jackknife=True, low_bias=True):
+                 jackknife=True, low_bias=True, Fs=1):
         if lc is not None:
             warnings.warn("The lc keyword is now deprecated. Use data "
                           "instead", DeprecationWarning)
@@ -188,17 +188,17 @@ class Multitaper(Crossspectrum):
         self.dt = dt
 
         self._multitaper_periodogram(data, NW=NW, adaptive=adaptive,
-                                     bandwidth=bandwidth, jackknife=jackknife, low_bias=low_bias)
+                                     bandwidth=bandwidth, jackknife=jackknife, low_bias=low_bias, Fs=Fs)
         self.power = self._normalize_crossspectrum(self.unnorm_power, data.tseg)
 
     def _multitaper_periodogram(self, lc, NW=None, bandwidth=None, adaptive=False,
-                                jackknife=True, low_bias=True):
+                                jackknife=True, low_bias=True, Fs=1):
         if not isinstance(lc, Lightcurve):
             raise TypeError("lc must be a lightcurve.Lightcurve object")
 
         nitime_freq, unnorm_mtp, self.jk_var_deg_freedom = tsa.multi_taper_psd(
             lc.counts, NW=NW, adaptive=adaptive, BW=bandwidth, jackknife=jackknife,
-            low_bias=low_bias, sides="onesided")
+            low_bias=low_bias, sides="onesided", Fs=Fs)
 
         self.unnorm_power = unnorm_mtp/2
 
