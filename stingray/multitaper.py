@@ -196,13 +196,18 @@ class Multitaper(Crossspectrum):
         if not isinstance(lc, Lightcurve):
             raise TypeError("lc must be a lightcurve.Lightcurve object")
 
-        nitime_freq, unnorm_mtp, self.jk_var_deg_freedom = tsa.multi_taper_psd(
+        nitime_freq, abs_norm_mtp, self.jk_var_deg_freedom = tsa.multi_taper_psd(
             lc.counts, NW=NW, adaptive=adaptive, BW=bandwidth, jackknife=jackknife,
             low_bias=low_bias, sides="onesided", Fs=Fs)
 
-        self.unnorm_power = unnorm_mtp/2
+        # 'nitime' Multitaper psd is 'abs' normalized by default
+        # Converting it to unnormalized using inverse of method used in Crossspectrum
+        log_nphots = np.log(self.nphots)
+        actual_nphots = np.float64(np.sqrt(np.exp(log_nphots + log_nphots)))
+        meanrate = np.sqrt(self.nphots * self.nphots) / lc.tseg
+        self.unnorm_power = abs_norm_mtp * actual_nphots / (2 * meanrate)
 
-        len_correct = abs(len(unnorm_mtp)-len(self.freq))
+        len_correct = abs(len(abs_norm_mtp)-len(self.freq))
         self.unnorm_power = self.unnorm_power[len_correct:]  # Making length same as self.freq
 
     def rebin(self, df=None, f=None, method="mean"):
