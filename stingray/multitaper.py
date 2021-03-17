@@ -133,6 +133,31 @@ class Multitaper(Crossspectrum):
         The normaliation of the power spectrum to be used. Options are
         ``leahy``, ``frac``, ``abs`` and ``none``, default is ``frac``.
 
+    NW: float, optional, default ``None``
+        The normalized half-bandwidth of the data tapers, indicating a
+        multiple of the fundamental frequency of the DFT (Fs/N).
+        Common choices are n/2, for n >= 4. As an alternative, set the bandwidth
+        parameter in Hz. See Notes on bandwidth.
+
+    bandwidth: float, optional, default ``None``
+        The sampling-relative bandwidth of the data tapers, in Hz.
+
+    adaptive: boolean, optional, default ``False``
+        Use an adaptive weighting routine to combine the PSD estimates of
+        different tapers.
+
+    jackknife: boolean, optional, default ``True``
+        Use the jackknife method to make an estimate of the PSD variance
+        at each point.
+
+    low_bias: boolean, optional, default ``True``
+        Rather than use 2NW tapers, only use the tapers that have better than
+        90% spectral concentration within the bandwidth (still using
+        a maximum of 2NW tapers)
+
+    Fs: float, optional, default ``1``
+        Sampling rate of the signal
+
     Other Parameters
     ----------------
     gti: 2-d float array
@@ -171,6 +196,23 @@ class Multitaper(Crossspectrum):
     nphots: float
         The total number of photons in the light curve
 
+    jk_var_deg_freedom: numpy.ndarray
+        Array differs depending on whether
+        the jackknife was used. It is either
+        * The jackknife estimated variance of the log-psd, OR
+        * The degrees of freedom in a chi2 model of how the estimated
+          PSD is distributed about the true log-PSD (this is either
+          2*floor(2*NW), or calculated from adaptive weights)
+
+    Notes
+    -----
+    The bandwidth of the windowing function will determine the number of
+    tapers to use. This parameters represents trade-off between frequency
+    resolution (lower main lobe BW for the taper) and variance reduction
+    (higher BW and number of averaged estimates). Typically, the number of
+    tapers is calculated as 2x the bandwidth-to-fundamental-frequency
+    ratio, as these eigenfunctions have the best energy concentration.
+
     """
 
     def __init__(self, data=None, norm="frac", gti=None,
@@ -200,7 +242,7 @@ class Multitaper(Crossspectrum):
             lc.counts, NW=NW, adaptive=adaptive, BW=bandwidth, jackknife=jackknife,
             low_bias=low_bias, sides="onesided", Fs=Fs)
 
-        # 'nitime' Multitaper psd is 'abs' normalized by default
+        # 'nitime' Multitaper psd seems to be 'abs' normalized by default
         # Converting it to unnormalized using inverse of method used in Crossspectrum
         log_nphots = np.log(self.nphots)
         actual_nphots = np.float64(np.sqrt(np.exp(log_nphots + log_nphots)))
