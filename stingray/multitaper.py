@@ -11,6 +11,7 @@ import scipy
 import scipy.optimize
 import scipy.stats
 from scipy import signal
+import nfft
 
 from .events import EventList
 from .lightcurve import Lightcurve
@@ -668,3 +669,27 @@ class Multitaper(Powerspectrum):
     def classical_significances(self, threshold, trial_correction):
         return Powerspectrum.classical_significances(self, threshold=threshold,
                                                      trial_correction=trial_correction)
+
+    def nfft(self, times, counts, num_freq=None):
+        series_len = times.shape[-1]
+
+        if num_freq == None:
+            num_freq = 2 * series_len
+
+        new_range = (-0.5, -0.5 + (1 - 1e5))
+        times_scaled = np.interp(times, (times.min(), times.max()), new_range)
+
+        f_hat = nfft.nfft_adjoint(times_scaled, counts, num_freq)
+
+        temp = np.arange(1, f_hat.shape[0]+1)
+        odds = (temp % 2 == 1)
+        del temp
+
+        f_hat[odds] = -f_hat[odds]
+
+        evens = np.invert(odds)
+        del odds
+
+        f_hat[evens] = f_hat[evens].conj()
+
+        return f_hat
