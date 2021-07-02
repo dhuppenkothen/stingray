@@ -693,3 +693,36 @@ class Multitaper(Powerspectrum):
         f_hat[evens] = f_hat[evens].conj()
 
         return f_hat
+
+    def lomb_scargle(self, times, counts, weight):
+
+        t_length = times.shape[-1]
+
+        # compute nfft of irregular time series
+        sp = nfft(times, counts) * weight
+        # compute nfft of 1's at frequencies 2w
+        spf = nfft(times, np.ones(t_length), num_freq=4*t_length)
+        spf = spf[1::2]
+
+        # compute components of LS periodogram from Press & Rybicki
+        Sh = -sp.imag    # \sum_i x_i sin(2\pi f t_i)
+        Ch = sp.real     # \sum_i x_i cos(2\pi f t_i)
+        S2 = -spf.imag   # \sum_i 1 sin(2\pi 2f)
+        C2 = spf.real    # \sum_i 1 cos(2\pi 2f)
+
+        cos2wt = C2/np.absolute(spf)
+        sin2wt = S2/np.absolute(spf)
+        coswt = np.sign(sin2wt)*np.sqrt(0.5*(1+cos2wt))
+        sinwt = np.sqrt(0.5*(1-cos2wt))
+
+        A1 = Ch*coswt + Sh*sinwt
+        B1 = Sh*coswt - Ch*sinwt
+        A2 = t_length/2 + 0.5*C2*cos2wt + 0.5*S2*sin2wt
+        B2 = t_length - A2
+
+        psd = 0.5 * (A1*A1/A2 + B1*B1/B2)
+
+        tseg = times[-1] - times[0]
+        psd *= 0.5 * tseg / t_length
+
+        return psd
