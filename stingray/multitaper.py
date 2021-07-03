@@ -802,5 +802,6 @@ class Multitaper(Powerspectrum):
         freq_ls = np.arange(0, psd_ls.shape[-1])*(1/tseg)
 
         self.jk_var_deg_freedom = None
+        self.eigvals = eigvals
 
         return freq_ls, psd_ls

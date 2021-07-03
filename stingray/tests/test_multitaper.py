@@ -131,9 +131,10 @@ class TestMultitaper(object):
             assert np.any(["not poisson" in r.message.args[0]
                            for r in record])
 
-    def test_fourier_multitaper_with_invalid_NW(self):
+    @pytest.mark.parametrize('lombscargle', [False, True])
+    def test_fourier_multitaper_with_invalid_NW(self, lombscargle):
         with pytest.raises(ValueError):
-            mtp = Multitaper(self.lc, NW=0.1)
+            mtp = Multitaper(self.lc, NW=0.1, lombscargle=lombscargle)
 
     @pytest.mark.parametrize("adaptive, jackknife",
                              [(a, j) for a in (True, False) for j in (True, False)])
@@ -244,9 +245,10 @@ class TestMultitaper(object):
                        for r in record])
         assert mtp.multitaper_norm_power is not None
 
-    def test_max_eigval_less_than_threshold(self):
+    @pytest.mark.parametrize('lombscargle', [False, True])
+    def test_max_eigval_less_than_threshold(self, lombscargle):
         with pytest.warns(UserWarning) as record:
-            mtp = Multitaper(lc=self.lc, NW=0.5, low_bias=True)
+            mtp = Multitaper(lc=self.lc, NW=0.5, low_bias=True, lombscargle=lombscargle)
         assert np.any(['not properly use low_bias' in r.message.args[0]
                        for r in record])
         assert len(mtp.eigvals) > 0
@@ -263,3 +265,38 @@ class TestMultitaper(object):
         with pytest.raises(ValueError):
             el = EventList.from_lc(self.lc)
             mtp_el = Multitaper(data=el)
+
+    def test_multitaper_lombscargle(self):
+        rng = np.random.default_rng()
+        N = 1000
+
+        white_noise_irregular = rng.normal(loc=0.0, scale=7, size=N)
+        start = 0.0
+        end = 9.0
+        # Generating uneven sampling times by adding white noise. Do tell a better way
+        time_irregular = np.linspace(start, end, N) + rng.normal(loc=0.0,
+                                                                 scale=(end-start)/(3*N), size=N)
+        time_irregular = np.sort(time_irregular)
+
+        with pytest.warns(UserWarning) as record:
+            lc_nonuni = Lightcurve(time=time_irregular,
+                                   counts=white_noise_irregular, err_dist="gauss")
+        assert np.any(["Bin sizes in input time array" in r.message.args[0]
+                       for r in record])
+
+        mtls_white = Multitaper(lc_nonuni, lombscargle=True, low_bias=True, NW=4)
+        assert mtls_white.norm == "frac"
+        assert mtls_white.fullspec is False
+        assert mtls_white.meancounts == lc_nonuni.meancounts
+        assert mtls_white.nphots == np.float64(np.sum(lc_nonuni.counts))
+        assert mtls_white.err_dist == lc_nonuni.err_dist
+        assert mtls_white.dt == lc_nonuni.dt
+        assert mtls_white.n == lc_nonuni.time.shape[0]
+        assert mtls_white.df == 1.0 / lc_nonuni.tseg
+        assert mtls_white.m == 1
+        assert mtls_white.freq is not None
+        assert mtls_white.multitaper_norm_power is not None
+        assert mtls_white.power is not None
+        assert mtls_white.power_err is not None
+        assert mtls_white.jk_var_deg_freedom is None  # Not supported yet
+        assert len(mtls_white.eigvals) > 0
