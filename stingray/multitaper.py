@@ -684,6 +684,29 @@ class Multitaper(Powerspectrum):
                                                      trial_correction=trial_correction)
 
     def nfft(self, times, counts, num_freq=None):
+        """Compute the non-equispaced fast fourier transform
+
+        Compute the NFFT and do the required post-processing as mentioned in
+        Springford, Eadie & Thompson (2020).
+
+        Parameters
+        ----------
+
+        times: numpy.ndarray
+            The non-equispaced times at which the data was sampled
+
+        counts: numpy.ndarray
+            The amplitude/value at each time in times
+
+        num_freq: int, optional, default = ``2 * len(times)``
+            The number of frequencies at which to evaluate the result 
+
+        Returns
+        -------
+
+        f_hat: numpy.ndarray
+            The post-processed result of applying the NFFT to the given data
+        """
         series_len = times.shape[-1]
 
         if num_freq == None:
@@ -711,6 +734,29 @@ class Multitaper(Powerspectrum):
         return f_hat
 
     def lomb_scargle(self, times, counts, weight=1):
+        """Compute the Lomb-Scargle periodogram.
+
+        Lomb-Scargle periodogram is the power spectral estimate for signals
+        with uneven temporal sampling.
+
+        Parameters
+        ----------
+
+        times: numpy.ndarray
+            The non-equispaced times at which the data was sampled
+
+        counts: numpy.ndarray
+            The amplitude/value at each time in times
+
+        weight: float, optional, default = ``1``
+            The weight to multiply with the NFFT's result 
+
+        Returns
+        -------
+
+        psd: numpy.ndarray
+            Lomb-Scargle periodogram.
+        """
 
         t_length = times.shape[-1]
 
@@ -744,6 +790,38 @@ class Multitaper(Powerspectrum):
         return psd
 
     def _multitaper_lomb_scargle(self, lc, NW=4, low_bias=True):
+        """Compute the Multitaper Lomb-Scargle periodogram.
+
+        Auxiliary method to apply the Multitapering concept to the Lomb-Scargle
+        periodogram which calculates the PSD estimate for unevenly sampled
+        time-series signals. This method deals with interpolating the DPSS
+        tapers to the irregular times in the lightcurve and then leveraging
+        the NFFT algorithm to rapidly compute the periodogram.
+
+        Parameters
+        ----------
+        lc : :class:`stingray.Lightcurve` objects
+            Two light curves used for computing the cross spectrum.
+
+        NW: float, optional, default ``4``
+            The normalized half-bandwidth of the data tapers, indicating a
+            multiple of the fundamental frequency of the DFT (Fs/N).
+            Common choices are n/2, for n >= 4.
+
+        low_bias: boolean, optional, default ``True``
+            Rather than use 2NW tapers, only use the tapers that have better than
+            90% spectral concentration within the bandwidth (still using
+            a maximum of 2NW tapers)
+
+        Returns
+        -------
+        freq_multitaper: numpy.ndarray
+            The frequency mid-bins of the PSD amplitudes
+
+        psd_multitaper: numpy.ndarray
+            The value of the Multitaper Lomb-Scargle PSD amplitudes at
+            the given frequency mid-bins
+        """
 
         if NW < 0.5:
             raise ValueError("The value of normalized half-bandwidth "
@@ -776,6 +854,7 @@ class Multitaper(Powerspectrum):
         weights = np.sqrt(eigvals)
 
         for dpss_taper in dpss_tapers:
+            # Fit cubic spline interpolator
             cubic_spline_interp = \
                 interpolate.InterpolatedUnivariateSpline(times_regular,
                                                          dpss_taper, k=3)
@@ -789,6 +868,8 @@ class Multitaper(Powerspectrum):
         psd_ls = []
 
         tseg = lc.time[-1] - lc.time[0]
+
+        # Calulate the lomb-scargle periodogram for each taper*data
         for data, weight in zip(dpss_data_interpolated, weights):
 
             psd = self.lomb_scargle(lc.time, data)
