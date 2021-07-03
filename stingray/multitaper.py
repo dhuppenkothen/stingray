@@ -1,5 +1,7 @@
 import copy
 
+from scipy.signal.spectral import lombscargle
+
 from stingray.gti import check_gtis, cross_two_gtis
 from stingray.crossspectrum import Crossspectrum, normalize_crossspectrum
 from stingray.crossspectrum import normalize_crossspectrum_gauss
@@ -10,7 +12,7 @@ import numpy as np
 import scipy
 import scipy.optimize
 import scipy.stats
-from scipy import signal
+from scipy import signal, interpolate
 import nfft
 
 from .events import EventList
@@ -121,7 +123,8 @@ class Multitaper(Powerspectrum):
     """
 
     def __init__(self, data=None, norm="frac", gti=None, dt=None, lc=None,
-                 NW=4, adaptive=False, jackknife=True, low_bias=True):
+                 NW=4, adaptive=False, jackknife=True, low_bias=True,
+                 lombscargle=False):
 
         if lc is not None:
             warnings.warn("The lc keyword is now deprecated. Use data "
@@ -165,10 +168,13 @@ class Multitaper(Powerspectrum):
         self.fullspec = False
 
         self._make_multitaper_periodogram(lc, NW=NW, adaptive=adaptive,
-                                          jackknife=jackknife, low_bias=low_bias)
+                                          jackknife=jackknife,
+                                          low_bias=low_bias,
+                                          lombscargle=lombscargle)
 
     def _make_multitaper_periodogram(self, lc, NW=4, adaptive=False,
-                                     jackknife=True, low_bias=True):
+                                     jackknife=True, low_bias=True,
+                                     lombscargle=False):
         """Compute the normalized multitaper spectral estimate.
 
         This includes checking for the presence of and applying Good Time Intervals,
@@ -233,12 +239,19 @@ class Multitaper(Powerspectrum):
         # This should *always* be 1 here
         self.m = 1
 
-        self.freq, self.multitaper_norm_power = \
-            self._fourier_multitaper(lc, NW=NW, adaptive=adaptive,
-                                     jackknife=jackknife, low_bias=low_bias)
+        if lombscargle:
+            self.freq, self.multitaper_norm_power = \
+                self._multitaper_lomb_scargle(lc, NW=NW, low_bias=low_bias)
 
-        # Same for the timebeing until normalization discrepancy is resolved
-        self.unnorm_power = self.multitaper_norm_power * lc.n / lc.dt
+            # Same for the timebeing until normalization discrepancy is resolved
+            self.unnorm_power = self.multitaper_norm_power
+
+        else:
+            self.freq, self.multitaper_norm_power = \
+                self._fourier_multitaper(lc, NW=NW, adaptive=adaptive,
+                                         jackknife=jackknife, low_bias=low_bias)
+
+            self.unnorm_power = self.multitaper_norm_power * lc.n / lc.dt
 
         self.power = \
             self._normalize_multitaper(self.unnorm_power, lc.tseg)
@@ -676,32 +689,35 @@ class Multitaper(Powerspectrum):
         if num_freq == None:
             num_freq = 2 * series_len
 
-        new_range = (-0.5, -0.5 + (1 - 1e5))
+        tseg = times[-1] - times[0]
+        new_range = (-0.5 + 1e-5, -0.5 + (1 - 1e-5))
         times_scaled = np.interp(times, (times.min(), times.max()), new_range)
 
         f_hat = nfft.nfft_adjoint(times_scaled, counts, num_freq)
 
+        f_hat = np.conjugate(f_hat[f_hat.shape[0]//2:])  # Only take 2nd half
+
         temp = np.arange(1, f_hat.shape[0]+1)
-        odds = (temp % 2 == 1)
+        odds = (temp % 2 == 0)
         del temp
 
         f_hat[odds] = -f_hat[odds]
 
-        evens = np.invert(odds)
-        del odds
+        # evens = np.invert(odds)
+        # del odds
 
-        f_hat[evens] = f_hat[evens].conj()
+        # f_hat[evens] = f_hat[evens].conj()
 
         return f_hat
 
-    def lomb_scargle(self, times, counts, weight):
+    def lomb_scargle(self, times, counts, weight=1):
 
         t_length = times.shape[-1]
 
         # compute nfft of irregular time series
-        sp = nfft(times, counts) * weight
+        sp = self.nfft(times, counts) * weight
         # compute nfft of 1's at frequencies 2w
-        spf = nfft(times, np.ones(t_length), num_freq=4*t_length)
+        spf = self.nfft(times, np.ones(t_length), num_freq=4*t_length)
         spf = spf[1::2]
 
         # compute components of LS periodogram from Press & Rybicki
@@ -726,3 +742,65 @@ class Multitaper(Powerspectrum):
         psd *= 0.5 * tseg / t_length
 
         return psd
+
+    def _multitaper_lomb_scargle(self, lc, NW=4, low_bias=True):
+
+        if NW < 0.5:
+            raise ValueError("The value of normalized half-bandwidth "
+                             "should be greater than 0.5")
+
+        Kmax = int(2 * NW)
+
+        dpss_tapers, eigvals = \
+            signal.windows.dpss(M=lc.n, NW=NW, Kmax=Kmax,
+                                sym=False, return_ratios=True)
+
+        if low_bias:
+            selected_tapers = (eigvals > 0.9)
+            if not selected_tapers.any():
+                simon("Could not properly use low_bias, "
+                      "keeping the lowest-bias taper")
+                selected_tapers = [np.argmax(eigvals)]
+
+            eigvals = eigvals[selected_tapers]
+            dpss_tapers = dpss_tapers[selected_tapers, :]
+
+        print(f"Using {len(eigvals)} DPSS windows for "
+              "multitaper spectrum estimator")
+
+        dpss_data_interpolated = []
+
+        data_irregular = lc.counts - np.mean(lc.counts)  # De-mean
+        times_regular = np.linspace(lc.time[0], lc.time[-1], lc.n)
+
+        weights = np.sqrt(eigvals)
+
+        for dpss_taper in dpss_tapers:
+            cubic_spline_interp = \
+                interpolate.InterpolatedUnivariateSpline(times_regular,
+                                                         dpss_taper, k=3)
+            # interpolating DPSS tapers to IRREGULAR times
+            dpss_interpolated = cubic_spline_interp(lc.time)
+            dpss_interpolated /= np.sum(dpss_interpolated**2)  # Re normalizing
+            dpss_interpolated *= np.sqrt(lc.time.shape[0])  # From Springford R implementation
+            dpss_interpolated *= data_irregular
+            dpss_data_interpolated.append(dpss_interpolated)
+
+        psd_ls = []
+
+        tseg = lc.time[-1] - lc.time[0]
+        for data, weight in zip(dpss_data_interpolated, weights):
+
+            psd = self.lomb_scargle(lc.time, data)
+            # psd *= 0.5 * tseg / lc.n
+            psd_ls.append(psd)
+
+        psd_ls = np.array(psd_ls)
+        psd_ls = np.mean(psd_ls, axis=-2)
+
+        # freq_ls = np.arange(0, length)*step + start
+        freq_ls = np.arange(0, psd_ls.shape[-1])*(1/tseg)
+
+        self.jk_var_deg_freedom = None
+
+        return freq_ls, psd_ls
