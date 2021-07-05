@@ -699,7 +699,7 @@ class Multitaper(Powerspectrum):
             The amplitude/value at each time in times
 
         num_freq: int, optional, default = ``2 * len(times)``
-            The number of frequencies at which to evaluate the result 
+            The number of frequencies at which to evaluate the result
 
         Returns
         -------
@@ -709,7 +709,7 @@ class Multitaper(Powerspectrum):
         """
         series_len = times.shape[-1]
 
-        if num_freq == None:
+        if num_freq is None:
             num_freq = 2 * series_len
 
         tseg = times[-1] - times[0]
@@ -749,7 +749,7 @@ class Multitaper(Powerspectrum):
             The amplitude/value at each time in times
 
         weight: float, optional, default = ``1``
-            The weight to multiply with the NFFT's result 
+            The weight to multiply with the NFFT's result
 
         Returns
         -------
