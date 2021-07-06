@@ -243,8 +243,16 @@ class Multitaper(Powerspectrum):
             self.freq, self.multitaper_norm_power = \
                 self._multitaper_lomb_scargle(lc, NW=NW, low_bias=low_bias)
 
-            # Same for the timebeing until normalization discrepancy is resolved
-            self.unnorm_power = self.multitaper_norm_power
+            # Unnormalizing the LS PSD
+            self.unnorm_power = \
+                self.multitaper_norm_power / (0.5 * (lc.tseg - lc.dt) / lc.n)
+
+            # log_nphots = np.log(self.nphots)
+            # actual_nphots = np.float64(np.sqrt(np.exp(log_nphots + log_nphots)))
+
+            # # Unnormalized LS seems to Leahy normalized as per Stingray
+            # # Thus unnormalizing
+            # self.unnorm_power *= actual_nphots / 2.0
 
         else:
             self.freq, self.multitaper_norm_power = \
