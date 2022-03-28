@@ -64,7 +64,7 @@ class CrossCorrelation(object):
     time_shift: float
          Time lag that gives maximum value of correlation
          between two light curves.
-         
+
          There will be maximum correlation between light curves
          if one of the light curve
          is shifted by ``time_shift``.
@@ -215,13 +215,13 @@ class CrossCorrelation(object):
     def cal_timeshift(self, dt=1.0):
         """
         Calculate the cross correlation against all possible time lags, both positive and negative.
-        
+
         The method signal.correlation_lags() uses SciPy versions >= 1.6.1 ([scipy-docs-lag]_)
         
         References
         ----------
         .. [scipy-docs-lag] https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.correlation_lags.html
-        
+
         Parameters
         ----------
         dt: float, optional, default ``1.0``
@@ -269,7 +269,7 @@ class CrossCorrelation(object):
           x_lags = \
               signal.correlation_lags(np.size(self.lc1.counts),
                                       np.size(self.lc2.counts), self.mode)
-        
+
         self.time_lags = x_lags * self.dt
         # time_shift is the time lag for max. correlation
         self.time_shift = self.time_lags[np.argmax(self.corr)]
