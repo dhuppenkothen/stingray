@@ -54,7 +54,7 @@ class CrossCorrelation(object):
          An array of correlation data calculated from two light curves
 
     time_lags: numpy.ndarray
-         An array of all possible time lags against which 
+         An array of all possible time lags against which
          each point in corr is calculated
 
     dt: float
@@ -65,7 +65,7 @@ class CrossCorrelation(object):
          Time lag that gives maximum value of correlation
          between two light curves.
          
-         There will be maximum correlation between light curves 
+         There will be maximum correlation between light curves
          if one of the light curve
          is shifted by ``time_shift``.
 
@@ -184,7 +184,7 @@ class CrossCorrelation(object):
             lc1.dt = lc2.dt
             self.dt = lc1.dt
 
-        # self.lc1 and self.lc2 may get assigned values explicitly 
+        # self.lc1 and self.lc2 may get assigned values explicitly
         # in which case there is no need to copy data
         if self.lc1 is None:
             self.lc1 = lc1
