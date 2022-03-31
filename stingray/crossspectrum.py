@@ -37,7 +37,9 @@ __all__ = [
 ]
 
 
-def get_flux_generator(data: Union[Lightcurve, EventList], segment_size: float, dt: float=None) -> generator:
+def get_flux_generator(data: Union[Lightcurve, EventList],
+                       segment_size: float,
+                       dt: float = None) -> generator:
     """Get a flux generator from different segments of a data object
 
     It is just a wrapper around
@@ -210,7 +212,8 @@ def time_lag(lc1: stingray.Lightcurve, lc2: stingray.Lightcurve) -> np.ndarray:
 
 
 def normalize_crossspectrum(
-    unnorm_power: numpy.ndarray, tseg: int, nbins: int, nphots1: int, nphots2, norm: str ="none", power_type: str="real"
+    unnorm_power: numpy.ndarray, tseg: int, nbins: int,
+    nphots1: int, nphots2: int, norm: str = "none", power_type: str = "real"
 ) -> numpy.nd.array:
     """
     Normalize the real part of the cross spectrum to Leahy, absolute rms^2,
