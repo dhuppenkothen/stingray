@@ -89,7 +89,6 @@ def _create_responses(range_z):
         List of arrays describing the shape of the response function
         corresponding to each value of ``range_z``.
     """
-    log.info("Creating responses")
     responses = []
     for j, z in enumerate(show_progress(range_z)):
         # fdot = z / T**2
@@ -233,7 +232,6 @@ def _calculate_all_convolutions(A, responses, freq_intv_to_search,
     candidate_powers: array of float
         Power of candidates
     """
-    log.info("Convolving FFT with responses...")
     candidate_powers = [0.]
     candidate_rs = [1]
 
@@ -360,7 +358,6 @@ def accelsearch(times, signal, delta_z=1, fmin=1, fmax=1e32,
         plt.loglog()
 
     if fft_rescale is not None:
-        log.info("Applying initial filters...")
         spectr = fft_rescale(spectr)
 
     if debug:
@@ -377,7 +374,6 @@ def accelsearch(times, signal, delta_z=1, fmin=1, fmax=1e32,
     T = times[-1] - times[0] + dt
 
     freq_intv_to_search = (freq >= fmin) & (freq < fmax)
-    log.info("Starting search over full plane...")
     start_z = -zmax
     end_z = zmax
     range_z = np.arange(start_z,end_z, delta_z)
