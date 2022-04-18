@@ -1,3 +1,4 @@
+import stingray
 import copy
 import warnings
 from collections.abc import Iterable, Iterator, Generator
