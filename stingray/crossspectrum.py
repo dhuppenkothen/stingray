@@ -1,7 +1,6 @@
 import copy
 import warnings
 from collections.abc import Iterable, Iterator, Generator
-
 import numpy as np
 import scipy
 import scipy.optimize
@@ -39,7 +38,7 @@ __all__ = [
 
 def get_flux_generator(data: Union[Lightcurve, EventList],
                        segment_size: float,
-                       dt: float = None) -> generator:
+                       dt: float = None) -> Generator:
     """Get a flux generator from different segments of a data object
 
     It is just a wrapper around
@@ -212,9 +211,9 @@ def time_lag(lc1: stingray.Lightcurve, lc2: stingray.Lightcurve) -> np.ndarray:
 
 
 def normalize_crossspectrum(
-    unnorm_power: numpy.ndarray, tseg: int, nbins: int,
+    unnorm_power: np.ndarray, tseg: int, nbins: int,
     nphots1: int, nphots2: int, norm: str = "none", power_type: str = "real"
-) -> numpy.nd.array:
+) -> np.ndarray:
     """
     Normalize the real part of the cross spectrum to Leahy, absolute rms^2,
     fractional rms^2 normalization, or not at all.
