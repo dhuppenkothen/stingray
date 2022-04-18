@@ -129,7 +129,7 @@ class EventList(StingrayTimeseries):
 
     """
     main_array_attr = "time"
-    def __init__(self, time=None, energy=None, ncounts=None, mjdref=0, dt=0,
+    def __init__(self, time: np.ndarray=None, energy: np.ndarray=None, ncounts=None, mjdref=0, dt=0,
                  notes="", gti=None, pi=None, high_precision=False,
                  mission=None, instr=None, header=None, detector_id=None,
                  ephem=None, timeref=None, timesys=None,
