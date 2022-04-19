@@ -54,28 +54,21 @@ class CrossCorrelation(object):
          An array of correlation data calculated from two light curves
 
     time_lags: numpy.ndarray
-         An array of all possible time lags against which
-         each point in corr is calculated
+         An array of all possible time lags against which each point in corr is calculated
 
     dt: float
-         The time resolution of each light curve
-         (used in ``time_lag`` calculations)
+         The time resolution of each light curve (used in ``time_lag`` calculations)
 
     time_shift: float
-         Time lag that gives maximum value of correlation
-         between two light curves.
-
-         There will be maximum correlation between light curves
-         if one of the light curve
+         Time lag that gives maximum value of correlation between two light curves.
+         There will be maximum correlation between light curves if one of the light curve
          is shifted by ``time_shift``.
 
     n: int
-         Number of points in ``self.corr``
-         (length of cross-correlation data)
+         Number of points in ``self.corr`` (length of cross-correlation data)
 
     auto: bool
-        An internal flag to indicate whether this is a cross-correlation
-        or an auto-correlation.
+        An internal flag to indicate whether this is a cross-correlation or an auto-correlation.
 
     norm: {``none``, ``variance``}
         The normalization specified in input
@@ -86,6 +79,7 @@ class CrossCorrelation(object):
     """
 
     def __init__(self, lc1=None, lc2=None, cross=None, mode='same', norm="none"):
+        
         self.auto = False
         self.norm = norm
         if isinstance(mode, str) is False:
@@ -155,6 +149,7 @@ class CrossCorrelation(object):
         self.corr = corr
         self.time_shift, self.time_lags, self.n = self.cal_timeshift(dt=self.dt)
 
+
     def _make_corr(self, lc1, lc2):
 
         """
@@ -184,8 +179,8 @@ class CrossCorrelation(object):
             lc1.dt = lc2.dt
             self.dt = lc1.dt
 
-        # self.lc1 and self.lc2 may get assigned values explicitly
-        # in which case there is no need to copy data
+        """ self.lc1 and self.lc2 may get assigned values explicitly
+         in which case there is no need to copy data """
         if self.lc1 is None:
             self.lc1 = lc1
         if self.lc2 is None:
@@ -267,8 +262,7 @@ class CrossCorrelation(object):
           # Correlation against all possible lags, positive as well as negative lags are stored
           # signal.correlation_lags() method uses SciPy versions >= 1.6.1
           x_lags = \
-              signal.correlation_lags(np.size(self.lc1.counts),
-                                      np.size(self.lc2.counts), self.mode)
+              signal.correlation_lags(np.size(self.lc1.counts), np.size(self.lc2.counts), self.mode)
 
         self.time_lags = x_lags * self.dt
         # time_shift is the time lag for max. correlation
@@ -276,14 +270,7 @@ class CrossCorrelation(object):
 
         return self.time_shift, self.time_lags, self.n
 
-    def plot(self,
-             labels=None,
-             axis=None,
-             title=None,
-             marker='-',
-             save=False,
-             filename=None,
-             ax=None):
+    def plot(self, labels=None, axis=None, title=None, marker='-', save=False, filename=None, ax=None):
         """
         Plot the :class:`Crosscorrelation` as function using Matplotlib.
         Plot the Crosscorrelation object on a graph ``self.time_lags`` on x-axis and
@@ -377,8 +364,7 @@ class AutoCorrelation(CrossCorrelation):
          An array of correlation data calculated from lightcurve data
 
     time_lags: numpy.ndarray
-         An array of all possible time lags against which
-         each point in corr is calculated
+         An array of all possible time lags against which each point in corr is calculated
 
     dt: float
          The time resolution of each lightcurve (used in time_lag calculations)

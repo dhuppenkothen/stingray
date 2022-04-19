@@ -260,12 +260,14 @@ def normalize_crossspectrum(
     dt = tseg / nbins
     nph = np.sqrt(nphots1 * nphots2)
     mean = nph / nbins
-    return normalize_periodograms(unnorm_power, dt, nbins, mean, n_ph=nph, norm=norm, power_type=power_type)
+    return normalize_periodograms(
+        unnorm_power, dt, nbins, mean, n_ph=nph, norm=norm, power_type=power_type
+        )
 
 
 def normalize_crossspectrum_gauss(
-    unnorm_power, mean_flux, var, dt, N, norm="none", power_type="real"
-):
+    unnorm_power, mean_flux, var, dt, N, norm="none", power_type="real" 
+    ):
     """
     Normalize the real part of the cross spectrum to Leahy, absolute rms^2,
     fractional rms^2 normalization, or not at all.
@@ -317,17 +319,23 @@ def normalize_crossspectrum_gauss(
     >>> pds_c = np.absolute(np.fft.fft(lc_c))**2
     >>> pds = np.absolute(np.fft.fft(lc))**2
     >>> dt = 0.1
-    >>> norm_c = normalize_crossspectrum_gauss(pds_c, np.mean(lc_c), lc_c_var, dt, len(lc_c), norm='leahy')
+    >>> norm_c = normalize_crossspectrum_gauss(
+            pds_c, np.mean(lc_c), lc_c_var, dt, len(lc_c), norm='leahy'
+            )
     >>> norm = normalize_crossspectrum_gauss(pds, np.mean(lc), lc_var, dt, len(lc), norm='leahy')
     >>> np.allclose(norm, norm_c)
     True
     >>> np.isclose(np.mean(norm[1:]), 2, atol=0.1)
     True
-    >>> norm_c = normalize_crossspectrum_gauss(pds_c, np.mean(lc_c), np.mean(lc_c), dt, len(lc_c), norm='frac')
+    >>> norm_c = normalize_crossspectrum_gauss(
+            pds_c, np.mean(lc_c), np.mean(lc_c), dt, len(lc_c), norm='frac'
+            )
     >>> norm = normalize_crossspectrum_gauss(pds, np.mean(lc), lc_var, dt, len(lc), norm='frac')
     >>> np.allclose(norm, norm_c)
     True
-    >>> norm_c = normalize_crossspectrum_gauss(pds_c, np.mean(lc_c), np.mean(lc_c), dt, len(lc_c), norm='abs')
+    >>> norm_c = normalize_crossspectrum_gauss(
+            pds_c, np.mean(lc_c), np.mean(lc_c), dt, len(lc_c), norm='abs'
+            )
     >>> norm = normalize_crossspectrum_gauss(pds, np.mean(lc), lc_var, dt, len(lc), norm='abs')
     >>> np.allclose(norm / np.mean(lc)**2, norm_c / np.mean(lc_c)**2)
     True
@@ -484,10 +492,12 @@ class Crossspectrum(StingrayObject):
 
     Parameters
     ----------
-    data1: :class:`stingray.Lightcurve` or :class:`stingray.events.EventList`, optional, default ``None``
+    data1:
+        :class:`stingray.Lightcurve` or :class:`stingray.events.EventList`, optional, default ``None``
         The dataset for the first channel/band of interest.
 
-    data2: :class:`stingray.Lightcurve` or :class:`stingray.events.EventList`, optional, default ``None``
+    data2:
+        :class:`stingray.Lightcurve` or :class:`stingray.events.EventList`, optional, default ``None``
         The dataset for the second, or "reference", band.
 
     norm: {``frac``, ``abs``, ``leahy``, ``none``}, default ``none``
@@ -736,7 +746,7 @@ class Crossspectrum(StingrayObject):
                 simon(
                     "Your lightcurves have different statistics."
                     "The errors in the Crossspectrum will be incorrect."
-            )
+                )
 
             # If dt differs slightly, its propagated error must not be more than
             # 1/100th of the bin
@@ -1695,6 +1705,7 @@ class Crossspectrum(StingrayObject):
         self.n = None
         self.fullspec = None
         return
+
 
 class AveragedCrossspectrum(Crossspectrum):
     type = "crossspectrum"
