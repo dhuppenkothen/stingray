@@ -6,6 +6,7 @@ import numpy as np
 import scipy
 import scipy.optimize
 import scipy.stats
+from astropy import log
 import matplotlib.pyplot as plt
 
 from stingray.exceptions import StingrayError
@@ -1914,6 +1915,7 @@ class AveragedCrossspectrum(Crossspectrum):
                 power_type=power_type, silent=silent, fullspec=fullspec,
                 use_common_mean=use_common_mean)
 
+        log.info("Using legacy interface.")
 
         if large_data and data1 is not None and data2 is not None:
             if not HAS_ZARR:

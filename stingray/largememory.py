@@ -4,6 +4,7 @@ import string
 import warnings
 
 import numpy as np
+from astropy import log
 from astropy.io import fits
 
 import stingray
@@ -414,6 +415,9 @@ def _retrieveDataLC(data_path, chunk_size=0, offset=0, raw=False):
     else:
         if chunk_size == 0 or chunk_size > times.size:
             chunk_size = times.size
+            log.info(
+                f"Retrieving the whole array (Chunk size > size of times)"
+            )
 
         if offset > times.size:
             raise ValueError(
@@ -539,6 +543,9 @@ def _retrieveDataEV(data_path, chunk_size=0, offset=0, raw=False):
     else:
         if chunk_size == 0 or chunk_size > times.size:
             chunk_size = times.size
+            log.info(
+                f"Retrieving the whole array (Chunk size > size of times)"
+            )
 
         if offset > times.size:
             raise ValueError(
