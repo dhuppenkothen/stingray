@@ -87,7 +87,3 @@ def get_magnetar_binned_data(file_path: str,
     return times, y, yerr
 
 
-if __name__ == '__main__':
-    q = get_magnetar_binned_data(file_path=r'D:\Stingray_QPO\stingray\stingray\datasets\magnetar_flares\SGR_0501'
-                                           r'\080823478_lcobs_data.txt')
-    print(q[1].shape)
