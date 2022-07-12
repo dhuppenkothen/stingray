@@ -3,6 +3,7 @@ from pathlib import Path
 from scipy.signal import periodogram
 import numpy as np
 from typing import Union
+from stingray.modeling.QPO_estimation.utils.get_priors import _get_mean_prior
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -87,3 +88,34 @@ def get_magnetar_binned_data(file_path: str,
     return times, y, yerr
 
 
+if __name__ == '__main__':
+    # Get the data
+    file_path = r'D:\Stingray_QPO\stingray\stingray\datasets\magnetar_flares\SGR_0501\080823478_lcobs_data.txt'
+    times, y, yerr = get_magnetar_binned_data(file_path=file_path,
+                                              run_mode='entire_segment',
+                                              start_time=0,
+                                              end_time=1,
+                                              rebin_factor=8,
+                                              subtract_t0=True)
+
+    segment_length = times[-1] - times[0]
+    sampling_frequency = 1 / (times[1] - times[0])
+
+
+
+
+
+    t_0_min = times[0] - 0.1 * segment_length
+
+
+    t_0_max = times[-1] + 0.1 * segment_length
+
+
+    sigma_min = 0.5 * 1 / sampling_frequency
+
+
+    sigma_max = 2 * segment_length
+
+    l = _get_mean_prior(times,y,yerr,model_type='gaussian',t_0_max = t_0_max,t_0_min = t_0_min,sigma_max = sigma_max,sigma_min = sigma_min)
+
+    print(l)
