@@ -245,7 +245,7 @@ LIKELIHOOD_MODEL_DICT = dict(
     celerite=CeleriteLikelihood, celerite_windowed=WindowedCeleriteLikelihood, george=GeorgeLikelihood)
 
 
-def get_gp_likelihood(
+def likelihood(
         mean_model: Union[celerite.modeling.Model, george.modeling.Model],  # noqa
         kernel: Union[celerite.terms.Term, george.kernels.Kernel], times: np.ndarray, y: np.ndarray, yerr:
         np.ndarray, likelihood_model: str = "celerite") \
@@ -288,6 +288,6 @@ if __name__ == '__main__':
     y = np.arange(10)
     yerr = np.arange(10)
 
-    gp_likelihood = get_gp_likelihood(mm, k, times, y, yerr)
+    gp_likelihood = likelihood(mm, k, times, y, yerr)
 
     print(gp_likelihood)
