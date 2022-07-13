@@ -5,10 +5,14 @@ import numpy as np
 from typing import Union
 import bilby
 import math
-from stingray.modeling.QPO_estimation.utils.utils.priors import get_fred_priors, get_fred_extended_priors, \
-    get_gaussian_priors, get_skew_exponential_priors, get_skew_gaussian_priors, get_polynomial_priors
+from stingray.modeling.QPO_estimation.utils.utils.priors import (get_fred_priors, get_fred_extended_priors,
+                                                                 get_gaussian_priors, get_skew_exponential_priors,
+                                                                 get_skew_gaussian_priors, get_polynomial_priors)
 
-
+from stingray.modeling.QPO_estimation.utils.utils.kernel_priors import (get_white_noise_prior,
+                                                                        get_red_noise_prior,
+                                                                        get_pure_qpo_prior,
+                                                                        get_qpo_prior)
 import matplotlib
 import matplotlib.pyplot as plt
 
@@ -88,6 +92,52 @@ def _get_mean_prior(times: np.ndarray, counts: np.ndarray,
     return priors
 
 
+def _get_kernel_prior(kernel_type: str,
+                      min_log_a: float,
+                      max_log_a: float,
+                      min_log_c_red_noise: float,
+                      max_log_c_red_noise: float,
+                      min_log_c_qpo: float,
+                      max_log_c_qpo: float,
+                      band_minimum: float,
+                      band_maximum: float,
+                      jitter_term: bool):
+
+    if max_log_c_qpo is None or np.isnan(max_log_c_qpo):
+        max_log_c_qpo = np.log(band_maximum)
+
+    if kernel_type == 'white_noise':
+        priors = get_white_noise_prior(jitter_term=jitter_term)
+
+    elif kernel_type == 'red_noise':
+        priors = get_red_noise_prior(max_log_a=max_log_a, max_log_c_red_noise=max_log_c_red_noise,
+                                     min_log_a=min_log_a, min_log_c_red_noise=min_log_c_red_noise)
+
+    elif kernel_type == 'pure_qpo':
+        priors = get_pure_qpo_prior(band_maximum=band_maximum,
+                                    band_minimum=band_minimum,
+                                    max_log_a=max_log_a,
+                                    max_log_c_qpo=max_log_c_qpo,
+                                    min_log_a=min_log_a,
+                                    min_log_c_qpo=min_log_c_qpo)
+
+    elif kernel_type == 'qpo':
+        priors = get_qpo_prior(band_maximum=band_maximum,
+                               band_minimum=band_minimum,
+                               max_log_a=max_log_a,
+                               max_log_c=max_log_c_qpo,
+                               min_log_a=min_log_a,
+                               min_log_c_qpo=min_log_c_qpo)
+
+
+    else:
+        priors = bilby.prior.PriorDict()
+
+    return priors
+
+
+
+
 def all_priors(times: np.ndarray, counts: np.ndarray, yerr: np.ndarray,
                likelihood_model: str = 'celerite', kernel_type: str = 'qpo_plus_red_noise',
                model_type: str = 'skew_gaussian', polynomial_max: int = 2,
@@ -160,5 +210,5 @@ def all_priors(times: np.ndarray, counts: np.ndarray, yerr: np.ndarray,
                                   offset, amplitude_min, amplitude_max,
                                   offset_min, offset_max, sigma_min, sigma_max,
                                   t_0_min, t_0_max)
-    kernel_priors = gp.get_kernel_prior(**kwargs)
+    kernel_priors = _get_kernel_prior(**kwargs)
     window_priors = gp._get_window_priors(**kwargs)
