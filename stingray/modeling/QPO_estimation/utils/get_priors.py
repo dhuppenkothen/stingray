@@ -130,6 +130,8 @@ def _get_kernel_prior(kernel_type: str,
                                min_log_c_qpo=min_log_c_qpo)
 
 
+
+
     else:
         priors = bilby.prior.PriorDict()
 
