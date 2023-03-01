@@ -6,10 +6,11 @@ from ..utils import jit, HAS_NUMBA
 from ..utils import contiguous_regions
 from astropy.stats import poisson_conf_interval
 import matplotlib.pyplot as plt
+from stingray import EventList
 
 
 __all__ = ['epoch_folding_search', 'z_n_search', 'search_best_peaks',
-           'plot_profile', 'plot_phaseogram', 'phaseogram']
+           'plot_profile', 'plot_phaseogram', 'phaseogram', 'Pulsar_Periodogram']
 
 
 @jit(nopython=True)
@@ -508,3 +509,41 @@ def phaseogram(times, f, nph=128, nt=32, ph0=0, mjdref=None, fdot=0, fddot=0,
         additional_info = {}
 
     return phas, binx, biny, additional_info
+
+class Pulsar_Periodogram():
+    """Creates a Periodogram for a given event
+    
+        Parameters
+        ----------
+        events : EventList
+            The input Event list to make the periodogram
+        frequencies : np.array
+            The frequencies for which the statistics are calculated
+        nbin : int
+            The number of bins/ degree of freedom
+             
+    """
+
+    def __init__(self, events: EventList, frequencies: np.array, nbin = 32 ):
+        self.events = events
+        self.frequencies = frequencies
+        self.nbin = 32
+        self.effreq, self.efstat = epoch_folding_search(self.events.time, self.frequencies, nbin=nbin)
+        self.zfreq, self.zstat = z_n_search(events.time, frequencies, nbin=nbin, nharm= 1)
+    
+    def plot_EF_periodogram(self):
+        plt.figure()
+        plt.plot(self.effreq, self.efstat, label='EF statistics')
+        plt.axhline(self.nbin - 1, ls='--', lw=3, color='k', label='n - 1') 
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('EF Statistics')
+        plt.legend()
+
+    def plot_Z_periodogram(self):
+        nharm = 1   
+        plt.figure()
+        plt.plot(self.zfreq, (self.zstat - nharm), label='$Z_2$ statistics')
+        plt.xlim([self.frequencies[0], self.frequencies[-1]])
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Statistics - d.o.f.')
+        plt.legend()
