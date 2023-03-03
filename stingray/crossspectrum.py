@@ -1238,13 +1238,16 @@ class Crossspectrum(StingrayObject):
             return ph_lag / (2 * np.pi * self.freq)
         else:
             raise AttributeError("Object has no attribute named 'time_lag' !")
-
-    def plot(self, labels=None, axis=None, title=None, marker="-", save=False, filename=None):
+    
+    def plot(self, axes =None, labels=None, axis=None, title=None, marker="-", save=False, filename=None):
         """
         Plot the amplitude of the cross spectrum vs. the frequency using ``matplotlib``.
 
         Parameters
         ----------
+        axes : For Object Oriented ploting, to directly drop mpl.Axes objects into subplots.
+            If axes is given then it plots into the subplot otherwise it directly makes the plot.
+
         labels : iterable, default ``None``
             A list of tuple with ``xlabel`` and ``ylabel`` as strings.
 
@@ -1267,38 +1270,42 @@ class Crossspectrum(StingrayObject):
         filename : str
             File name of the image to save. Depends on the boolean ``save``.
         """
+        axes_present = True
+        if axes == None:
+            axes_present = False
+            fig = plt.figure()
+            axes = fig.add_subplot(1,1,1)
 
-        plt.figure("crossspectrum")
-        plt.plot(self.freq, np.abs(self.power), marker, color="b", label="Amplitude")
-        plt.plot(
-            self.freq, np.abs(self.power.real), marker, color="r", alpha=0.5, label="Real Part"
-        )
-        plt.plot(
-            self.freq, np.abs(self.power.imag), marker, color="g", alpha=0.5, label="Imaginary Part"
-        )
+        axes.plot(self.freq, np.abs(self.power), marker, color="b", label="Amplitude")
+        axes.plot(self.freq, np.abs(self.power.real), marker, color="r", alpha=0.5, label="Real Part")
+        axes.plot(self.freq, np.abs(self.power.imag), marker, color="g", alpha=0.5, label="Imaginary Part")
 
         if labels is not None:
             try:
-                plt.xlabel(labels[0])
-                plt.ylabel(labels[1])
+                axes.set_xlabel(labels[0])
+                axes.set_ylabel(labels[1])
             except IndexError:
                 simon("``labels`` must have two labels for x and y axes.")
                 # Not raising here because in case of len(labels)==1, only
                 # x-axis will be labelled.
-        plt.legend(loc="best")
+        axes.legend(loc="best")
+
         if axis is not None:
-            plt.axis(axis)
+            axes.set_xlim(axis[0:2])
+            axes.set_ylim(axis[2:4])
 
         if title is not None:
-            plt.title(title)
-
+            axes.set_title(title)
+        
         if save:
-            if filename is None:
-                plt.savefig("spec.png")
+            if axes_present:
+                warnings.warn("Plot saving is not supported for axes objects")
+            elif filename is None:
+                fig.savefig("spec.png")
             else:
-                plt.savefig(filename)
-        else:
-            plt.show(block=False)
+                fig.savefig(filename)
+
+        return axes
 
     def classical_significances(self, threshold=1, trial_correction=False):
         """
