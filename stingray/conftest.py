@@ -11,12 +11,14 @@ from astropy.version import version as astropy_version
 
 try:
     from pytest_astropy_header.display import PYTEST_HEADER_MODULES, TESTED_VERSIONS
+
     ASTROPY_HEADER = True
 except ImportError:
     ASTROPY_HEADER = False
 
 import matplotlib
-matplotlib.use('Agg')
+
+matplotlib.use("Agg")
 
 
 def pytest_configure(config):
@@ -27,10 +29,11 @@ def pytest_configure(config):
 
         # Customize the following lines to add/remove entries from the list of
         # packages for which version numbers are displayed when running the tests.
-        PYTEST_HEADER_MODULES.pop('Pandas', None)
-        PYTEST_HEADER_MODULES['scikit-image'] = 'skimage'
+        PYTEST_HEADER_MODULES.pop("Pandas", None)
+        PYTEST_HEADER_MODULES["scikit-image"] = "skimage"
 
         from . import __version__
+
         packagename = os.path.basename(os.path.dirname(__file__))
         TESTED_VERSIONS[packagename] = __version__
 

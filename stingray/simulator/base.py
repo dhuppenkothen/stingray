@@ -63,8 +63,7 @@ def simulate_times(lc, use_spline=False):
         ...
     ValueError: simulate_times can only work with...
     """
-    return simulate_times_from_count_array(
-        lc.time, lc.counts, lc.gti, lc.dt, use_spline=use_spline)
+    return simulate_times_from_count_array(lc.time, lc.counts, lc.gti, lc.dt, use_spline=use_spline)
 
 
 def simulate_times_from_count_array(time, counts, gti, dt, use_spline=False):
@@ -132,20 +131,15 @@ def simulate_times_from_count_array(time, counts, gti, dt, use_spline=False):
         kind = "cubic"
 
     if np.any(counts < 0):
-        raise ValueError(
-            "simulate_times can only work with positive-definite light curves"
-        )
+        raise ValueError("simulate_times can only work with positive-definite light curves")
 
     if len(gti) > 1:  # Work GTI by GTI, to avoid the spillover of events
         all_events = []
         start_bins, stop_bins = gti_border_bins(gti, time, dt=dt)
         for i, (start, stop) in enumerate(zip(start_bins, stop_bins)):
             new_events = simulate_times_from_count_array(
-                time[start:stop],
-                counts[start:stop],
-                [gti[i]],
-                dt,
-                use_spline=use_spline)
+                time[start:stop], counts[start:stop], [gti[i]], dt, use_spline=use_spline
+            )
             all_events.append(new_events)
         return np.concatenate(all_events)
 
@@ -153,15 +147,15 @@ def simulate_times_from_count_array(time, counts, gti, dt, use_spline=False):
     tmin = gti[0, 0]
     tmax = gti[-1, 1]
     times = simulate_with_inverse_cdf(
-        counts, n_events_predict, sorted=True, x_range=[tmin, tmax],
-        interp_kind=kind)
+        counts, n_events_predict, sorted=True, x_range=[tmin, tmax], interp_kind=kind
+    )
 
     return times
 
 
 def simulate_with_inverse_cdf(
-        binned_pdf, N, x_range=None, interp_kind="linear", sorted=False,
-        edges=None):
+    binned_pdf, N, x_range=None, interp_kind="linear", sorted=False, edges=None
+):
     """Simulate single values from a binned probability distribution.
 
     Parameters
@@ -254,8 +248,8 @@ def simulate_with_inverse_cdf(
 
     if np.any(binned_pdf < 0):
         raise ValueError(
-            "simulate_with_inverse_cdf only works on positive-definite input "
-            "curves")
+            "simulate_with_inverse_cdf only works on positive-definite input " "curves"
+        )
 
     if len(binned_pdf) == 1:  # Corner case: a single bin
         vals = np.random.uniform(x_range[0], x_range[1], N)
@@ -267,10 +261,7 @@ def simulate_with_inverse_cdf(
     cdf = np.cumsum(binned_pdf)
     cdf /= cdf[-1]
 
-    inv_cdf_func = sci.interp1d(
-        cdf,
-        edges,
-        kind=interp_kind)
+    inv_cdf_func = sci.interp1d(cdf, edges, kind=interp_kind)
 
     cdf_vals = np.random.uniform(0, 1, N)
     if sorted:

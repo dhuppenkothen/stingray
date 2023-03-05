@@ -415,16 +415,13 @@ class VarEnergySpectrum(StingrayObject, metaclass=ABCMeta):
         pass
 
     def from_astropy_table(self, *args, **kwargs):
-        raise NotImplementedError(
-            "from_XXXX methods are not implemented for VarEnergySpectrum")
+        raise NotImplementedError("from_XXXX methods are not implemented for VarEnergySpectrum")
 
     def from_xarray(self, *args, **kwargs):
-        raise NotImplementedError(
-            "from_XXXX methods are not implemented for VarEnergySpectrum")
+        raise NotImplementedError("from_XXXX methods are not implemented for VarEnergySpectrum")
 
     def from_pandas(self, *args, **kwargs):
-        raise NotImplementedError(
-            "from_XXXX methods are not implemented for VarEnergySpectrum")
+        raise NotImplementedError("from_XXXX methods are not implemented for VarEnergySpectrum")
 
 
 class RmsSpectrum(VarEnergySpectrum):
@@ -556,8 +553,9 @@ class RmsSpectrum(VarEnergySpectrum):
                 m_ave, mean = [results.meta[key] for key in ["m", "mean"]]
                 mean_power = np.mean(cross[good])
                 power_noise = 0
-                rmsnoise = np.sqrt(delta_nu_after_mean *
-                                   np.sqrt(sub_power_noise * sub2_power_noise))
+                rmsnoise = np.sqrt(
+                    delta_nu_after_mean * np.sqrt(sub_power_noise * sub2_power_noise)
+                )
             else:
                 results = avg_pds_from_events(
                     sub_events, self.gti, self.segment_size, self.bin_time, silent=True, norm="abs"
@@ -576,8 +574,8 @@ class RmsSpectrum(VarEnergySpectrum):
             rms = np.sqrt(np.abs(mean_power - power_noise) * delta_nu_after_mean)
 
             # Assume coherence 0, use Ingram+2019
-            num = rms ** 4 + rmsnoise ** 4 + 2 * rms * rmsnoise
-            den = 4 * m_ave * n_ave_bin * rms ** 2
+            num = rms**4 + rmsnoise**4 + 2 * rms * rmsnoise
+            den = 4 * m_ave * n_ave_bin * rms**2
 
             rms_err = np.sqrt(num / den)
             if self.norm == "frac":
@@ -711,12 +709,7 @@ class CountSpectrum(VarEnergySpectrum):
         the errorbars corresponding to spectrum
     """
 
-    def __init__(
-        self,
-        events,
-        energy_spec,
-        use_pi=False
-    ):
+    def __init__(self, events, energy_spec, use_pi=False):
 
         VarEnergySpectrum.__init__(
             self,
@@ -849,7 +842,7 @@ class LagSpectrum(VarEnergySpectrum):
                 self.segment_size,
                 self.bin_time,
                 silent=True,
-                norm="none"
+                norm="none",
             )
 
             results_ps = avg_pds_from_events(
@@ -872,7 +865,13 @@ class LagSpectrum(VarEnergySpectrum):
             common_ref = self.same_events and len(cross_two_gtis([eint], self.ref_band)) > 0
 
             _, _, phi_e, _ = error_on_averaged_cross_spectrum(
-                Cmean, mean_sub_power, mean_ref_power, m_tot, sub_power_noise, ref_power_noise, common_ref=common_ref
+                Cmean,
+                mean_sub_power,
+                mean_ref_power,
+                m_tot,
+                sub_power_noise,
+                ref_power_noise,
+                common_ref=common_ref,
             )
 
             # The frequency of these lags is measured from the *weighted* mean of the frequencies
@@ -976,7 +975,7 @@ class ComplexCovarianceSpectrum(VarEnergySpectrum):
             ref_band=ref_band,
             segment_size=segment_size,
             events2=events2,
-            return_complex=return_complex
+            return_complex=return_complex,
         )
 
     def _spectrum_function(self):
@@ -1043,14 +1042,21 @@ class ComplexCovarianceSpectrum(VarEnergySpectrum):
             mean_sub_power = np.mean(sub_power[good])
 
             _, _, _, Ce = error_on_averaged_cross_spectrum(
-                Cmean, mean_sub_power, mean_ref_power, m_tot, sub_power_noise, ref_power_noise, common_ref=common_ref
+                Cmean,
+                mean_sub_power,
+                mean_ref_power,
+                m_tot,
+                sub_power_noise,
+                ref_power_noise,
+                common_ref=common_ref,
             )
             if not self.return_complex:
                 Cmean = Cmean_real
 
             # Convert the cross spectrum to a covariance.
-            cov, cov_e = cross_to_covariance(np.asarray(
-                [Cmean, Ce]), mean_ref_power, ref_power_noise, delta_nu)
+            cov, cov_e = cross_to_covariance(
+                np.asarray([Cmean, Ce]), mean_ref_power, ref_power_noise, delta_nu
+            )
 
             meanrate = mean / self.bin_time
 

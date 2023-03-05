@@ -12,7 +12,7 @@ def testPyFFTW_complex():
     nh = 7
     x = np.random.randint(-30, 30, size=(nx, nx)) + 1j * np.random.randint(-30, 30, size=(nx, nx))
     h = np.random.randint(-20, 20, size=(nh, nh)) + 1j * np.random.randint(-20, 20, size=(nh, nh))
-    gold = fftconvolve(x, h, mode='same')
+    gold = fftconvolve(x, h, mode="same")
 
     y = ols(x, h, rfftn=np.fft.fftn, irfftn=np.fft.ifftn)
     # Establish baseline
@@ -42,7 +42,7 @@ def testPyFFTW():
     x = np.random.randint(-30, 30, size=(nx, nx)) + 1.0
     h = np.random.randint(-20, 20, size=(nh, nh)) + 1.0
     y = ols(x, h)
-    gold = fftconvolve(x, h, mode='same')
+    gold = fftconvolve(x, h, mode="same")
     # Establish baseline
     assert np.allclose(gold, y)
     # Verify PyFFTW
@@ -69,30 +69,29 @@ def testReflect():
     x = np.random.randint(-30, 30, size=(nx, nx)) + 1.0
     h = np.random.randint(-20, 20, size=(nh, nh)) + 1.0
     y = ols(x, h)
-    gold = fftconvolve(x, h, mode='same')
+    gold = fftconvolve(x, h, mode="same")
     assert np.allclose(gold, y)
 
     px, py = 24, 28
-    x0pad = np.pad(x, [(py, py), (px, px)], mode='constant')
+    x0pad = np.pad(x, [(py, py), (px, px)], mode="constant")
     y0pad = ols(x0pad, h)
-    assert np.allclose(y, y0pad[py:py + nx, px:px + nx])
+    assert np.allclose(y, y0pad[py : py + nx, px : px + nx])
 
-    xpadRef = np.pad(x, [(py, py), (px, px)], mode='reflect')
+    xpadRef = np.pad(x, [(py, py), (px, px)], mode="reflect")
     ypadRef = ols(xpadRef, h)
     for sizex in [2, 3, 4, 7, 8, 9, 10]:
         for sizey in [2, 3, 4, 7, 8, 9, 10]:
-            yRef = ols(x, h, [sizey, sizex], mode='reflect')
-            assert np.allclose(yRef, ypadRef[py:py + nx, px:px + nx])
+            yRef = ols(x, h, [sizey, sizex], mode="reflect")
+            assert np.allclose(yRef, ypadRef[py : py + nx, px : px + nx])
 
 
 def testOls():
-
     def testouter(nx, nh):
         x = np.random.randint(-30, 30, size=(nx, nx)) + 1.0
-        np.save('x', x)
+        np.save("x", x)
         h = np.random.randint(-20, 20, size=(nh, nh)) + 1.0
 
-        gold = fftconvolve(x, h, 'same')
+        gold = fftconvolve(x, h, "same")
 
         def testinner(maxlen):
             nfft = [nextprod([2, 3], x) for x in np.array(h.shape) + maxlen - 1]
@@ -101,14 +100,17 @@ def testOls():
             for xlen0 in range(maxlen):
                 for ylen0 in range(maxlen):
                     ylen, xlen = 1 + ylen0, 1 + xlen0
-                    dirt = np.vstack([
-                        np.hstack([
-                            olsStep(x, hpre, [ystart, xstart],
-                                    [ylen, xlen], nfft, h.shape)
-                            for xstart in range(0, x.shape[0], xlen)
-                        ])
-                        for ystart in range(0, x.shape[1], ylen)
-                    ])
+                    dirt = np.vstack(
+                        [
+                            np.hstack(
+                                [
+                                    olsStep(x, hpre, [ystart, xstart], [ylen, xlen], nfft, h.shape)
+                                    for xstart in range(0, x.shape[0], xlen)
+                                ]
+                            )
+                            for ystart in range(0, x.shape[1], ylen)
+                        ]
+                    )
                     assert np.allclose(dirt, gold)
 
                     dirt2 = ols(x, h, [ylen, xlen], nfft)
@@ -116,15 +118,16 @@ def testOls():
                     dirt3 = ols(x, h, [ylen, xlen])
                     assert np.allclose(dirt3, gold)
 
-                    memx = np.lib.format.open_memmap('x.npy')
+                    memx = np.lib.format.open_memmap("x.npy")
                     memout = np.lib.format.open_memmap(
-                        'out.npy', mode='w+', dtype=x.dtype, shape=x.shape)
+                        "out.npy", mode="w+", dtype=x.dtype, shape=x.shape
+                    )
                     dirtmem = ols(memx, h, [ylen, xlen], out=memout)
                     assert np.allclose(dirtmem, gold)
                     del memout
                     del memx
 
-                    dirtmem2 = np.load('out.npy')
+                    dirtmem2 = np.load("out.npy")
                     assert np.allclose(dirtmem2, gold)
                     del dirtmem2
                     del dirtmem
@@ -137,11 +140,10 @@ def testOls():
 
 
 def test1d():
-
     def testInner(nx, nh):
         x = np.random.randint(-30, 30, size=nx) + 1.0
         h = np.random.randint(-20, 20, size=nh) + 1.0
-        gold = fftconvolve(x, h, mode='same')
+        gold = fftconvolve(x, h, mode="same")
         for size in [2, 3]:
             dirt = ols(x, h, [size])
             assert np.allclose(gold, dirt)
@@ -151,7 +153,7 @@ def test1d():
             testInner(nx, nh)
 
 
-if __name__ == '__main__':  # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     testPyFFTW_complex()
     testPyFFTW()
     testReflect()

@@ -88,10 +88,10 @@ def get_file_extension(fname):
     >>> get_file_extension('ciao.a.tutti.evt.gz')
     '.evt.gz'
     """
-    fname_root = fname.replace('.gz', '')
+    fname_root = fname.replace(".gz", "")
     fname_root = os.path.splitext(fname_root)[0]
 
-    return fname.replace(fname_root, '')
+    return fname.replace(fname_root, "")
 
 
 def high_precision_keyword_read(hdr, keyword):
@@ -126,8 +126,8 @@ def high_precision_keyword_read(hdr, keyword):
     try:
         if len(keyword) == 8:
             keyword = keyword[:7]
-        value = np.longdouble(hdr[keyword + 'I'])
-        value += np.longdouble(hdr[keyword + 'F'])
+        value = np.longdouble(hdr[keyword + "I"])
+        value += np.longdouble(hdr[keyword + "F"])
         return value
     except KeyError:
         return None
@@ -236,7 +236,7 @@ def _get_additional_data(lctable, additional_columns):
             if key is not None:
                 additional_data[a] = np.array(lctable.field(key))
             else:
-                warnings.warn('Column ' + a + ' not found')
+                warnings.warn("Column " + a + " not found")
                 additional_data[a] = np.zeros(len(lctable))
 
     return additional_data
@@ -363,9 +363,7 @@ def lcurve_from_fits(
     tunit = lchdulist[ratehdu].header["TIMEUNIT"]
 
     try:
-        mjdref = high_precision_keyword_read(
-            lchdulist[ratehdu].header, "MJDREF"
-        )
+        mjdref = high_precision_keyword_read(lchdulist[ratehdu].header, "MJDREF")
         mjdref = Time(mjdref, scale="tdb", format="mjd")
     except Exception:
         mjdref = None
@@ -379,18 +377,14 @@ def lcurve_from_fits(
     # Trying to comply with all different formats of fits light curves.
     # It's a madness...
     try:
-        tstart = high_precision_keyword_read(
-            lchdulist[ratehdu].header, "TSTART"
-        )
+        tstart = high_precision_keyword_read(lchdulist[ratehdu].header, "TSTART")
         tstop = high_precision_keyword_read(lchdulist[ratehdu].header, "TSTOP")
     except Exception:  # pragma: no cover
         raise (Exception("TSTART and TSTOP need to be specified"))
 
     # For nulccorr lcs this whould work
 
-    timezero = high_precision_keyword_read(
-        lchdulist[ratehdu].header, "TIMEZERO"
-    )
+    timezero = high_precision_keyword_read(lchdulist[ratehdu].header, "TIMEZERO")
     # Sometimes timezero is "from tstart", sometimes it's an absolute time.
     # This tries to detect which case is this, and always consider it
     # referred to tstart
@@ -407,9 +401,7 @@ def lcurve_from_fits(
         # if None, use NuSTAR defaulf MJDREF
         mjdref = assign_value_if_none(
             mjdref,
-            Time(
-                np.longdouble("55197.00076601852"), scale="tdb", format="mjd"
-            ),
+            Time(np.longdouble("55197.00076601852"), scale="tdb", format="mjd"),
         )
 
         timezero = (timezero - mjdref).to("s").value
@@ -431,8 +423,7 @@ def lcurve_from_fits(
             dt *= 86400
     except Exception:
         warnings.warn(
-            "Assuming that TIMEDEL is the median difference between the"
-            " light curve times",
+            "Assuming that TIMEDEL is the median difference between the" " light curve times",
             AstropyUserWarning,
         )
         # Avoid NaNs
@@ -446,8 +437,7 @@ def lcurve_from_fits(
                 ratecolumn = name
                 break
         else:  # pragma: no cover
-            raise ValueError(
-                "None of the accepted rate columns were found in the file")
+            raise ValueError("None of the accepted rate columns were found in the file")
 
     rate = np.array(lctable.field(ratecolumn), dtype=float)
 
@@ -469,9 +459,7 @@ def lcurve_from_fits(
     except Exception:
         fracexp = np.ones_like(rate)
 
-    good_intervals = (
-        (rate == rate) * (fracexp >= fracexp_limit)
-    )
+    good_intervals = (rate == rate) * (fracexp >= fracexp_limit)
 
     rate[good_intervals] /= fracexp[good_intervals]
     rate_e[good_intervals] /= fracexp[good_intervals]
@@ -481,12 +469,7 @@ def lcurve_from_fits(
     try:
         gtitable = lchdulist[gtistring].data
         gti_list = np.array(
-            [
-                [a, b]
-                for a, b in zip(
-                    gtitable.field("START"), gtitable.field("STOP")
-                )
-            ],
+            [[a, b] for a, b in zip(gtitable.field("START"), gtitable.field("STOP"))],
             dtype=np.longdouble,
         )
     except Exception:
@@ -494,14 +477,16 @@ def lcurve_from_fits(
 
     lchdulist.close()
 
-    res = {"time": time,
-           "counts": rate,
-           "err": rate_e,
-           "gti": gti_list,
-           "mjdref": mjdref.mjd,
-           "dt": dt,
-           "instr": instr,
-           "header": lchdulist[ratehdu].header.tostring()}
+    res = {
+        "time": time,
+        "counts": rate,
+        "err": rate_e,
+        "gti": gti_list,
+        "mjdref": mjdref.mjd,
+        "dt": dt,
+        "instr": instr,
+        "header": lchdulist[ratehdu].header.tostring(),
+    }
     return res
 
 
@@ -605,7 +590,7 @@ def load_events_and_gtis(
         hduname = get_key_from_mission_info(db, "events", "EVENTS", instr, mode)
 
     if hduname not in hdulist:
-        warnings.warn(f'HDU {hduname} not found. Trying first extension')
+        warnings.warn(f"HDU {hduname} not found. Trying first extension")
         hduname = 1
 
     datatable = hdulist[hduname].data
@@ -616,7 +601,7 @@ def load_events_and_gtis(
     if "PLEPHEM" in header:
         # For the rare cases where this is a number, e.g. 200, I add `str`
         # It's supposed to be a string.
-        ephem = str(header["PLEPHEM"]).strip().lstrip('JPL-').lower()
+        ephem = str(header["PLEPHEM"]).strip().lstrip("JPL-").lower()
     if "TIMEREF" in header:
         timeref = header["TIMEREF"].strip().lower()
     if "TIMESYS" in header:
@@ -633,7 +618,7 @@ def load_events_and_gtis(
 
     det_number = None if detector_id is None else list(set(detector_id))
 
-    timezero = np.longdouble(0.)
+    timezero = np.longdouble(0.0)
     if "TIMEZERO" in header:
         timezero = np.longdouble(header["TIMEZERO"])
 
@@ -700,7 +685,7 @@ def load_events_and_gtis(
     returns.gti_list = gti_list
     returns.pi_list = pi
     returns.cal_pi_list = cal_pi
-    if "energy" in additional_data and np.any(additional_data["energy"] > 0.):
+    if "energy" in additional_data and np.any(additional_data["energy"] > 0.0):
         returns.energy_list = additional_data["energy"]
     else:
         try:
@@ -722,7 +707,7 @@ def load_events_and_gtis(
     return returns
 
 
-class EventReadOutput():
+class EventReadOutput:
     def __init__(self):
         pass
 
@@ -740,6 +725,7 @@ def mkdir_p(path):  # pragma: no cover
     .. [so-mkdir] http://stackoverflow.com/questions/600268/mkdir-p-functionality-in-python
     """
     import os
+
     os.makedirs(path, exist_ok=True)
 
 
@@ -769,7 +755,7 @@ def read_header_key(fits_file, key, hdu=1):
     try:
         value = hdulist[hdu].header[key]
     except KeyError:  # pragma: no cover
-        value = ''
+        value = ""
     hdulist.close()
     return value
 
@@ -793,8 +779,7 @@ def ref_mjd(fits_file, hdu=1):
         the reference MJD
     """
 
-    if isinstance(fits_file, Iterable) and\
-            not is_string(fits_file):  # pragma: no cover
+    if isinstance(fits_file, Iterable) and not is_string(fits_file):  # pragma: no cover
         fits_file = fits_file[0]
         logging.info("opening %s" % fits_file)
 
@@ -806,7 +791,7 @@ def ref_mjd(fits_file, hdu=1):
     return ref_mjd_val
 
 
-def common_name(str1, str2, default='common'):
+def common_name(str1, str2, default="common"):
     """Strip two strings of the letters not in common.
 
     Filenames must be of same length and only differ by a few letters.
@@ -829,18 +814,18 @@ def common_name(str1, str2, default='common'):
     """
     if not len(str1) == len(str2):
         return default
-    common_str = ''
+    common_str = ""
     # Extract the MP root of the name (in case they're event files)
 
     for i, letter in enumerate(str1):
         if str2[i] == letter:
             common_str += letter
     # Remove leading and trailing underscores and dashes
-    common_str = common_str.rstrip('_').rstrip('-')
-    common_str = common_str.lstrip('_').lstrip('-')
-    if common_str == '':
+    common_str = common_str.rstrip("_").rstrip("-")
+    common_str = common_str.lstrip("_").lstrip("-")
+    if common_str == "":
         common_str = default
-    logging.debug('common_name: %s %s -> %s' % (str1, str2, common_str))
+    logging.debug("common_name: %s %s -> %s" % (str1, str2, common_str))
     return common_str
 
 
@@ -916,7 +901,9 @@ def savefig(filename, **kwargs):
     """
 
     if not plt.fignum_exists(1):
-        utils.simon("use ``plot`` function to plot the image first and "
-                    "then use ``savefig`` to save the figure.")
+        utils.simon(
+            "use ``plot`` function to plot the image first and "
+            "then use ``savefig`` to save the figure."
+        )
 
     plt.savefig(filename, **kwargs)

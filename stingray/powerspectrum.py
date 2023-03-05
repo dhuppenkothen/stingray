@@ -25,8 +25,10 @@ from .fourier import get_flux_iterable_from_segments
 try:
     from tqdm import tqdm as show_progress
 except ImportError:
+
     def show_progress(a, **kwargs):
         return a
+
 
 __all__ = ["Powerspectrum", "AveragedPowerspectrum", "DynamicalPowerspectrum"]
 
@@ -104,26 +106,22 @@ class Powerspectrum(Crossspectrum):
         to use the large_data option.
     """
 
-    def __init__(self, data=None, norm="frac", gti=None,
-                 dt=None, lc=None, skip_checks=False, legacy=False):
+    def __init__(
+        self, data=None, norm="frac", gti=None, dt=None, lc=None, skip_checks=False, legacy=False
+    ):
 
         self._type = None
         if lc is not None:
-            warnings.warn("The lc keyword is now deprecated. Use data "
-                          "instead", DeprecationWarning)
+            warnings.warn(
+                "The lc keyword is now deprecated. Use data " "instead", DeprecationWarning
+            )
         if data is None:
             data = lc
 
         good_input = True
         if not skip_checks:
             good_input = self.initial_checks(
-                data1=data,
-                data2=data,
-                norm=norm,
-                gti=gti,
-                lc1=lc,
-                lc2=lc,
-                dt=dt
+                data1=data, data2=data, norm=norm, gti=gti, lc1=lc, lc2=lc, dt=dt
             )
 
         norm = norm.lower()
@@ -136,8 +134,9 @@ class Powerspectrum(Crossspectrum):
         if not legacy and data is not None:
             return self._initialize_from_any_input(data, dt=dt, norm=norm)
 
-        Crossspectrum.__init__(self, data1=data, data2=data, norm=norm,
-                               gti=gti, dt=dt, skip_checks=True, legacy=legacy)
+        Crossspectrum.__init__(
+            self, data1=data, data2=data, norm=norm, gti=gti, dt=dt, skip_checks=True, legacy=legacy
+        )
         self.nphots = self.nphots1
         self.dt = dt
 
@@ -166,7 +165,7 @@ class Powerspectrum(Crossspectrum):
 
         return bin_ps
 
-    def compute_rms(self, min_freq, max_freq, white_noise_offset=2.):
+    def compute_rms(self, min_freq, max_freq, white_noise_offset=2.0):
         """
         Compute the fractional rms amplitude in the power spectrum
         between two frequencies.
@@ -202,11 +201,10 @@ class Powerspectrum(Crossspectrum):
         powers = self.power[minind:maxind]
         nphots = self.nphots
 
-        if self.norm.lower() == 'leahy':
+        if self.norm.lower() == "leahy":
             powers_leahy = powers.copy()
         else:
-            powers_leahy = \
-                self.unnorm_power[minind:maxind].real * 2 / nphots
+            powers_leahy = self.unnorm_power[minind:maxind].real * 2 / nphots
 
         rms = np.sqrt(np.sum(powers_leahy - white_noise_offset) / nphots)
         rms_err = self._rms_error(powers_leahy)
@@ -302,8 +300,7 @@ class Powerspectrum(Crossspectrum):
 
         """
         if not self.norm == "leahy":
-            raise ValueError("This method only works on "
-                             "Leahy-normalized power spectra!")
+            raise ValueError("This method only works on " "Leahy-normalized power spectra!")
 
         if trial_correction:
             ntrial = self.power.shape[0]
@@ -314,12 +311,14 @@ class Powerspectrum(Crossspectrum):
             # calculate p-values for all powers
             # leave out zeroth power since it just encodes the number of
             # photons!
-            pv = pds_probability(self.power, n_summed_spectra=self.m,
-                                 ntrial=ntrial)
+            pv = pds_probability(self.power, n_summed_spectra=self.m, ntrial=ntrial)
         else:
-            pv = np.array([pds_probability(power, n_summed_spectra=m,
-                                           ntrial=ntrial)
-                           for power, m in zip(self.power, self.m)])
+            pv = np.array(
+                [
+                    pds_probability(power, n_summed_spectra=m, ntrial=ntrial)
+                    for power, m in zip(self.power, self.m)
+                ]
+            )
 
         # need to add 1 to the indices to make up for the fact that
         # we left out the first power above!
@@ -386,7 +385,7 @@ class Powerspectrum(Crossspectrum):
         """
 
         pds = self
-        if self.norm != 'leahy':
+        if self.norm != "leahy":
             pds = self.to_norm("leahy")
 
         freq = pds.freq
@@ -407,12 +406,13 @@ class Powerspectrum(Crossspectrum):
         # I multiply by M because the formulas from Vaughan+94 treat summed
         # powers, while here we have averaged powers.
         return amplitude_upper_limit(
-            power[maximum_val] * pds.m, pds.nphots, n=pds.m, c=c,
-            nyq_ratio=nyq_ratio, fft_corr=True)
+            power[maximum_val] * pds.m, pds.nphots, n=pds.m, c=c, nyq_ratio=nyq_ratio, fft_corr=True
+        )
 
     @staticmethod
-    def from_time_array(times, dt, segment_size=None, gti=None, norm="frac",
-                        silent=False, use_common_mean=True):
+    def from_time_array(
+        times, dt, segment_size=None, gti=None, norm="frac", silent=False, use_common_mean=True
+    ):
         """
         Calculate an average power spectrum from an array of event times.
 
@@ -449,14 +449,20 @@ class Powerspectrum(Crossspectrum):
             Silence the progress bars.
         """
 
-        return powerspectrum_from_time_array(times, dt,
-                                             segment_size=segment_size,
-                                             gti=gti, norm=norm, silent=silent,
-                                             use_common_mean=use_common_mean)
+        return powerspectrum_from_time_array(
+            times,
+            dt,
+            segment_size=segment_size,
+            gti=gti,
+            norm=norm,
+            silent=silent,
+            use_common_mean=use_common_mean,
+        )
 
     @staticmethod
-    def from_events(events, dt, segment_size=None, gti=None, norm="frac",
-                    silent=False, use_common_mean=True):
+    def from_events(
+        events, dt, segment_size=None, gti=None, norm="frac", silent=False, use_common_mean=True
+    ):
         """
         Calculate an average power spectrum from an event list.
 
@@ -494,13 +500,20 @@ class Powerspectrum(Crossspectrum):
         """
         if gti is None:
             gti = events.gti
-        return powerspectrum_from_events(events, dt, segment_size=segment_size,
-                                         gti=gti, norm=norm, silent=silent,
-                                         use_common_mean=use_common_mean)
+        return powerspectrum_from_events(
+            events,
+            dt,
+            segment_size=segment_size,
+            gti=gti,
+            norm=norm,
+            silent=silent,
+            use_common_mean=use_common_mean,
+        )
 
     @staticmethod
-    def from_lightcurve(lc, segment_size=None, gti=None, norm="frac",
-                        silent=False, use_common_mean=True):
+    def from_lightcurve(
+        lc, segment_size=None, gti=None, norm="frac", silent=False, use_common_mean=True
+    ):
         """
         Calculate a power spectrum from a light curve.
 
@@ -538,13 +551,19 @@ class Powerspectrum(Crossspectrum):
         """
         if gti is None:
             gti = lc.gti
-        return powerspectrum_from_lightcurve(lc, segment_size=segment_size,
-                                             gti=gti, norm=norm, silent=silent,
-                                             use_common_mean=use_common_mean)
+        return powerspectrum_from_lightcurve(
+            lc,
+            segment_size=segment_size,
+            gti=gti,
+            norm=norm,
+            silent=silent,
+            use_common_mean=use_common_mean,
+        )
 
     @staticmethod
-    def from_lc_iterable(iter_lc, dt, segment_size=None, gti=None, norm="frac",
-                         silent=False, use_common_mean=True):
+    def from_lc_iterable(
+        iter_lc, dt, segment_size=None, gti=None, norm="frac", silent=False, use_common_mean=True
+    ):
         """
         Calculate the average power spectrum of an iterable collection of
         light curves.
@@ -583,12 +602,25 @@ class Powerspectrum(Crossspectrum):
         """
 
         return powerspectrum_from_lc_iterable(
-            iter_lc, dt, segment_size=segment_size, gti=gti, norm=norm,
-            silent=silent, use_common_mean=use_common_mean)
+            iter_lc,
+            dt,
+            segment_size=segment_size,
+            gti=gti,
+            norm=norm,
+            silent=silent,
+            use_common_mean=use_common_mean,
+        )
 
     def _initialize_from_any_input(
-            self, data, dt=None, segment_size=None, gti=None, norm="frac",
-            silent=False, use_common_mean=True):
+        self,
+        data,
+        dt=None,
+        segment_size=None,
+        gti=None,
+        norm="frac",
+        silent=False,
+        use_common_mean=True,
+    ):
         """
         Initialize the class, trying to understand the input types.
 
@@ -618,7 +650,7 @@ class Powerspectrum(Crossspectrum):
             )
             spec.lc1 = data
         elif isinstance(data, (tuple, list)):
-            if not isinstance(data[0], Lightcurve): # pragma: no cover
+            if not isinstance(data[0], Lightcurve):  # pragma: no cover
                 raise TypeError(f"Bad inputs to Powerspectrum: {type(data[0])}")
             dt = data[0].dt
             # This is a list of light curves.
@@ -631,7 +663,7 @@ class Powerspectrum(Crossspectrum):
                 use_common_mean=use_common_mean,
                 gti=gti,
             )
-        else: # pragma: no cover
+        else:  # pragma: no cover
             raise TypeError(f"Bad inputs to Powerspectrum: {type(data)}")
 
         for key, val in spec.__dict__.items():
@@ -744,15 +776,27 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
         use the large_data option.
     """
 
-    def __init__(self, data=None, segment_size=None, norm="frac", gti=None,
-                 silent=False, dt=None, lc=None, large_data=False,
-                 save_all=False, skip_checks=False,
-                 use_common_mean=True, legacy=False):
+    def __init__(
+        self,
+        data=None,
+        segment_size=None,
+        norm="frac",
+        gti=None,
+        silent=False,
+        dt=None,
+        lc=None,
+        large_data=False,
+        save_all=False,
+        skip_checks=False,
+        use_common_mean=True,
+        legacy=False,
+    ):
 
         self._type = None
         if lc is not None:
-            warnings.warn("The lc keyword is now deprecated. Use data "
-                          "instead", DeprecationWarning)
+            warnings.warn(
+                "The lc keyword is now deprecated. Use data " "instead", DeprecationWarning
+            )
         # Backwards compatibility: user might have supplied lc instead
         if data is None:
             data = lc
@@ -767,7 +811,7 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
                 lc1=lc,
                 lc2=lc,
                 dt=dt,
-                segment_size=segment_size
+                segment_size=segment_size,
             )
 
         norm = norm.lower()
@@ -787,20 +831,28 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
                 "curves, losing all advantage of lazy loading. If it "
                 "is important for you, use the "
                 "AveragedPowerspectrum.from_lc_iterable static "
-                "method, specifying the sampling time `dt`.")
+                "method, specifying the sampling time `dt`."
+            )
             data = list(data)
 
-       # The large_data option requires the legacy interface.
+        # The large_data option requires the legacy interface.
         if (large_data or save_all) and not legacy:
-            warnings.warn("The large_data option and the save_all options are"
-                          " only available with the legacy interface"
-                          " (legacy=True).")
+            warnings.warn(
+                "The large_data option and the save_all options are"
+                " only available with the legacy interface"
+                " (legacy=True)."
+            )
             legacy = True
 
         if not legacy and data is not None:
             return self._initialize_from_any_input(
-                data, dt=dt, segment_size=segment_size, norm=norm,
-                silent=silent, use_common_mean=use_common_mean)
+                data,
+                dt=dt,
+                segment_size=segment_size,
+                norm=norm,
+                silent=silent,
+                use_common_mean=use_common_mean,
+            )
 
         if large_data and data is not None:
             if not HAS_ZARR:
@@ -808,27 +860,28 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
             chunks = None
 
             if isinstance(data, EventList):
-                input_data = 'EventList'
+                input_data = "EventList"
             elif isinstance(data, Lightcurve):
-                input_data = 'Lightcurve'
+                input_data = "Lightcurve"
                 chunks = int(np.rint(segment_size // data.dt))
                 segment_size = chunks * data.dt
             else:
-                raise ValueError(
-                    f'Invalid input data type: {type(data).__name__}')
+                raise ValueError(f"Invalid input data type: {type(data).__name__}")
 
             dir_path = saveData(data, persist=False, chunks=chunks)
 
             data_path = genDataPath(dir_path)
-            spec = createChunkedSpectra(input_data,
-                                        'AveragedPowerspectrum',
-                                        data_path=data_path,
-                                        segment_size=segment_size,
-                                        norm=norm,
-                                        gti=gti,
-                                        power_type=None,
-                                        silent=silent,
-                                        dt=dt)
+            spec = createChunkedSpectra(
+                input_data,
+                "AveragedPowerspectrum",
+                data_path=data_path,
+                segment_size=segment_size,
+                norm=norm,
+                gti=gti,
+                power_type=None,
+                silent=silent,
+                dt=dt,
+            )
             for key, val in spec.__dict__.items():
                 setattr(self, key, val)
 
@@ -839,8 +892,7 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
             good = lengths >= segment_size
             data.gti = data.gti[good]
 
-        Powerspectrum.__init__(
-            self, data, norm, gti=gti, dt=dt, skip_checks=True, legacy=legacy)
+        Powerspectrum.__init__(self, data, norm, gti=gti, dt=dt, skip_checks=True, legacy=legacy)
 
         return
 
@@ -888,31 +940,36 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
 
         check_gtis(self.gti)
 
-        start_inds, end_inds = \
-            bin_intervals_from_gtis(current_gtis, segment_size, lc.time,
-                                    dt=lc.dt)
+        start_inds, end_inds = bin_intervals_from_gtis(
+            current_gtis, segment_size, lc.time, dt=lc.dt
+        )
 
         power_all = []
         nphots_all = []
 
         local_show_progress = show_progress
         if not self.show_progress or silent:
-            def local_show_progress(a): return a
 
-        for start_ind, end_ind in \
-                local_show_progress(zip(start_inds, end_inds)):
+            def local_show_progress(a):
+                return a
+
+        for start_ind, end_ind in local_show_progress(zip(start_inds, end_inds)):
             time = lc.time[start_ind:end_ind]
             counts = lc.counts[start_ind:end_ind]
-            counts_err = lc.counts_err[start_ind: end_ind]
+            counts_err = lc.counts_err[start_ind:end_ind]
 
             if np.sum(counts) == 0:
-                warnings.warn(
-                    "No counts in interval {}--{}s".format(time[0], time[-1]))
+                warnings.warn("No counts in interval {}--{}s".format(time[0], time[-1]))
                 continue
 
-            lc_seg = Lightcurve(time, counts, err=counts_err,
-                                err_dist=lc.err_dist.lower(),
-                                skip_checks=True, dt=lc.dt)
+            lc_seg = Lightcurve(
+                time,
+                counts,
+                err=counts_err,
+                err_dist=lc.err_dist.lower(),
+                skip_checks=True,
+                dt=lc.dt,
+            )
 
             power_seg = Powerspectrum(lc_seg, norm=self.norm)
             power_all.append(power_seg)
@@ -991,14 +1048,14 @@ class DynamicalPowerspectrum(AveragedPowerspectrum):
             lc = lc.to_lc(dt)
 
         if segment_size < 2 * lc.dt:
-            raise ValueError("Length of the segment is too short to form a "
-                             "light curve!")
+            raise ValueError("Length of the segment is too short to form a " "light curve!")
         elif segment_size > lc.tseg:
-            raise ValueError("Length of the segment is too long to create "
-                             "any segments of the light curve!")
-        AveragedPowerspectrum.__init__(self, data=lc,
-                                       segment_size=segment_size, norm=norm,
-                                       gti=gti, dt=dt)
+            raise ValueError(
+                "Length of the segment is too long to create " "any segments of the light curve!"
+            )
+        AveragedPowerspectrum.__init__(
+            self, data=lc, segment_size=segment_size, norm=norm, gti=gti, dt=dt
+        )
         self._make_matrix(lc)
 
     def _make_matrix(self, lc):
@@ -1013,8 +1070,7 @@ class DynamicalPowerspectrum(AveragedPowerspectrum):
             The :class:`Lightcurve` object from which to generate the dynamical
             power spectrum.
         """
-        ps_all, _ = AveragedPowerspectrum._make_segment_spectrum(
-            self, lc, self.segment_size)
+        ps_all, _ = AveragedPowerspectrum._make_segment_spectrum(self, lc, self.segment_size)
         self.dyn_ps = np.array([ps.power for ps in ps_all]).T
 
         self.freq = ps_all[0].freq
@@ -1022,9 +1078,9 @@ class DynamicalPowerspectrum(AveragedPowerspectrum):
         if self.gti is not None:
             current_gti = cross_two_gtis(self.gti, current_gti)
 
-        start_inds, end_inds = \
-            bin_intervals_from_gtis(current_gti, self.segment_size, lc.time,
-                                    dt=lc.dt)
+        start_inds, end_inds = bin_intervals_from_gtis(
+            current_gti, self.segment_size, lc.time, dt=lc.dt
+        )
 
         tstart = lc.time[start_inds]
         tend = lc.time[end_inds]
@@ -1067,9 +1123,9 @@ class DynamicalPowerspectrum(AveragedPowerspectrum):
         new_dynspec_object = copy.deepcopy(self)
         dynspec_new = []
         for data in self.dyn_ps.T:
-            freq_new, bin_counts, bin_err, _ = \
-                utils.rebin_data(self.freq, data, dx_new=df_new,
-                                 method=method)
+            freq_new, bin_counts, bin_err, _ = utils.rebin_data(
+                self.freq, data, dx_new=df_new, method=method
+            )
             dynspec_new.append(bin_counts)
 
         new_dynspec_object.freq = freq_new
@@ -1103,14 +1159,13 @@ class DynamicalPowerspectrum(AveragedPowerspectrum):
 
         max_positions = []
         for ps in self.dyn_ps.T:
-            indices = np.logical_and(self.freq <= max_freq,
-                                     min_freq <= self.freq)
+            indices = np.logical_and(self.freq <= max_freq, min_freq <= self.freq)
             max_power = np.max(ps[indices])
             max_positions.append(np.where(ps == max_power)[0][0])
 
         return np.array(max_positions)
 
-    def rebin_time(self, dt_new, method='sum'):
+    def rebin_time(self, dt_new, method="sum"):
         """
         Rebin the Dynamic Power Spectrum to a new time resolution.
         While the new resolution need not be an integer multiple of the
@@ -1137,16 +1192,15 @@ class DynamicalPowerspectrum(AveragedPowerspectrum):
             New rebinned Dynamical Power Spectrum.
         """
         if dt_new < self.dt:
-            raise ValueError("New time resolution must be larger than "
-                             "old time resolution!")
+            raise ValueError("New time resolution must be larger than " "old time resolution!")
 
         new_dynspec_object = copy.deepcopy(self)
 
         dynspec_new = []
         for data in self.dyn_ps:
-            time_new, bin_counts, bin_err, _ = \
-                utils.rebin_data(self.time, data, dt_new,
-                                 method=method)
+            time_new, bin_counts, bin_err, _ = utils.rebin_data(
+                self.time, data, dt_new, method=method
+            )
             dynspec_new.append(bin_counts)
 
         new_dynspec_object.time = time_new
@@ -1155,9 +1209,9 @@ class DynamicalPowerspectrum(AveragedPowerspectrum):
         return new_dynspec_object
 
 
-def powerspectrum_from_time_array(times, dt, segment_size=None, gti=None,
-                                  norm="frac", silent=False,
-                                  use_common_mean=True):
+def powerspectrum_from_time_array(
+    times, dt, segment_size=None, gti=None, norm="frac", silent=False, use_common_mean=True
+):
     """
     Calculate a power spectrum from an array of event times.
 
@@ -1201,15 +1255,15 @@ def powerspectrum_from_time_array(times, dt, segment_size=None, gti=None,
     # Suppress progress bar for single periodogram
     silent = silent or (segment_size is None)
     table = avg_pds_from_events(
-        times, gti, segment_size, dt,
-        norm=norm, use_common_mean=use_common_mean,
-        silent=silent)
+        times, gti, segment_size, dt, norm=norm, use_common_mean=use_common_mean, silent=silent
+    )
 
     return _create_powerspectrum_from_result_table(table, force_averaged=force_averaged)
 
 
-def powerspectrum_from_events(events, dt, segment_size=None, gti=None,
-                              norm="frac", silent=False, use_common_mean=True):
+def powerspectrum_from_events(
+    events, dt, segment_size=None, gti=None, norm="frac", silent=False, use_common_mean=True
+):
     """
     Calculate a power spectrum from an event list.
 
@@ -1252,13 +1306,19 @@ def powerspectrum_from_events(events, dt, segment_size=None, gti=None,
     if gti is None:
         gti = events.gti
     return powerspectrum_from_time_array(
-        events.time, dt, segment_size, gti, norm=norm,
-        silent=silent, use_common_mean=use_common_mean
+        events.time,
+        dt,
+        segment_size,
+        gti,
+        norm=norm,
+        silent=silent,
+        use_common_mean=use_common_mean,
     )
 
 
-def powerspectrum_from_lightcurve(lc, segment_size=None, gti=None, norm="frac",
-                                  silent=False, use_common_mean=True):
+def powerspectrum_from_lightcurve(
+    lc, segment_size=None, gti=None, norm="frac", silent=False, use_common_mean=True
+):
     """
     Calculate a power spectrum from a light curve
 
@@ -1307,17 +1367,24 @@ def powerspectrum_from_lightcurve(lc, segment_size=None, gti=None, norm="frac",
     if gti is None:
         gti = lc.gti
 
-    table = avg_pds_from_events(lc.time, gti, segment_size, lc.dt, norm=norm,
-                                use_common_mean=use_common_mean, silent=silent,
-                                fluxes=lc.counts, errors=err)
+    table = avg_pds_from_events(
+        lc.time,
+        gti,
+        segment_size,
+        lc.dt,
+        norm=norm,
+        use_common_mean=use_common_mean,
+        silent=silent,
+        fluxes=lc.counts,
+        errors=err,
+    )
 
-    return _create_powerspectrum_from_result_table(table,
-                                                force_averaged=force_averaged)
+    return _create_powerspectrum_from_result_table(table, force_averaged=force_averaged)
 
 
-def powerspectrum_from_lc_iterable(iter_lc, dt, segment_size=None, gti=None,
-                                   norm="frac", silent=False,
-                                   use_common_mean=True):
+def powerspectrum_from_lc_iterable(
+    iter_lc, dt, segment_size=None, gti=None, norm="frac", silent=False, use_common_mean=True
+):
     """
     Calculate an average power spectrum from an iterable collection of light
     curves.
@@ -1364,6 +1431,7 @@ def powerspectrum_from_lc_iterable(iter_lc, dt, segment_size=None, gti=None,
     silent = silent or (segment_size is None)
 
     common_gti = gti
+
     def iterate_lc_counts(iter_lc):
         for lc in iter_lc:
             if hasattr(lc, "counts"):
@@ -1377,8 +1445,7 @@ def powerspectrum_from_lc_iterable(iter_lc, dt, segment_size=None, gti=None,
                     err = lc.counts_err
 
                 flux_iterable = get_flux_iterable_from_segments(
-                    lc.time, gti, segment_size, n_bin, fluxes=lc.counts,
-                    errors=err
+                    lc.time, gti, segment_size, n_bin, fluxes=lc.counts, errors=err
                 )
                 for out in flux_iterable:
                     yield out
@@ -1387,13 +1454,13 @@ def powerspectrum_from_lc_iterable(iter_lc, dt, segment_size=None, gti=None,
             else:
                 raise TypeError(
                     "The inputs to `powerspectrum_from_lc_iterable`"
-                    " must be Lightcurve objects or arrays")
+                    " must be Lightcurve objects or arrays"
+                )
 
-    table = avg_pds_from_iterable(iterate_lc_counts(iter_lc), dt, norm=norm,
-                                  use_common_mean=use_common_mean,
-                                  silent=silent)
-    return _create_powerspectrum_from_result_table(table,
-                                                force_averaged=force_averaged)
+    table = avg_pds_from_iterable(
+        iterate_lc_counts(iter_lc), dt, norm=norm, use_common_mean=use_common_mean, silent=silent
+    )
+    return _create_powerspectrum_from_result_table(table, force_averaged=force_averaged)
 
 
 def _create_powerspectrum_from_result_table(table, force_averaged=False):

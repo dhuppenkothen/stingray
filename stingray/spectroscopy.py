@@ -37,10 +37,10 @@ def load_lc_fits(file, counts_type=True):
     """
     lc_fits = Table.read(file)
     meta = lc_fits.meta
-    dt = meta['DT']
+    dt = meta["DT"]
 
-    ref = np.asarray(lc_fits['REF'].T, dtype=np.float64)
-    ci = np.asarray(lc_fits['CI'].T, dtype=np.float64)
+    ref = np.asarray(lc_fits["REF"].T, dtype=np.float64)
+    ci = np.asarray(lc_fits["CI"].T, dtype=np.float64)
 
     if not counts_type:
         print(dt)
@@ -66,9 +66,9 @@ def get_new_df(spectrum, n_bins):
     new_df : float
 
     """
-    _, f_bin_edges, _ = binned_statistic(spectrum.freq,
-                                         spectrum.power,
-                                         statistic='mean', bins=n_bins)
+    _, f_bin_edges, _ = binned_statistic(
+        spectrum.freq, spectrum.power, statistic="mean", bins=n_bins
+    )
     new_df = np.median(np.diff(f_bin_edges))
     return new_df
 
@@ -100,12 +100,13 @@ def ccf(cs_power, ps_rms, n_bins):
     return ccf_real_norm
 
 
-def ccf_error(ref_counts, ci_counts_0, cs_res_model, rebin_log_factor, meta,
-              ps_rms, filter_type="optimal"):
-    n_seg = meta['N_SEG']
-    n_seconds = meta['NSECONDS']
-    dt = meta['DT']
-    n_bins = meta['N_BINS']
+def ccf_error(
+    ref_counts, ci_counts_0, cs_res_model, rebin_log_factor, meta, ps_rms, filter_type="optimal"
+):
+    n_seg = meta["N_SEG"]
+    n_seconds = meta["NSECONDS"]
+    dt = meta["DT"]
+    n_bins = meta["N_BINS"]
 
     seg_ref_counts = np.array(np.split(ref_counts, n_seg))
     seg_ci_counts = np.array(np.split(ci_counts_0, n_seg))
@@ -115,12 +116,11 @@ def ccf_error(ref_counts, ci_counts_0, cs_res_model, rebin_log_factor, meta,
 
     for i in range(n_seg):  # for each segment
         # Creating cross spectrum
-        seg_ci_lc = Lightcurve(seg_times, seg_ci_counts[i],
-                               dt=dt)  # CoI light curve
-        seg_ref_lc = Lightcurve(seg_times, seg_ref_counts[i],
-                                dt=dt)  # reference band light curve
-        seg_cs = Crossspectrum(lc2=seg_ci_lc, lc1=seg_ref_lc, norm='leahy',
-                               power_type="absolute")  # cross spectrum
+        seg_ci_lc = Lightcurve(seg_times, seg_ci_counts[i], dt=dt)  # CoI light curve
+        seg_ref_lc = Lightcurve(seg_times, seg_ref_counts[i], dt=dt)  # reference band light curve
+        seg_cs = Crossspectrum(
+            lc2=seg_ci_lc, lc1=seg_ref_lc, norm="leahy", power_type="absolute"
+        )  # cross spectrum
         seg_cs = seg_cs.rebin_log(rebin_log_factor)  # cross spectrum rebinning
 
         # applying filter
@@ -136,8 +136,7 @@ def ccf_error(ref_counts, ci_counts_0, cs_res_model, rebin_log_factor, meta,
         # calculating normalized ccf
         seg_ccf = ifft(filtered_seg_cs_power)  # inverse FFT
         seg_ccf_real = seg_ccf.real  # real part of ccf
-        seg_ccf_real_norm = seg_ccf_real * (
-                    2 / n_bins / ps_rms)  # normalisation
+        seg_ccf_real_norm = seg_ccf_real * (2 / n_bins / ps_rms)  # normalisation
 
         if i == 0:
             seg_css = np.hstack((seg_css, np.array(filtered_seg_cs_power)))
@@ -249,8 +248,11 @@ def waveform(x, mu, avg_sigma_1, avg_sigma_2, cap_phi_1, cap_phi_2):
         QPO waveform.
 
     """
-    y = mu * (1 + np.sqrt(2) * (avg_sigma_1 * np.cos(x - cap_phi_1) +
-                                avg_sigma_2 * np.cos(2*x - cap_phi_2)))
+    y = mu * (
+        1
+        + np.sqrt(2)
+        * (avg_sigma_1 * np.cos(x - cap_phi_1) + avg_sigma_2 * np.cos(2 * x - cap_phi_2))
+    )
     return y
 
 
@@ -273,8 +275,7 @@ def psi_distance(avg_psi, psi):
 
     """
     delta = np.abs(psi - avg_psi)
-    dm = np.array([delta_i if avg_psi < np.pi/2 else np.pi - delta
-                   for delta_i in delta])
+    dm = np.array([delta_i if avg_psi < np.pi / 2 else np.pi - delta for delta_i in delta])
     return dm
 
 
@@ -283,7 +284,7 @@ def x_2_function(x, *args):
     Function to minimise to find the average phase difference of the segments.
     """
     psi_m = np.array(args)
-    X_2 = np.sum(psi_distance(x, psi_m)**2)
+    X_2 = np.sum(psi_distance(x, psi_m) ** 2)
     return X_2
 
 
@@ -323,8 +324,7 @@ def get_mean_phase_difference(cs, model):
         _, _, _, small_psi_m = get_parameters(counts_seg_i, dt, model)
         small_psis = np.append(small_psis, small_psi_m)
 
-    avg_psi, _, _, _ = brent(x_2_function, args=tuple(small_psis),
-                             full_output=True)
+    avg_psi, _, _, _ = brent(x_2_function, args=tuple(small_psis), full_output=True)
 
     stddev = avg_psi / n_seg
 

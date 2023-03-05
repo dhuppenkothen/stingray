@@ -17,14 +17,24 @@ from .base import interpret_times
 try:
     import pyfftw
     from pyfftw.interfaces.numpy_fft import (
-        ifft, fft, fftfreq, fftn, ifftn, fftshift, fft2, ifftshift, rfft, rfftfreq)
+        ifft,
+        fft,
+        fftfreq,
+        fftn,
+        ifftn,
+        fftshift,
+        fft2,
+        ifftshift,
+        rfft,
+        rfftfreq,
+    )
 
     pyfftw.interfaces.cache.enable()
     HAS_PYFFTW = True
 except ImportError:
     warnings.warn("pyfftw not installed. Using standard scipy fft")
-    from numpy.fft import (
-        ifft, fft, fftfreq, fftn, ifftn, fftshift, fft2, ifftshift, rfft, rfftfreq)
+    from numpy.fft import ifft, fft, fftfreq, fftn, ifftn, fftshift, fft2, ifftshift, rfft, rfftfreq
+
     HAS_PYFFTW = False
 
 
@@ -76,15 +86,19 @@ except ImportError:
     def prange(x):
         return range(x)
 
+
 try:
     from tqdm import tqdm as show_progress
 except ImportError:
+
     def show_progress(a):
         return a
+
 
 try:
     from statsmodels.robust import mad as mad  # pylint: disable=unused-import
 except ImportError:
+
     def mad(data, c=0.6745, axis=None):
         """
         Mean Absolute Deviation (MAD) along an axis.
@@ -111,17 +125,33 @@ except ImportError:
             center = np.median(data)
         return np.median((np.fabs(data - center)) / c, axis=axis)
 
-__all__ = ['simon', 'rebin_data', 'rebin_data_log', 'look_for_array_in_array',
-           'is_string', 'is_iterable', 'order_list_of_arrays',
-           'optimal_bin_time', 'contiguous_regions', 'is_int',
-           'get_random_state', 'baseline_als', 'excess_variance',
-           'create_window', 'poisson_symmetrical_errors', 'standard_error',
-           'nearest_power_of_two', 'find_nearest', 'genDataPath']
+
+__all__ = [
+    "simon",
+    "rebin_data",
+    "rebin_data_log",
+    "look_for_array_in_array",
+    "is_string",
+    "is_iterable",
+    "order_list_of_arrays",
+    "optimal_bin_time",
+    "contiguous_regions",
+    "is_int",
+    "get_random_state",
+    "baseline_als",
+    "excess_variance",
+    "create_window",
+    "poisson_symmetrical_errors",
+    "standard_error",
+    "nearest_power_of_two",
+    "find_nearest",
+    "genDataPath",
+]
 
 
 def _root_squared_mean(array):
     array = np.asarray(array)
-    return np.sqrt(np.sum(array ** 2)) / array.size
+    return np.sqrt(np.sum(array**2)) / array.size
 
 
 def simon(message, **kwargs):
@@ -142,7 +172,7 @@ def simon(message, **kwargs):
     warnings.warn("SIMON says: {0}".format(message), **kwargs)
 
 
-def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
+def rebin_data(x, y, dx_new, yerr=None, method="sum", dx=None):
     """Rebin some data to an arbitrary new data resolution. Either sum
     the data points in the new bins or average them.
 
@@ -218,16 +248,17 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
         dx_old = dx
 
     if np.any(dx_new < dx_old):
-        raise ValueError("New frequency resolution must be larger than "
-                         "old frequency resolution.")
+        raise ValueError(
+            "New frequency resolution must be larger than " "old frequency resolution."
+        )
 
     # left and right bin edges
     # assumes that the points given in `x` correspond to
     # the left bin edges
-    xedges = np.hstack([x, x[-1]+dx_old[-1]])
+    xedges = np.hstack([x, x[-1] + dx_old[-1]])
 
     # new regularly binned resolution
-    xbin = np.arange(xedges[0], xedges[-1]+dx_new, dx_new)
+    xbin = np.arange(xedges[0], xedges[-1] + dx_new, dx_new)
 
     output = np.zeros(xbin.shape[0] - 1, dtype=type(y[0]))
     outputerr = np.zeros(xbin.shape[0] - 1, dtype=type(yerr[0]))
@@ -239,26 +270,26 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
     xmins = xbin[:-1]
     xmaxs = xbin[1:]
     for i, (xmin, xmax, min_ind, max_ind) in enumerate(zip(xmins, xmaxs, min_inds, max_inds)):
-        filtered_y = y[min_ind:max_ind-1]
-        filtered_yerr = yerr[min_ind:max_ind-1]
+        filtered_y = y[min_ind : max_ind - 1]
+        filtered_yerr = yerr[min_ind : max_ind - 1]
         output[i] = np.sum(filtered_y)
         outputerr[i] = np.sum(filtered_yerr)
         step_size[i] = max_ind - 1 - min_ind
 
-        prev_dx = xedges[min_ind] - xedges[min_ind-1]
-        prev_frac = (xedges[min_ind] - xmin)/prev_dx
-        output[i] += y[min_ind-1]*prev_frac
-        outputerr[i] += yerr[min_ind-1]*prev_frac
+        prev_dx = xedges[min_ind] - xedges[min_ind - 1]
+        prev_frac = (xedges[min_ind] - xmin) / prev_dx
+        output[i] += y[min_ind - 1] * prev_frac
+        outputerr[i] += yerr[min_ind - 1] * prev_frac
         step_size[i] += prev_frac
 
         if not max_ind == xedges.size:
-            dx_post = xedges[max_ind] - xedges[max_ind-1]
-            post_frac = (xmax-xedges[max_ind-1])/dx_post
-            output[i] += y[max_ind-1]*post_frac
-            outputerr[i] += yerr[max_ind-1]*post_frac
+            dx_post = xedges[max_ind] - xedges[max_ind - 1]
+            post_frac = (xmax - xedges[max_ind - 1]) / dx_post
+            output[i] += y[max_ind - 1] * post_frac
+            outputerr[i] += yerr[max_ind - 1] * post_frac
             step_size[i] += post_frac
 
-    if method in ['mean', 'avg', 'average', 'arithmetic mean']:
+    if method in ["mean", "avg", "average", "arithmetic mean"]:
         ybin = output / step_size
         ybinerr = np.sqrt(outputerr) / step_size
 
@@ -267,8 +298,10 @@ def rebin_data(x, y, dx_new, yerr=None, method='sum', dx=None):
         ybinerr = np.sqrt(outputerr)
 
     else:
-        raise ValueError("Method for summing or averaging not recognized. "
-                         "Please enter either 'sum' or 'mean'.")
+        raise ValueError(
+            "Method for summing or averaging not recognized. "
+            "Please enter either 'sum' or 'mean'."
+        )
 
     tseg = x[-1] - x[0] + dx_old[-1]
 
@@ -365,22 +398,25 @@ def rebin_data_log(x, y, f, y_err=None, dx=None):
     # compute the mean of the ys that fall into each new frequency bin.
     # we cast to np.double due to scipy's bad handling of longdoubles
     binx, bin_edges, binno = scipy.stats.binned_statistic(
-        x.astype(np.double), x.astype(np.double),
-        statistic="mean", bins=binx_for_stats)
+        x.astype(np.double), x.astype(np.double), statistic="mean", bins=binx_for_stats
+    )
 
     biny, bin_edges, binno = scipy.stats.binned_statistic(
-        x.astype(np.double), real.astype(np.double),
-        statistic="mean", bins=binx_for_stats)
+        x.astype(np.double), real.astype(np.double), statistic="mean", bins=binx_for_stats
+    )
 
     biny_err, bin_edges, binno = scipy.stats.binned_statistic(
-        x.astype(np.double), real_err.astype(np.double),
-        statistic=_root_squared_mean, bins=binx_for_stats)
+        x.astype(np.double),
+        real_err.astype(np.double),
+        statistic=_root_squared_mean,
+        bins=binx_for_stats,
+    )
 
     if np.iscomplexobj(y):
         imag = y.imag
         biny_imag, bin_edges, binno = scipy.stats.binned_statistic(
-            x.astype(np.double), imag.astype(np.double),
-            statistic="mean", bins=binx_for_stats)
+            x.astype(np.double), imag.astype(np.double), statistic="mean", bins=binx_for_stats
+        )
 
         biny = biny + 1j * biny_imag
 
@@ -388,13 +424,17 @@ def rebin_data_log(x, y, f, y_err=None, dx=None):
         imag_err = y_err.imag
 
         biny_err_imag, bin_edges, binno = scipy.stats.binned_statistic(
-            x.astype(np.double), imag_err.astype(np.double),
-            statistic=_root_squared_mean, bins=binx_for_stats)
+            x.astype(np.double),
+            imag_err.astype(np.double),
+            statistic=_root_squared_mean,
+            bins=binx_for_stats,
+        )
         biny_err = biny_err + 1j * biny_err_imag
 
     # compute the number of powers in each frequency bin
-    nsamples = np.array([len(binno[np.where(binno == i)[0]])
-                         for i in range(1, np.max(binno) + 1, 1)])
+    nsamples = np.array(
+        [len(binno[np.where(binno == i)[0]]) for i in range(1, np.max(binno) + 1, 1)]
+    )
 
     return binx, biny, biny_err, nsamples
 
@@ -520,7 +560,7 @@ def order_list_of_arrays(data, order):
     -------
     data : list or dict
     """
-    if hasattr(data, 'items'):
+    if hasattr(data, "items"):
         data = dict([(key, value[order]) for key, value in data.items()])
     elif is_iterable(data):
         data = [i[order] for i in data]
@@ -576,7 +616,7 @@ def contiguous_regions(condition):
     """
     # Find the indices of changes in "condition"
     diff = np.logical_xor(condition[1:], condition[:-1])
-    idx, = diff.nonzero()
+    (idx,) = diff.nonzero()
     # We need to start things after the change in "condition". Therefore,
     # we'll shift the index by 1 to the right.
     idx += 1
@@ -616,7 +656,8 @@ def get_random_state(random_state=None):
             raise ValueError(
                 "{value} can't be used to generate a numpy.random.RandomState".format(
                     value=random_state
-                ))
+                )
+            )
 
     return random_state
 
@@ -642,8 +683,8 @@ def offset_fit(x, y, offset_start=0):
         Fitted offset
     """
     from scipy.optimize import curve_fit
-    par, _ = curve_fit(_offset, x, y, [offset_start],
-                       maxfev=6000)
+
+    par, _ = curve_fit(_offset, x, y, [offset_start], maxfev=6000)
     return par[0]
 
 
@@ -683,6 +724,7 @@ def _als(y, lam, p, niter=10):
 
     """
     from scipy import sparse
+
     L = len(y)
     D = sparse.csc_matrix(np.diff(np.eye(L), 2))
     w = np.ones(L)
@@ -694,8 +736,7 @@ def _als(y, lam, p, niter=10):
     return z
 
 
-def baseline_als(x, y, lam=None, p=None, niter=10, return_baseline=False,
-                 offset_correction=False):
+def baseline_als(x, y, lam=None, p=None, niter=10, return_baseline=False, offset_correction=False):
     """Baseline Correction with Asymmetric Least Squares Smoothing.
 
     Parameters
@@ -752,8 +793,9 @@ def baseline_als(x, y, lam=None, p=None, niter=10, return_baseline=False,
         good = np.abs(ysub) < 10 * std
         if len(x[good]) < 10:
             good = np.ones(len(x), dtype=bool)
-            warnings.warn('Too few bins to perform baseline offset correction'
-                          ' precisely. Beware of results')
+            warnings.warn(
+                "Too few bins to perform baseline offset correction" " precisely. Beware of results"
+            )
         offset = offset_fit(x[good], ysub[good], 0)
 
     if return_baseline:
@@ -762,7 +804,7 @@ def baseline_als(x, y, lam=None, p=None, niter=10, return_baseline=False,
         return ysub - offset
 
 
-def excess_variance(lc, normalization='fvar'):
+def excess_variance(lc, normalization="fvar"):
     """Calculate the excess variance.
 
     Vaughan et al. 2003, MNRAS 345, 1271 give three measurements of source
@@ -795,31 +837,31 @@ def excess_variance(lc, normalization='fvar'):
     var_xs : float
     var_xs_err : float
     """
-    lc_mean_var = np.mean(lc.counts_err ** 2)
+    lc_mean_var = np.mean(lc.counts_err**2)
     lc_actual_var = np.var(lc.counts)
     var_xs = lc_actual_var - lc_mean_var
     mean_lc = np.mean(lc.counts)
-    mean_ctvar = mean_lc ** 2
-    var_nxs = var_xs / mean_lc ** 2
+    mean_ctvar = mean_lc**2
+    var_nxs = var_xs / mean_lc**2
 
     fvar = np.sqrt(var_xs / mean_ctvar)
 
     N = len(lc.counts)
-    var_nxs_err_A = np.sqrt(2 / N) * lc_mean_var / mean_lc ** 2
+    var_nxs_err_A = np.sqrt(2 / N) * lc_mean_var / mean_lc**2
     var_nxs_err_B = np.sqrt(lc_mean_var / N) * 2 * fvar / mean_lc
-    var_nxs_err = np.sqrt(var_nxs_err_A ** 2 + var_nxs_err_B ** 2)
+    var_nxs_err = np.sqrt(var_nxs_err_A**2 + var_nxs_err_B**2)
 
     fvar_err = var_nxs_err / (2 * fvar)
 
-    if normalization == 'fvar':
+    if normalization == "fvar":
         return fvar, fvar_err
-    elif normalization == 'norm_xs':
+    elif normalization == "norm_xs":
         return var_nxs, var_nxs_err
-    elif normalization == 'none' or normalization is None:
-        return var_xs, var_nxs_err * mean_lc ** 2
+    elif normalization == "none" or normalization is None:
+        return var_xs, var_nxs_err * mean_lc**2
 
 
-def create_window(N, window_type='uniform'):
+def create_window(N, window_type="uniform"):
     """A method to create window functions commonly used in signal processing.
 
     Windows supported are:
@@ -841,18 +883,25 @@ def create_window(N, window_type='uniform'):
     """
 
     if not isinstance(N, int):
-        raise TypeError('N (window length) must be an integer')
+        raise TypeError("N (window length) must be an integer")
 
-    windows = ['uniform', 'parzen', 'hamming', 'hanning', 'triangular',
-               'welch', 'blackmann', 'flat-top']
+    windows = [
+        "uniform",
+        "parzen",
+        "hamming",
+        "hanning",
+        "triangular",
+        "welch",
+        "blackmann",
+        "flat-top",
+    ]
 
     if not isinstance(window_type, str):
-        raise TypeError('type of window must be specified as string!')
+        raise TypeError("type of window must be specified as string!")
 
     window_type = window_type.lower()
     if window_type not in windows:
-        raise ValueError(
-            "Wrong window type specified or window function is not available")
+        raise ValueError("Wrong window type specified or window function is not available")
 
     # Return empty array as window if N = 0
     if N == 0:
@@ -869,10 +918,10 @@ def create_window(N, window_type='uniform'):
     N_by_2 = int((np.floor((N_minus_1) / 2)))
 
     # Create Windows
-    if window_type == 'uniform':
+    if window_type == "uniform":
         window = np.ones(N)
 
-    if window_type == 'parzen':
+    if window_type == "parzen":
         N_parzen = int(np.ceil((N + 1) / 2))
         N2_plus_1 = int(np.floor((N_parzen / 2))) + 1
 
@@ -885,36 +934,40 @@ def create_window(N, window_type='uniform'):
         window = np.concatenate((window[lagindex], window))
         window = window[:N]
 
-    if window_type == 'hamming':
+    if window_type == "hamming":
         window = 0.54 - 0.46 * np.cos((2 * np.pi * n) / N_minus_1)
 
-    if window_type == 'hanning':
+    if window_type == "hanning":
         window = 0.5 * (1 - np.cos(2 * np.pi * n / N_minus_1))
 
-    if window_type == 'triangular':
+    if window_type == "triangular":
         window = 1 - np.abs((n - (N_by_2)) / N)
 
-    if window_type == 'welch':
+    if window_type == "welch":
         N_minus_1_by_2 = N_minus_1 / 2
         window = 1 - np.square((n - N_minus_1_by_2) / N_minus_1_by_2)
 
-    if window_type == 'blackmann':
+    if window_type == "blackmann":
         a0 = 0.42659
         a1 = 0.49656
         a2 = 0.076849
-        window = a0 - a1 * np.cos((2 * np.pi * n) / N_minus_1) + a2 * np.cos(
-            (4 * np.pi * n) / N_minus_1)
+        window = (
+            a0 - a1 * np.cos((2 * np.pi * n) / N_minus_1) + a2 * np.cos((4 * np.pi * n) / N_minus_1)
+        )
 
-    if window_type == 'flat-top':
+    if window_type == "flat-top":
         a0 = 1
         a1 = 1.93
         a2 = 1.29
         a3 = 0.388
         a4 = 0.028
-        window = a0 - a1 * np.cos((2 * np.pi * n) / N_minus_1) + \
-            a2 * np.cos((4 * np.pi * n) / N_minus_1) - \
-            a3 * np.cos((6 * np.pi * n) / N_minus_1) + \
-            a4 * np.cos((8 * np.pi * n) / N_minus_1)
+        window = (
+            a0
+            - a1 * np.cos((2 * np.pi * n) / N_minus_1)
+            + a2 * np.cos((4 * np.pi * n) / N_minus_1)
+            - a3 * np.cos((6 * np.pi * n) / N_minus_1)
+            + a4 * np.cos((8 * np.pi * n) / N_minus_1)
+        )
 
     return window
 
@@ -951,11 +1004,12 @@ def poisson_symmetrical_errors(counts):
     >>> assert np.allclose(err_thisfun, err)
     """
     from astropy.stats import poisson_conf_interval
+
     counts_int = np.asarray(counts, dtype=np.int64)
     count_values = np.nonzero(np.bincount(counts_int))[0]
-    err_low, err_high = \
-        poisson_conf_interval(count_values,
-                              interval='frequentist-confidence', sigma=1)
+    err_low, err_high = poisson_conf_interval(
+        count_values, interval="frequentist-confidence", sigma=1
+    )
     # calculate approximately symmetric uncertainties
     err_low -= np.asarray(count_values)
     err_high -= np.asarray(count_values)
@@ -1036,8 +1090,7 @@ def find_nearest(array, value):
 
     """
     idx = np.searchsorted(array, value, side="left")
-    if idx == len(array) or np.fabs(value - array[idx - 1]) < \
-            np.fabs(value - array[idx]):
+    if idx == len(array) or np.fabs(value - array[idx - 1]) < np.fabs(value - array[idx]):
         return array[idx - 1], idx - 1
     else:
         return array[idx], idx
@@ -1063,13 +1116,15 @@ def genDataPath(dir_path):
     """
     path_list = []
     if os.path.isdir(dir_path):
-        if not (os.path.isdir(os.path.join(dir_path, 'main_data/'))
-                or os.path.join(dir_path, 'meta_data/')):
+        if not (
+            os.path.isdir(os.path.join(dir_path, "main_data/"))
+            or os.path.join(dir_path, "meta_data/")
+        ):
             raise IOError(("Directory does not exist."))
 
         else:
-            path_list.append(os.path.join(dir_path, 'main_data/'))
-            path_list.append(os.path.join(dir_path, 'meta_data/'))
+            path_list.append(os.path.join(dir_path, "main_data/"))
+            path_list.append(os.path.join(dir_path, "meta_data/"))
 
             return path_list
 
@@ -1194,12 +1249,10 @@ def _allocate_array_or_memmap(shape, dtype, use_memmap=False, tmp=None):
     H : array
         The output array
     """
-    if use_memmap and np.prod(shape) > 10 ** 7:
+    if use_memmap and np.prod(shape) > 10**7:
         if tmp is None:
             tmp = tempfile.NamedTemporaryFile("w+", suffix=".npy").name
-        H = np.lib.format.open_memmap(
-            tmp, mode="w+", dtype=dtype, shape=shape
-        )
+        H = np.lib.format.open_memmap(tmp, mode="w+", dtype=dtype, shape=shape)
     else:
         H = np.zeros(shape, dtype=dtype)
     return H
@@ -1253,7 +1306,7 @@ def hist1d_numba_seq(a, bins, ranges, use_memmap=False, tmp=None):
     ...                       use_memmap=True)
     >>> assert np.all(H == Hn)
     """
-    hist_arr = _allocate_array_or_memmap((bins, ), a.dtype, use_memmap=use_memmap, tmp=tmp)
+    hist_arr = _allocate_array_or_memmap((bins,), a.dtype, use_memmap=use_memmap, tmp=tmp)
 
     return _hist1d_numba_seq(hist_arr, a, bins, np.asarray(ranges))
 
@@ -1319,9 +1372,7 @@ def hist2d_numba_seq(x, y, bins, ranges, use_memmap=False, tmp=None):
     """
 
     H = _allocate_array_or_memmap(bins, np.uint64, use_memmap=use_memmap, tmp=tmp)
-    return _hist2d_numba_seq(
-        H, np.array([x, y]), np.asarray(list(bins)), np.asarray(ranges)
-    )
+    return _hist2d_numba_seq(H, np.array([x, y]), np.asarray(list(bins)), np.asarray(ranges))
 
 
 @njit(nogil=True, parallel=False)
@@ -1384,9 +1435,7 @@ def hist3d_numba_seq(tracks, bins, ranges, use_memmap=False, tmp=None):
     """
     H = _allocate_array_or_memmap(bins, np.uint64, use_memmap=use_memmap, tmp=tmp)
 
-    return _hist3d_numba_seq(
-        H, np.asarray(tracks), np.asarray(list(bins)), np.asarray(ranges)
-    )
+    return _hist3d_numba_seq(H, np.asarray(tracks), np.asarray(list(bins)), np.asarray(ranges))
 
 
 @njit(nogil=True, parallel=False)
@@ -1547,10 +1596,7 @@ def _histnd_numba_seq(H, tracks, bins, ranges, slice_int):
 
     for t in range(tracks.shape[1]):
         slicearr = np.array(
-            [
-                (tracks[dim, t] - ranges[dim, 0]) * delta[dim]
-                for dim in range(tracks.shape[0])
-            ]
+            [(tracks[dim, t] - ranges[dim, 0]) * delta[dim] for dim in range(tracks.shape[0])]
         )
 
         good = np.all((slicearr < bins) & (slicearr >= 0))

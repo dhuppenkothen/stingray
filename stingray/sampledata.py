@@ -16,17 +16,13 @@ def sample_data():
         and counts.
     """
 
-    lc_file = os.path.join(
-        os.path.abspath(os.path.dirname(__file__)),
-        "datasets",
-        "lc_sample.txt"
-    )
+    lc_file = os.path.join(os.path.abspath(os.path.dirname(__file__)), "datasets", "lc_sample.txt")
     data = np.loadtxt(lc_file)
 
     # Extract first and second columns to indicate dates and counts respectively
-    dates = data[0:len(data), 0]
+    dates = data[0 : len(data), 0]
     dt = dates[1] - dates[0]
-    counts = data[0:len(data), 1]
+    counts = data[0 : len(data), 1]
 
     # Return class:`Lightcurve` object
     return lightcurve.Lightcurve(dates, counts, dt=dt, skip_checks=True)

@@ -27,13 +27,13 @@ def FAD(
     norm="frac",
     plot=False,
     ax=None,
-    smoothing_alg='gauss',
+    smoothing_alg="gauss",
     smoothing_length=None,
     verbose=False,
     tolerance=0.05,
     strict=False,
     output_file=None,
-    return_objects=False
+    return_objects=False,
 ):
     """Calculate Frequency Amplitude Difference-corrected (cross)power spectra.
 
@@ -175,12 +175,10 @@ def FAD(
         if plot:
             ax.scatter(freq, fourier_diff.real, s=1)
 
-        if smoothing_alg == 'gauss':
-            smooth_real = gaussian_filter1d(fourier_diff.real ** 2,
-                                            smoothing_length)
+        if smoothing_alg == "gauss":
+            smooth_real = gaussian_filter1d(fourier_diff.real**2, smoothing_length)
         else:
-            raise ValueError("Unknown smoothing algorithm: {}".format(
-                smoothing_alg))
+            raise ValueError("Unknown smoothing algorithm: {}".format(smoothing_alg))
 
         p1 = (f1 * f1.conj()).real
         p1 = p1 / smooth_real * 2
@@ -189,7 +187,7 @@ def FAD(
         pt = (ftot * ftot.conj()).real
         pt = pt / smooth_real * 2
 
-        c = (f2 * f1.conj())
+        c = f2 * f1.conj()
         c = c / smooth_real * 2
 
         nphgeom = np.sqrt(nph1 * nph2)
@@ -203,19 +201,19 @@ def FAD(
             ax.plot(freq, f1_leahy.real, zorder=5, lw=1)
             ax.plot(freq, f2_leahy.real, zorder=5, lw=1)
 
-# Save the unnormalised (but smoothed) powerspectra and cross-spectrum
+        # Save the unnormalised (but smoothed) powerspectra and cross-spectrum
         pds1_unnorm += p1
         pds2_unnorm += p2
         ptot_unnorm += pt
         cs_unnorm += c
 
-# Save the normalised and smoothed powerspectra and cross-spectrum
+        # Save the normalised and smoothed powerspectra and cross-spectrum
         ptot += power_tot
         pds1 += power1
         pds2 += power2
         cs += cs_power
 
-        average_diff += fourier_diff / smooth_real ** 0.5 * np.sqrt(2)
+        average_diff += fourier_diff / smooth_real**0.5 * np.sqrt(2)
         average_diff_uncorr += fourier_diff
         nph1_tot += nph1
         nph2_tot += nph2
@@ -226,8 +224,7 @@ def FAD(
     stdtheor = 2 / np.sqrt(M)
     stduncorr = (average_diff_uncorr / M).std()
     is_compliant = np.abs((std - stdtheor) / stdtheor) < tolerance
-    verbose_string = \
-        '''
+    verbose_string = """
         -------- FAD correction ----------
         I smoothed over {smoothing_length} power spectral bins
         {M} intervals averaged.
@@ -240,14 +237,16 @@ def FAD(
         In this case, the results ARE {compl}complying.
         {additional}
         ----------------------------------
-        '''.format(smoothing_length=smoothing_length,
-                   M=M,
-                   stduncorr=stduncorr,
-                   std=std,
-                   stdtheor=stdtheor,
-                   tolerance=tolerance * 100,
-                   compl='NOT ' if not is_compliant else '',
-                   additional='Maybe something is not right.' if not is_compliant else '')
+        """.format(
+        smoothing_length=smoothing_length,
+        M=M,
+        stduncorr=stduncorr,
+        std=std,
+        stdtheor=stdtheor,
+        tolerance=tolerance * 100,
+        compl="NOT " if not is_compliant else "",
+        additional="Maybe something is not right." if not is_compliant else "",
+    )
 
     if verbose and is_compliant:
         log.info(verbose_string)
@@ -255,31 +254,30 @@ def FAD(
         warnings.warn(verbose_string)
 
     if strict and not is_compliant:
-        raise RuntimeError('Results are not compliant, and `strict` mode '
-                           'selected. Exiting.')
+        raise RuntimeError("Results are not compliant, and `strict` mode " "selected. Exiting.")
 
     results = Table()
 
-    results['freq'] = freq
-    results['pds1'] = pds1 / M
-    results['pds2'] = pds2 / M
-    results['cs'] = cs / M
-    results['ptot'] = ptot / M
-    results['pds1_unnorm'] = pds1_unnorm / M
-    results['pds2_unnorm'] = pds2_unnorm / M
-    results['cs_unnorm'] = cs_unnorm / M
-    results['ptot_unnorm'] = ptot_unnorm / M
-    results['fad'] = average_diff / M
-    results.meta['fad_delta'] = (std - stdtheor) / stdtheor
-    results.meta['is_compliant'] = is_compliant
-    results.meta['M'] = M
-    results.meta['dt'] = dt
-    results.meta['nph1'] = nph1_tot / M
-    results.meta['nph2'] = nph2_tot / M
-    results.meta['nph'] = nph_tot / M
-    results.meta['norm'] = norm
-    results.meta['smoothing_length'] = smoothing_length
-    results.meta['df'] = np.mean(np.diff(freq))
+    results["freq"] = freq
+    results["pds1"] = pds1 / M
+    results["pds2"] = pds2 / M
+    results["cs"] = cs / M
+    results["ptot"] = ptot / M
+    results["pds1_unnorm"] = pds1_unnorm / M
+    results["pds2_unnorm"] = pds2_unnorm / M
+    results["cs_unnorm"] = cs_unnorm / M
+    results["ptot_unnorm"] = ptot_unnorm / M
+    results["fad"] = average_diff / M
+    results.meta["fad_delta"] = (std - stdtheor) / stdtheor
+    results.meta["is_compliant"] = is_compliant
+    results.meta["M"] = M
+    results.meta["dt"] = dt
+    results.meta["nph1"] = nph1_tot / M
+    results.meta["nph2"] = nph2_tot / M
+    results.meta["nph"] = nph_tot / M
+    results.meta["norm"] = norm
+    results.meta["smoothing_length"] = smoothing_length
+    results.meta["df"] = np.mean(np.diff(freq))
 
     if output_file is not None:
         results.write(output_file, overwrite=True)
@@ -287,24 +285,31 @@ def FAD(
     if return_objects:
         result_table = results
         results = {}
-        results['pds1'] = \
-            get_periodograms_from_FAD_results(result_table, kind='pds1')
-        results['pds2'] = \
-            get_periodograms_from_FAD_results(result_table, kind='pds2')
-        results['cs'] = \
-            get_periodograms_from_FAD_results(result_table, kind='cs')
-        results['ptot'] = \
-            get_periodograms_from_FAD_results(result_table, kind='ptot')
-        results['fad'] = result_table['fad']
+        results["pds1"] = get_periodograms_from_FAD_results(result_table, kind="pds1")
+        results["pds2"] = get_periodograms_from_FAD_results(result_table, kind="pds2")
+        results["cs"] = get_periodograms_from_FAD_results(result_table, kind="cs")
+        results["ptot"] = get_periodograms_from_FAD_results(result_table, kind="ptot")
+        results["fad"] = result_table["fad"]
 
     return results
 
 
-def calculate_FAD_correction(lc1, lc2, segment_size, norm="frac", gti=None,
-                             plot=False, ax=None, smoothing_alg='gauss',
-                             smoothing_length=None, verbose=False,
-                             tolerance=0.05, strict=False,
-                             output_file=None, return_objects=False):
+def calculate_FAD_correction(
+    lc1,
+    lc2,
+    segment_size,
+    norm="frac",
+    gti=None,
+    plot=False,
+    ax=None,
+    smoothing_alg="gauss",
+    smoothing_length=None,
+    verbose=False,
+    tolerance=0.05,
+    strict=False,
+    output_file=None,
+    return_objects=False,
+):
     """Calculate Frequency Amplitude Difference-corrected (cross)power spectra.
 
     Reference: Bachetti \& Huppenkothen, 2018, ApJ, 853L, 21
@@ -400,11 +405,11 @@ def calculate_FAD_correction(lc1, lc2, segment_size, norm="frac", gti=None,
         tolerance=tolerance,
         strict=strict,
         output_file=output_file,
-        return_objects=return_objects
+        return_objects=return_objects,
     )
 
 
-def get_periodograms_from_FAD_results(FAD_results, kind='ptot'):
+def get_periodograms_from_FAD_results(FAD_results, kind="ptot"):
     """Get Stingray periodograms from FAD results.
 
     Parameters
@@ -424,31 +429,31 @@ def get_periodograms_from_FAD_results(FAD_results, kind='ptot'):
     if isinstance(FAD_results, str):
         FAD_results = Table.read(FAD_results)
 
-    if kind.startswith('p') and kind in FAD_results.colnames:
+    if kind.startswith("p") and kind in FAD_results.colnames:
         powersp = AveragedPowerspectrum()
-        powersp.nphots = FAD_results.meta['nph']
-        if '1' in kind:
-            powersp.nphots = FAD_results.meta['nph1']
-        elif '2' in kind:
-            powersp.nphots = FAD_results.meta['nph2']
-    elif kind == 'cs':
-        powersp = AveragedCrossspectrum(power_type='all')
-        powersp.pds1 = get_periodograms_from_FAD_results(FAD_results, kind='pds1')
-        powersp.pds2 = get_periodograms_from_FAD_results(FAD_results, kind='pds2')
-        powersp.nphots1 = FAD_results.meta['nph1']
-        powersp.nphots2 = FAD_results.meta['nph2']
+        powersp.nphots = FAD_results.meta["nph"]
+        if "1" in kind:
+            powersp.nphots = FAD_results.meta["nph1"]
+        elif "2" in kind:
+            powersp.nphots = FAD_results.meta["nph2"]
+    elif kind == "cs":
+        powersp = AveragedCrossspectrum(power_type="all")
+        powersp.pds1 = get_periodograms_from_FAD_results(FAD_results, kind="pds1")
+        powersp.pds2 = get_periodograms_from_FAD_results(FAD_results, kind="pds2")
+        powersp.nphots1 = FAD_results.meta["nph1"]
+        powersp.nphots2 = FAD_results.meta["nph2"]
     else:
         raise ValueError("Unknown periodogram type")
 
-    powersp.freq = FAD_results['freq']
+    powersp.freq = FAD_results["freq"]
     powersp.power = FAD_results[kind]
-    powersp.unnorm_power = FAD_results[kind+'_unnorm']
+    powersp.unnorm_power = FAD_results[kind + "_unnorm"]
     powersp.power_err = np.zeros_like(powersp.power)
     powersp.unnorm_power_err = np.zeros_like(powersp.unnorm_power)
-    powersp.m = FAD_results.meta['M']
-    powersp.df = FAD_results.meta['df']
-    powersp.dt = FAD_results.meta['dt']
+    powersp.m = FAD_results.meta["M"]
+    powersp.df = FAD_results.meta["df"]
+    powersp.dt = FAD_results.meta["dt"]
     powersp.n = len(powersp.freq) * 2
-    powersp.norm = FAD_results.meta['norm']
+    powersp.norm = FAD_results.meta["norm"]
 
     return powersp

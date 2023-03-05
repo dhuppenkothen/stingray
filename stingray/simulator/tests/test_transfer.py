@@ -3,8 +3,8 @@ import pytest
 
 from stingray.simulator import transfer
 
-class TestSimulator(object):
 
+class TestSimulator(object):
     @classmethod
     def setup_class(self):
         arr = [[1 for j in range(5)] for i in range(10)]
@@ -52,49 +52,46 @@ class TestSimulator(object):
 
     def test_plot_with_incorrect_type(self):
         with pytest.raises(ValueError):
-            self.transfer.plot('unsupported')
+            self.transfer.plot("unsupported")
 
     def test_plot_time(self):
-        self.transfer.plot(response='time')
+        self.transfer.plot(response="time")
 
     def test_plot_energy(self):
-        self.transfer.plot(response='energy')
+        self.transfer.plot(response="energy")
 
     def test_plot_2d(self):
-        self.transfer.plot(response='2d')
+        self.transfer.plot(response="2d")
 
     def test_plot_with_save(self):
         self.transfer.plot(save=True)
-        os.remove('out.png')
+        os.remove("out.png")
 
     def test_plot_with_filename(self):
-        self.transfer.plot(save=True, filename='response.png')
-        os.remove('response.png')
+        self.transfer.plot(save=True, filename="response.png")
+        os.remove("response.png")
 
     def test_io_with_pickle(self):
-        self.transfer.write('transfer.pickle', fmt='pickle')
-        tr = self.transfer.read('transfer.pickle', fmt='pickle')
+        self.transfer.write("transfer.pickle", fmt="pickle")
+        tr = self.transfer.read("transfer.pickle", fmt="pickle")
         assert (tr.data == self.transfer.data).all()
-        os.remove('transfer.pickle')
+        os.remove("transfer.pickle")
 
     def test_io_with_unsupported_type(self):
         with pytest.raises(KeyError):
-            self.transfer.write('transfer', format_='unsupported')
-        self.transfer.write('transfer', format_='pickle')
+            self.transfer.write("transfer", format_="unsupported")
+        self.transfer.write("transfer", format_="pickle")
         with pytest.raises(KeyError):
-            self.transfer.read('transfer', format_='unsupported')
-        os.remove('transfer')
+            self.transfer.read("transfer", format_="unsupported")
+        os.remove("transfer")
 
     def test_simple_ir(self):
         """Test constructing a simple impulse response."""
         t0, w = 100, 500
-        assert len(transfer.simple_ir(1, t0, w)), (t0+w)
+        assert len(transfer.simple_ir(1, t0, w)), t0 + w
 
     def test_relativistic_ir(self):
         """
         Test constructing a relativistic impulse response."""
         t1, t3 = 3, 10
-        assert len(transfer.relativistic_ir(1, t1=t1, t3=t3)), (t1+t3)
-
-
-
+        assert len(transfer.relativistic_ir(1, t1=t1, t3=t3)), t1 + t3

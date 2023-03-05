@@ -76,13 +76,9 @@ def _saveChunkLC(lc, dir_name, chunks):
             chunks=(chunks,),
         )
 
-    main_data_group.create_dataset(
-        name="gti", data=lc.gti.flatten(), overwrite=True
-    )
+    main_data_group.create_dataset(name="gti", data=lc.gti.flatten(), overwrite=True)
 
-    meta_data_group.create_dataset(
-        name="dt", data=lc.dt, compressor=compressor, overwrite=True
-    )
+    meta_data_group.create_dataset(name="dt", data=lc.dt, compressor=compressor, overwrite=True)
 
     meta_data_group.create_dataset(
         name="err_dist",
@@ -152,14 +148,10 @@ def _saveChunkEV(ev, dir_name, chunks):
         )
 
     if ev.gti is not None and (ev.gti.all() or ev.gti.shape[0] != 0):
-        main_data_group.create_dataset(
-            name="gti", data=ev.gti.flatten(), overwrite=True
-        )
+        main_data_group.create_dataset(name="gti", data=ev.gti.flatten(), overwrite=True)
 
     if ev.dt != 0:
-        meta_data_group.create_dataset(
-            name="dt", data=ev.dt, compressor=compressor, overwrite=True
-        )
+        meta_data_group.create_dataset(name="dt", data=ev.dt, compressor=compressor, overwrite=True)
 
     if ev.ncounts:
         meta_data_group.create_dataset(
@@ -316,15 +308,11 @@ def saveData(data, persist=False, dir_name=None, chunks=None):
         ideal_chunk, safe_chunk = 8388608, 4193404
 
         if HAS_PSUTIL:
-            free_m = (
-                psutil.virtual_memory().available + psutil.swap_memory().free
-            ) / 10 ** 9
+            free_m = (psutil.virtual_memory().available + psutil.swap_memory().free) / 10**9
             chunks = ideal_chunk if free_m >= 10.0 else safe_chunk
         else:
             if platform == "linux" or platform == "linux2":
-                free_m = int(
-                    os.popen("free -t -m").readlines()[-1].split()[-1]
-                )
+                free_m = int(os.popen("free -t -m").readlines()[-1].split()[-1])
                 chunks = ideal_chunk if free_m >= 10000 else safe_chunk
             else:
                 chunks = safe_chunk
@@ -335,12 +323,8 @@ def saveData(data, persist=False, dir_name=None, chunks=None):
         _saveChunkLC(data, dir_name, chunks)
 
     elif isinstance(data, EventList):
-        if not (
-            data.time is not None and (data.time.all() or data.time.size != 0)
-        ):
-            raise ValueError(
-                ("The EventList passed is empty and hence cannot be saved")
-            )
+        if not (data.time is not None and (data.time.all() or data.time.size != 0)):
+            raise ValueError(("The EventList passed is empty and hence cannot be saved"))
 
         if data.time.size > 0 and data.time.size < chunks:
             chunks = data.time.size
@@ -387,9 +371,7 @@ def _retrieveDataLC(data_path, chunk_size=0, offset=0, raw=False):
     times = zarr.open_array(store=data_path[0], mode="r", path="times")
     counts = zarr.open_array(store=data_path[0], mode="r", path="counts")
     try:
-        count_err = zarr.open_array(
-            store=data_path[0], mode="r", path="count_err"
-        )
+        count_err = zarr.open_array(store=data_path[0], mode="r", path="count_err")
     except ValueError:
         count_err = None
 
@@ -398,9 +380,7 @@ def _retrieveDataLC(data_path, chunk_size=0, offset=0, raw=False):
 
     dt = zarr.open_array(store=data_path[1], mode="r", path="dt")[...]
     mjdref = zarr.open_array(store=data_path[1], mode="r", path="mjdref")[...]
-    err_dist = zarr.open_array(store=data_path[1], mode="r", path="err_dist")[
-        ...
-    ]
+    err_dist = zarr.open_array(store=data_path[1], mode="r", path="err_dist")[...]
 
     if raw:
         return (
@@ -415,21 +395,15 @@ def _retrieveDataLC(data_path, chunk_size=0, offset=0, raw=False):
     else:
         if chunk_size == 0 or chunk_size > times.size:
             chunk_size = times.size
-            log.info(
-                f"Retrieving the whole array (Chunk size > size of times)"
-            )
+            log.info(f"Retrieving the whole array (Chunk size > size of times)")
 
         if offset > times.size:
-            raise ValueError(
-                (f"Offset cannot be larger than size of array {times.size}")
-            )
+            raise ValueError((f"Offset cannot be larger than size of array {times.size}"))
 
         times = times.get_basic_selection(slice(offset, chunk_size))[...]
         gti_new = cross_two_gtis(
             gti,
-            np.asarray(
-                [[times[0] - 0.5 * float(dt), times[-1] + 0.5 * float(dt)]]
-            ),
+            np.asarray([[times[0] - 0.5 * float(dt), times[-1] + 0.5 * float(dt)]]),
         )
 
         return Lightcurve(
@@ -491,9 +465,7 @@ def _retrieveDataEV(data_path, chunk_size=0, offset=0, raw=False):
         energy = None
 
     try:
-        pi_channel = zarr.open_array(
-            store=data_path[0], mode="r", path="pi_channel"
-        )
+        pi_channel = zarr.open_array(store=data_path[0], mode="r", path="pi_channel")
     except ValueError:
         pi_channel = None
 
@@ -509,23 +481,17 @@ def _retrieveDataEV(data_path, chunk_size=0, offset=0, raw=False):
         dt = 0
 
     try:
-        ncounts = zarr.open_array(
-            store=data_path[1], mode="r", path="ncounts"
-        )[...]
+        ncounts = zarr.open_array(store=data_path[1], mode="r", path="ncounts")[...]
     except ValueError:
         ncounts = None
 
     try:
-        mjdref = zarr.open_array(store=data_path[1], mode="r", path="mjdref")[
-            ...
-        ]
+        mjdref = zarr.open_array(store=data_path[1], mode="r", path="mjdref")[...]
     except ValueError:
         mjdref = 0
 
     try:
-        notes = zarr.open_array(store=data_path[1], mode="r", path="notes")[
-            ...
-        ]
+        notes = zarr.open_array(store=data_path[1], mode="r", path="notes")[...]
     except ValueError:
         notes = ""
 
@@ -543,20 +509,14 @@ def _retrieveDataEV(data_path, chunk_size=0, offset=0, raw=False):
     else:
         if chunk_size == 0 or chunk_size > times.size:
             chunk_size = times.size
-            log.info(
-                f"Retrieving the whole array (Chunk size > size of times)"
-            )
+            log.info(f"Retrieving the whole array (Chunk size > size of times)")
 
         if offset > times.size:
-            raise ValueError(
-                "No element read. Offset cannot be larger than size of array"
-            )
+            raise ValueError("No element read. Offset cannot be larger than size of array")
 
         time = times.get_basic_selection(slice(offset, chunk_size))
         energy = (
-            energy.get_basic_selection(slice(offset, chunk_size))
-            if energy is not None
-            else None
+            energy.get_basic_selection(slice(offset, chunk_size)) if energy is not None else None
         )
         pi = (
             pi_channel.get_basic_selection(slice(offset, chunk_size))
@@ -568,9 +528,7 @@ def _retrieveDataEV(data_path, chunk_size=0, offset=0, raw=False):
         if gti is not None:
             gti_new = cross_two_gtis(
                 gti,
-                np.asarray(
-                    [[times[0] - 0.5 * float(dt), times[-1] + 0.5 * float(dt)]]
-                ),
+                np.asarray([[times[0] - 0.5 * float(dt), times[-1] + 0.5 * float(dt)]]),
             )
             warnings.warn(
                 "GTI management is tricky when partially loading event lists "
@@ -579,9 +537,7 @@ def _retrieveDataEV(data_path, chunk_size=0, offset=0, raw=False):
             )
 
         if pi_channel is not None:
-            pi_channel = pi_channel.get_basic_selection(
-                slice(offset, chunk_size)
-            )
+            pi_channel = pi_channel.get_basic_selection(slice(offset, chunk_size))
         else:
             pi_channel = None
 
@@ -597,9 +553,7 @@ def _retrieveDataEV(data_path, chunk_size=0, offset=0, raw=False):
         )
 
 
-def retrieveData(
-    data_type, dir_path, chunk_data=False, chunk_size=0, offset=0, raw=False
-):
+def retrieveData(data_type, dir_path, chunk_data=False, chunk_size=0, offset=0, raw=False):
     """
     Retrieves Lightcurve/EventList or any such data from disk.
 
@@ -640,24 +594,18 @@ def retrieveData(
 
     if data_type.lower() == "lightcurve":
         if chunk_data is True and chunk_size > 0:
-            return _retrieveDataLC(
-                data_path, int(chunk_size), int(offset), raw=raw
-            )
+            return _retrieveDataLC(data_path, int(chunk_size), int(offset), raw=raw)
         else:
             return _retrieveDataLC(data_path, raw=raw)
 
     elif data_type.lower() == "eventlist" or data_type.lower() == "fits":
         if chunk_data is True and chunk_size > 0:
-            return _retrieveDataEV(
-                data_path, int(chunk_size), int(offset), raw=False
-            )
+            return _retrieveDataEV(data_path, int(chunk_size), int(offset), raw=False)
         else:
             return _retrieveDataEV(data_path, raw=raw)
 
     else:
-        raise ValueError(
-            (f"Invalid data: {data_type} ({type(data_type).__name__})")
-        )
+        raise ValueError((f"Invalid data: {data_type} ({type(data_type).__name__})"))
 
 
 def _combineSpectra(final_spectra):
@@ -676,13 +624,11 @@ def _combineSpectra(final_spectra):
     """
     final_spectra.power /= final_spectra.m
     final_spectra.unnorm_power /= final_spectra.m
-    final_spectra.power_err = (
-        np.sqrt(final_spectra.power_err) / final_spectra.m
-    )
+    final_spectra.power_err = np.sqrt(final_spectra.power_err) / final_spectra.m
 
-    if isinstance(
-        final_spectra, stingray.AveragedCrossspectrum
-    ) and not isinstance(final_spectra, stingray.AveragedPowerspectrum):
+    if isinstance(final_spectra, stingray.AveragedCrossspectrum) and not isinstance(
+        final_spectra, stingray.AveragedPowerspectrum
+    ):
         final_spectra.pds1.power /= final_spectra.m
         final_spectra.pds2.power /= final_spectra.m
         final_spectra.nphots1 /= final_spectra.m
@@ -716,7 +662,7 @@ def _addSpectra(final_spectra, curr_spec):
 
     final_spectra.power += curr_spec.power * curr_spec.m
     final_spectra.unnorm_power += curr_spec.unnorm_power * curr_spec.m
-    final_spectra.power_err += curr_spec.power_err ** 2 * curr_spec.m
+    final_spectra.power_err += curr_spec.power_err**2 * curr_spec.m
 
     final_spectra.m += curr_spec.m
 
@@ -733,9 +679,7 @@ def _addSpectra(final_spectra, curr_spec):
     return final_spectra
 
 
-def _chunkLCSpec(
-    data_path, spec_type, segment_size, norm, gti, power_type, silent
-):
+def _chunkLCSpec(data_path, spec_type, segment_size, norm, gti, power_type, silent):
     """
     Create a chunked spectra from Lightcurve stored on disk.
 
@@ -807,9 +751,7 @@ def _chunkLCSpec(
     else:
         raise ValueError((f"Invalid spectra-type {spec_type}"))
 
-    nchunks_per_segment = max(
-        int(np.rint(segment_size / dt / times.chunks[0])), 1
-    )
+    nchunks_per_segment = max(int(np.rint(segment_size / dt / times.chunks[0])), 1)
 
     new_segment_size = nchunks_per_segment * times.chunks[0] * dt
     if not np.isclose(new_segment_size, segment_size):
@@ -856,13 +798,9 @@ def _chunkLCSpec(
             count_other = counts_other.get_basic_selection(slice(i, i + step))
             count_err_other = None
             if counts_err_other is not None:
-                count_err_other = counts_err_other.get_basic_selection(
-                    slice(i, i + step)
-                )
+                count_err_other = counts_err_other.get_basic_selection(slice(i, i + step))
 
-            gti_new_other = np.asarray(
-                [[time_other[0] - 0.5 * dt, time_other[-1] + 0.5 * dt]]
-            )
+            gti_new_other = np.asarray([[time_other[0] - 0.5 * dt, time_other[-1] + 0.5 * dt]])
 
             lc2 = Lightcurve(
                 time=time_other,
@@ -900,10 +838,7 @@ def _chunkLCSpec(
         if not np.allclose(prev_freq, avg_spec.freq):
             bad = ~np.isclose(prev_freq, avg_spec.freq)
             raise ValueError(
-                (
-                    f"Spectra have unequal frequencies: "
-                    f"{avg_spec.freq[bad]} vs {prev_freq[bad]}"
-                )
+                (f"Spectra have unequal frequencies: " f"{avg_spec.freq[bad]} vs {prev_freq[bad]}")
             )
         fin_spec = _addSpectra(fin_spec, avg_spec)
         prev_freq = avg_spec.freq

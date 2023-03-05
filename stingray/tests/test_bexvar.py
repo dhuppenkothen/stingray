@@ -8,8 +8,10 @@ from astropy.table import Table
 from astropy.io import fits
 import signal
 
+
 class TimeoutException(Exception):
     pass
+
 
 def timeout_handler(signum, frame):
     raise TimeoutException
@@ -55,12 +57,8 @@ class TestBexvarResult(object):
         )
         log_cr_sigma_result = np.load(self.fname_result, allow_pickle=True)[1]
 
-        scatt_lo_function = scipy.stats.mstats.mquantiles(
-            log_cr_sigma_from_function, self.quantile
-        )
-        scatt_lo_result = scipy.stats.mstats.mquantiles(
-            log_cr_sigma_result, self.quantile
-        )
+        scatt_lo_function = scipy.stats.mstats.mquantiles(log_cr_sigma_from_function, self.quantile)
+        scatt_lo_result = scipy.stats.mstats.mquantiles(log_cr_sigma_result, self.quantile)
 
         # Compares lower 1 sigma quantile of the estimated scatter of the log(count rate) in dex
         assert np.isclose(scatt_lo_function, scatt_lo_result, rtol=0.1)
@@ -169,9 +167,7 @@ class TestInternalFunctions(object):
         log_src_crs_grid = self.function_result[0]
         pdfs = self.function_result[2]
 
-        posterior_log_sigma_src_cr_from_function = bexvar._calculate_bexvar(
-            log_src_crs_grid, pdfs
-        )
+        posterior_log_sigma_src_cr_from_function = bexvar._calculate_bexvar(log_src_crs_grid, pdfs)
         posterior_log_sigma_src_cr_results = self.function_result[1]
 
         quantile = scipy.stats.norm().cdf([-1])
@@ -225,13 +221,10 @@ class TestBadValues(object):
                     frac_exp=self.frac_exp,
                 )
             except TimeoutException:
-                print('function terminated')
+                print("function terminated")
 
             assert any(
-                [
-                    "src_counts are not all positive integers" in r.message.args[0]
-                    for r in record
-                ]
+                ["src_counts are not all positive integers" in r.message.args[0] for r in record]
             )
 
     def test_weights_sum_warning(self):

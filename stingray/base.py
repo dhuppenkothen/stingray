@@ -12,12 +12,14 @@ from astropy.time import Time, TimeDelta
 from astropy.units import Quantity
 
 from typing import TYPE_CHECKING, Type, TypeVar, Union
+
 if TYPE_CHECKING:
     from xarray import Dataset
     from pandas import DataFrame
     from astropy.timeseries import TimeSeries
     from astropy.time import TimeDelta
     import numpy.typing as npt
+
     TTime = Union[Time, TimeDelta, Quantity, npt.ArrayLike]
     Tso = TypeVar("Tso", bound="StingrayObject")
 
@@ -333,10 +335,7 @@ class StingrayObject(object):
         # specified, make sure that complex values are treated correctly.
         if fmt is None or "ascii" in fmt:
             for col in ts.colnames:
-                if not (
-                    (is_real := col.endswith(".real"))
-                    or (is_imag := col.endswith(".imag"))
-                ):
+                if not ((is_real := col.endswith(".real")) or (is_imag := col.endswith(".imag"))):
                     continue
 
                 new_value = ts[col]

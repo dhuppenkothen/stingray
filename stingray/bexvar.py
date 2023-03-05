@@ -163,9 +163,7 @@ def _calculate_bexvar(log_src_crs_grid, pdfs):
 
     def transform(cube):
         params = cube.copy()
-        params[0] = (
-            cube[0] * (log_src_crs_grid[-1] - log_src_crs_grid[0]) + log_src_crs_grid[0]
-        )
+        params[0] = cube[0] * (log_src_crs_grid[-1] - log_src_crs_grid[0]) + log_src_crs_grid[0]
         params[1] = 10 ** (cube[1] * 4 - 2)
         return params
 
@@ -194,7 +192,7 @@ def _calculate_bexvar(log_src_crs_grid, pdfs):
 def bexvar(time, time_del, src_counts, bg_counts=None, bg_ratio=None, frac_exp=None):
     """
     Given a light curve data, computes posterier distribution samples of
-    Bayesian excess variance (bexvar), by estimating mean and variance of the 
+    Bayesian excess variance (bexvar), by estimating mean and variance of the
     log of the count rates.
 
     Parameters
@@ -236,9 +234,7 @@ def bexvar(time, time_del, src_counts, bg_counts=None, bg_ratio=None, frac_exp=N
     """
 
     if not np.all(
-        np.array(
-            [True if (val >= 0 and val % 1.0 == 0) else False for val in src_counts]
-        )
+        np.array([True if (val >= 0 and val % 1.0 == 0) else False for val in src_counts])
     ):
         warnings.warn("src_counts are not all positive integers", UserWarning)
     if bg_counts is None:
@@ -268,9 +264,7 @@ def bexvar(time, time_del, src_counts, bg_counts=None, bg_ratio=None, frac_exp=N
         time, src_counts, bg_counts, bg_area, rate_conversion
     ):
 
-        pdf = _estimate_source_cr_marginalised(
-            log_src_crs_grid, ci, bci, bgareai, rate_conversion
-        )
+        pdf = _estimate_source_cr_marginalised(log_src_crs_grid, ci, bci, bgareai, rate_conversion)
         src_posteriors.append(pdf)
 
     src_posteriors = np.array(src_posteriors)

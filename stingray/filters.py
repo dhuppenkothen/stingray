@@ -9,7 +9,7 @@ from astropy.logger import AstropyUserWarning
 
 from .utils import njit
 
-__all__ = ['Window1D', 'Optimal1D']
+__all__ = ["Window1D", "Optimal1D"]
 
 
 class Window1D(object):
@@ -44,7 +44,7 @@ class Window1D(object):
         y = np.zeros((len(x),), dtype=np.float64)
         for i in range(len(x)):
             if np.abs(x[i] - self.x_0[0]) <= self.fwhm[0] / 2:
-                y[i] = 1.
+                y[i] = 1.0
         return y
 
 
@@ -123,7 +123,7 @@ def _nonpar_core(event_list, dead_time_end, mask):
         Final mask of good events
     """
     for i in range(1, len(event_list)):
-        if (event_list[i] < dead_time_end[i - 1]):
+        if event_list[i] < dead_time_end[i - 1]:
             dead_time_end[i] = dead_time_end[i - 1]
             mask[i] = False
     return mask
@@ -161,9 +161,15 @@ class DeadtimeFilterOutput(object):
     bkg = None
 
 
-def get_deadtime_mask(ev_list, deadtime, bkg_ev_list=None,
-                      dt_sigma=None, paralyzable=False,
-                      return_all=False, verbose=False):
+def get_deadtime_mask(
+    ev_list,
+    deadtime,
+    bkg_ev_list=None,
+    dt_sigma=None,
+    paralyzable=False,
+    return_all=False,
+    verbose=False,
+):
     """Filter an event list for a given dead time.
 
     Parameters
@@ -206,8 +212,9 @@ def get_deadtime_mask(ev_list, deadtime, bkg_ev_list=None,
     # of the events classified as "signal" (True) and "background" (False)
     if bkg_ev_list is not None:
         tot_ev_list = np.append(ev_list, bkg_ev_list)
-        ev_kind = np.append(np.ones(len(ev_list), dtype=bool),
-                            np.zeros(len(bkg_ev_list), dtype=bool))
+        ev_kind = np.append(
+            np.ones(len(ev_list), dtype=bool), np.zeros(len(bkg_ev_list), dtype=bool)
+        )
         order = np.argsort(tot_ev_list)
         tot_ev_list = tot_ev_list[order]
         ev_kind = ev_kind[order]
@@ -222,7 +229,7 @@ def get_deadtime_mask(ev_list, deadtime, bkg_ev_list=None,
     additional_output.uf_mask = np.ones(tot_ev_list.size, dtype=bool)
     additional_output.bkg = tot_ev_list[np.logical_not(ev_kind)]
 
-    if deadtime <= 0.:
+    if deadtime <= 0.0:
         if deadtime < 0:
             raise ValueError("Dead time is less than 0. Please check.")
         retval = [np.ones(ev_list.size, dtype=bool), additional_output]
@@ -233,7 +240,7 @@ def get_deadtime_mask(ev_list, deadtime, bkg_ev_list=None,
 
     if dt_sigma is not None:
         deadtime_values = ra.normal(deadtime, dt_sigma, nevents)
-        deadtime_values[deadtime_values < 0] = 0.
+        deadtime_values[deadtime_values < 0] = 0.0
     else:
         deadtime_values = np.zeros(nevents) + deadtime
 
@@ -242,12 +249,10 @@ def get_deadtime_mask(ev_list, deadtime, bkg_ev_list=None,
     # Note: saved_mask gives the mask that produces tot_ev_list_filt from
     # tot_ev_list. The same mask can be used to also filter all other arrays.
     if paralyzable:
-        tot_ev_list_filt, saved_mask = \
-            _paralyzable_dead_time(tot_ev_list, deadtime_values)
+        tot_ev_list_filt, saved_mask = _paralyzable_dead_time(tot_ev_list, deadtime_values)
 
     else:
-        tot_ev_list_filt, saved_mask = \
-            _non_paralyzable_dead_time(tot_ev_list, deadtime_values)
+        tot_ev_list_filt, saved_mask = _non_paralyzable_dead_time(tot_ev_list, deadtime_values)
     del tot_ev_list
 
     ev_kind = ev_kind[saved_mask]
@@ -255,9 +260,9 @@ def get_deadtime_mask(ev_list, deadtime, bkg_ev_list=None,
     final_len = tot_ev_list_filt.size
     if verbose:
         log.info(
-            'filter_for_deadtime: '
-            '{0}/{1} events rejected'.format(initial_len - final_len,
-                                             initial_len))
+            "filter_for_deadtime: "
+            "{0}/{1} events rejected".format(initial_len - final_len, initial_len)
+        )
 
     retval = saved_mask[all_ev_kind]
 
@@ -300,14 +305,12 @@ def filter_for_deadtime(event_list, deadtime, **kwargs):
     # Need to import here to avoid circular imports in the top module.
     from stingray.events import EventList
 
-    local_retall = kwargs.pop('return_all', False)
+    local_retall = kwargs.pop("return_all", False)
 
     if isinstance(event_list, EventList):
-        retval = event_list.apply_deadtime(deadtime, return_all=local_retall,
-                                           **kwargs)
+        retval = event_list.apply_deadtime(deadtime, return_all=local_retall, **kwargs)
     else:
-        mask, retall = get_deadtime_mask(event_list, deadtime, return_all=True,
-                                         **kwargs)
+        mask, retall = get_deadtime_mask(event_list, deadtime, return_all=True, **kwargs)
         retval = event_list[mask]
         if local_retall:
             retval = [retval, retall]

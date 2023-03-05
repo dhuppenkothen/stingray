@@ -20,7 +20,7 @@ from .io import load_events_and_gtis
 from .lightcurve import Lightcurve
 from .utils import assign_value_if_none, simon, interpret_times
 
-__all__ = ['EventList']
+__all__ = ["EventList"]
 
 
 class EventList(StingrayTimeseries):
@@ -128,12 +128,29 @@ class EventList(StingrayTimeseries):
         The full header of the original FITS file, if relevant
 
     """
+
     main_array_attr = "time"
-    def __init__(self, time=None, energy=None, ncounts=None, mjdref=0, dt=0,
-                 notes="", gti=None, pi=None, high_precision=False,
-                 mission=None, instr=None, header=None, detector_id=None,
-                 ephem=None, timeref=None, timesys=None,
-                 **other_kw):
+
+    def __init__(
+        self,
+        time=None,
+        energy=None,
+        ncounts=None,
+        mjdref=0,
+        dt=0,
+        notes="",
+        gti=None,
+        pi=None,
+        high_precision=False,
+        mission=None,
+        instr=None,
+        header=None,
+        detector_id=None,
+        ephem=None,
+        timeref=None,
+        timesys=None,
+        **other_kw,
+    ):
         StingrayObject.__init__(self)
 
         self.energy = None if energy is None else np.asarray(energy)
@@ -166,7 +183,7 @@ class EventList(StingrayTimeseries):
 
         if (self.time is not None) and (self.energy is not None):
             if self.time.size != self.energy.size:
-                raise ValueError('Lengths of time and energy must be equal.')
+                raise ValueError("Lengths of time and energy must be equal.")
 
     def to_lc(self, dt, tstart=None, tseg=None):
         """
@@ -193,9 +210,9 @@ class EventList(StingrayTimeseries):
             tstart = self.gti[0][0]
             tseg = self.gti[-1][1] - tstart
 
-        return Lightcurve.make_lightcurve(self.time, dt, tstart=tstart,
-                                          gti=self.gti, tseg=tseg,
-                                          mjdref=self.mjdref)
+        return Lightcurve.make_lightcurve(
+            self.time, dt, tstart=tstart, gti=self.gti, tseg=tseg, mjdref=self.mjdref
+        )
 
     def to_lc_iter(self, dt, segment_size=None):
         """Convert event list to a generator of Lightcurves.
@@ -217,16 +234,21 @@ class EventList(StingrayTimeseries):
         """
 
         segment_iter = generate_indices_of_boundaries(
-            self.time, self.gti, segment_size=segment_size, dt=0)
+            self.time, self.gti, segment_size=segment_size, dt=0
+        )
 
         for st, end, idx_st, idx_end in segment_iter:
             tseg = end - st
 
-            lc = Lightcurve.make_lightcurve(self.time[idx_st:idx_end + 1], dt,
-                                            tstart=st,
-                                            gti=np.asarray([[st, end]]),
-                                            tseg=tseg,
-                                            mjdref=self.mjdref, use_hist=True)
+            lc = Lightcurve.make_lightcurve(
+                self.time[idx_st : idx_end + 1],
+                dt,
+                tstart=st,
+                gti=np.asarray([[st, end]]),
+                tseg=tseg,
+                mjdref=self.mjdref,
+                use_hist=True,
+            )
             yield lc
 
     def to_lc_list(self, dt, segment_size=None):
@@ -302,9 +324,9 @@ class EventList(StingrayTimeseries):
         """
         # Need import here, or there will be a circular import
         from .simulator.base import simulate_times
+
         if bin_time is not None:
-            warnings.warn("Bin time will be ignored in simulate_times",
-                          DeprecationWarning)
+            warnings.warn("Bin time will be ignored in simulate_times", DeprecationWarning)
 
         self.time = simulate_times(lc, use_spline=use_spline)
         self.gti = lc.gti
@@ -348,7 +370,8 @@ class EventList(StingrayTimeseries):
             energy = np.concatenate([energy - de / 2, [energy[-1] + de / 2]])
 
         self.energy = simulate_with_inverse_cdf(
-            fluxes, self.ncounts, edges=energy, sorted=False, interp_kind="linear")
+            fluxes, self.ncounts, edges=energy, sorted=False, interp_kind="linear"
+        )
 
     def sort(self, inplace=False):
         """Sort the event list in time.
@@ -419,18 +442,17 @@ class EventList(StingrayTimeseries):
         ev_new = EventList()
 
         if self.dt != other.dt:
-            simon("The time resolution is different."
-                  " Using the rougher by default")
+            simon("The time resolution is different." " Using the rougher by default")
             ev_new.dt = np.max([self.dt, other.dt])
 
         if self.time is None and other.time is None:
             return ev_new
 
-        if (self.time is None):
+        if self.time is None:
             simon("One of the event lists you are concatenating is empty.")
             self.time = np.asarray([])
 
-        elif (other.time is None):
+        elif other.time is None:
             simon("One of the event lists you are concatenating is empty.")
             other.time = np.asarray([])
 
@@ -446,8 +468,7 @@ class EventList(StingrayTimeseries):
             ev_new.pi = None
         elif (self.pi is None) or (other.pi is None):
             self.pi = assign_value_if_none(self.pi, np.zeros_like(self.time))
-            other.pi = assign_value_if_none(other.pi,
-                                            np.zeros_like(other.time))
+            other.pi = assign_value_if_none(other.pi, np.zeros_like(other.time))
 
         if (self.pi is not None) and (other.pi is not None):
             ev_new.pi = np.concatenate([self.pi, other.pi])
@@ -456,25 +477,22 @@ class EventList(StingrayTimeseries):
         if (self.energy is None) and (other.energy is None):
             ev_new.energy = None
         elif (self.energy is None) or (other.energy is None):
-            self.energy = assign_value_if_none(self.energy,
-                                               np.zeros_like(self.time))
-            other.energy = assign_value_if_none(other.energy,
-                                                np.zeros_like(other.time))
+            self.energy = assign_value_if_none(self.energy, np.zeros_like(self.time))
+            other.energy = assign_value_if_none(other.energy, np.zeros_like(other.time))
 
         if (self.energy is not None) and (other.energy is not None):
             ev_new.energy = np.concatenate([self.energy, other.energy])
             ev_new.energy = ev_new.energy[order]
 
         if self.gti is None and other.gti is not None and len(self.time) > 0:
-            self.gti = \
-                assign_value_if_none(
-                    self.gti, np.asarray([[self.time[0] - self.dt / 2,
-                                           self.time[-1] + self.dt / 2]]))
+            self.gti = assign_value_if_none(
+                self.gti, np.asarray([[self.time[0] - self.dt / 2, self.time[-1] + self.dt / 2]])
+            )
         if other.gti is None and self.gti is not None and len(other.time) > 0:
-            other.gti = \
-                assign_value_if_none(
-                    other.gti, np.asarray([[other.time[0] - other.dt / 2,
-                                            other.time[-1] + other.dt / 2]]))
+            other.gti = assign_value_if_none(
+                other.gti,
+                np.asarray([[other.time[0] - other.dt / 2, other.time[-1] + other.dt / 2]]),
+            )
 
         if (self.gti is None) and (other.gti is None):
             ev_new.gti = None
@@ -482,14 +500,16 @@ class EventList(StingrayTimeseries):
         elif (self.gti is not None) and (other.gti is not None):
             if check_separate(self.gti, other.gti):
                 ev_new.gti = append_gtis(self.gti, other.gti)
-                simon('GTIs in these two event lists do not overlap at all.'
-                      'Merging instead of returning an overlap.')
+                simon(
+                    "GTIs in these two event lists do not overlap at all."
+                    "Merging instead of returning an overlap."
+                )
             else:
                 ev_new.gti = cross_gtis([self.gti, other.gti])
 
-        for attr in ['mission', 'instr']:
+        for attr in ["mission", "instr"]:
             if getattr(self, attr) != getattr(other, attr):
-                setattr(ev_new, attr, getattr(self, attr) + ',' + getattr(other, attr))
+                setattr(ev_new, attr, getattr(self, attr) + "," + getattr(other, attr))
             else:
                 setattr(ev_new, attr, getattr(self, attr))
 
@@ -539,26 +559,29 @@ class EventList(StingrayTimeseries):
         """
         if fmt is None and format_ is not None:
             warnings.warn(
-                "The format_ keyword for read and write is deprecated. "
-                "Use fmt instead", DeprecationWarning)
+                "The format_ keyword for read and write is deprecated. " "Use fmt instead",
+                DeprecationWarning,
+            )
             fmt = format_
 
-        if fmt.lower() in ('hea', 'ogip'):
+        if fmt.lower() in ("hea", "ogip"):
             evtdata = load_events_and_gtis(filename, **kwargs)
 
-            evt = EventList(time=evtdata.ev_list,
-                            gti=evtdata.gti_list,
-                            pi=evtdata.pi_list,
-                            energy=evtdata.energy_list,
-                            mjdref=evtdata.mjdref,
-                            instr=evtdata.instr,
-                            mission=evtdata.mission,
-                            header=evtdata.header,
-                            detector_id=evtdata.detector_id,
-                            ephem=evtdata.ephem,
-                            timeref=evtdata.timeref,
-                            timesys=evtdata.timesys)
-            if 'additional_columns' in kwargs:
+            evt = EventList(
+                time=evtdata.ev_list,
+                gti=evtdata.gti_list,
+                pi=evtdata.pi_list,
+                energy=evtdata.energy_list,
+                mjdref=evtdata.mjdref,
+                instr=evtdata.instr,
+                mission=evtdata.mission,
+                header=evtdata.header,
+                detector_id=evtdata.detector_id,
+                ephem=evtdata.ephem,
+                timeref=evtdata.timeref,
+                timesys=evtdata.timesys,
+            )
+            if "additional_columns" in kwargs:
                 for key in evtdata.additional_data:
                     if not hasattr(evt, key.lower()):
                         setattr(evt, key.lower(), evtdata.additional_data[key])
@@ -697,11 +720,9 @@ class EventList(StingrayTimeseries):
         >>> filt_events is events
         True
         """
-        local_retall = kwargs.pop('return_all', False)
+        local_retall = kwargs.pop("return_all", False)
 
-        mask, retall = get_deadtime_mask(self.time, deadtime,
-                                         return_all=True,
-                                         **kwargs)
+        mask, retall = get_deadtime_mask(self.time, deadtime, return_all=True, **kwargs)
 
         new_ev = self.apply_mask(mask, inplace=inplace)
 
@@ -709,4 +730,3 @@ class EventList(StingrayTimeseries):
             new_ev = [new_ev, retall]
 
         return new_ev
-

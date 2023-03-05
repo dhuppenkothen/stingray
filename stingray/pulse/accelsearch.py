@@ -14,8 +14,10 @@ import matplotlib.pyplot as plt
 try:
     from tqdm import tqdm as show_progress
 except ImportError:
+
     def show_progress(a, **kwargs):
         return a
+
 
 from stingray.pulse.overlapandsave.ols import ols
 
@@ -50,21 +52,24 @@ def convolve_ols(a, b, memout=None):
     if isinstance(a, str):
         a = np.lib.format.open_memmap(a)
 
-    return ols(a, b,
-               size=[
-                   max(4 * x, int(pow(100000, 1/len(b.shape))))
-                   for x in b.shape],
-               rfftn=fftn, irfftn=ifftn, out=memout)
+    return ols(
+        a,
+        b,
+        size=[max(4 * x, int(pow(100000, 1 / len(b.shape)))) for x in b.shape],
+        rfftn=fftn,
+        irfftn=ifftn,
+        out=memout,
+    )
 
 
-def convolve(a, b, mode='ols', memout=None):
-    if np.version.version.split('.') <= ['1', '15', '0']:
-        mode = 'scipy'
+def convolve(a, b, mode="ols", memout=None):
+    if np.version.version.split(".") <= ["1", "15", "0"]:
+        mode = "scipy"
 
-    if mode == 'ols':
+    if mode == "ols":
         return convolve_ols(a, b, memout=memout)
 
-    return scipy.signal.fftconvolve(a, b, mode='same')
+    return scipy.signal.fftconvolve(a, b, mode="same")
 
 
 @njit()
@@ -93,21 +98,21 @@ def _create_responses(range_z):
     responses = []
     for j, z in enumerate(show_progress(range_z)):
         # fdot = z / T**2
-        if( np.abs( z ) < 0.01 ):
-             responses.append(0)
-             continue
+        if np.abs(z) < 0.01:
+            responses.append(0)
+            continue
 
         m = np.max([np.abs(int(2 * z)), 40])
         sign = z / np.abs(z)
         absz = np.abs(z)
-        factor = sign * 1 / np.sqrt( 2 * absz)
+        factor = sign * 1 / np.sqrt(2 * absz)
 
-        q_ks = np.arange(-m / 2, m / 2+ 1)
+        q_ks = np.arange(-m / 2, m / 2 + 1)
 
         exponentials = np.exp(1j * np.pi * q_ks**2 / z)
 
-        Yks = sign * np.sqrt( 2 / absz ) * q_ks
-        Zks = sign * np.sqrt( 2 / absz ) * ( q_ks + z )
+        Yks = sign * np.sqrt(2 / absz) * q_ks
+        Zks = sign * np.sqrt(2 / absz) * (q_ks + z)
         # print(Yks, Zks)
         [SZs, CZs] = special.fresnel(Zks)
         [SYs, CYs] = special.fresnel(Yks)
@@ -116,8 +121,9 @@ def _create_responses(range_z):
     return responses
 
 
-def _convolve_with_response(A, detlev, freq_intv_to_search, response_and_j,
-                            interbin=False, memout=None):
+def _convolve_with_response(
+    A, detlev, freq_intv_to_search, response_and_j, interbin=False, memout=None
+):
     """Accelerate the Fourier transform and find pulsations.
 
     This function convolves the initial Fourier transform with the response
@@ -171,8 +177,7 @@ def _convolve_with_response(A, detlev, freq_intv_to_search, response_and_j,
     rf = r_freqs[freq_intv_to_search]
     accel = accel[freq_intv_to_search]
     if interbin:
-        rf, accel = \
-            interbin_fft(rf, accel)
+        rf, accel = interbin_fft(rf, accel)
 
     powers_to_search = (accel * accel.conj()).real
 
@@ -188,9 +193,9 @@ def _convolve_with_response(A, detlev, freq_intv_to_search, response_and_j,
     return results
 
 
-def _calculate_all_convolutions(A, responses, freq_intv_to_search,
-                                detlev, debug=False, interbin=False,
-                                nproc=4):
+def _calculate_all_convolutions(
+    A, responses, freq_intv_to_search, detlev, debug=False, interbin=False, nproc=4
+):
     """Accelerate the initial Fourier transform and find pulsations.
 
     This function convolves the initial Fourier transform with the responses
@@ -234,7 +239,7 @@ def _calculate_all_convolutions(A, responses, freq_intv_to_search,
         Power of candidates
     """
     log.info("Convolving FFT with responses...")
-    candidate_powers = [0.]
+    candidate_powers = [0.0]
     candidate_rs = [1]
 
     candidate_js = [2]
@@ -243,13 +248,14 @@ def _calculate_all_convolutions(A, responses, freq_intv_to_search,
     # if debug:
     #     fobj = open('accelsearch_dump.dat', 'w')
 
-    _, memmapfname = tempfile.mkstemp(suffix='.npy')
-    memout = np.lib.format.open_memmap(
-        memmapfname, mode='w+', dtype=A.dtype, shape=A.shape)
+    _, memmapfname = tempfile.mkstemp(suffix=".npy")
+    memout = np.lib.format.open_memmap(memmapfname, mode="w+", dtype=A.dtype, shape=A.shape)
 
     from functools import partial
-    func = partial(_convolve_with_response, A, detlev, freq_intv_to_search,
-                   interbin=interbin, memout=memout)
+
+    func = partial(
+        _convolve_with_response, A, detlev, freq_intv_to_search, interbin=interbin, memout=memout
+    )
 
     if nproc == 1:
         results = []
@@ -257,9 +263,12 @@ def _calculate_all_convolutions(A, responses, freq_intv_to_search,
             results.append(func((responses[j], j)))
     else:
         with Pool(processes=nproc) as pool:
-            results = list(show_progress(pool.imap_unordered(
-                func, [(responses[j], j) for j in range(len_responses)]),
-                total=len_responses))
+            results = list(
+                show_progress(
+                    pool.imap_unordered(func, [(responses[j], j) for j in range(len_responses)]),
+                    total=len_responses,
+                )
+            )
         pool.close()
 
     for res in results:
@@ -273,10 +282,22 @@ def _calculate_all_convolutions(A, responses, freq_intv_to_search,
     return candidate_rs[1:], candidate_js[1:], candidate_powers[1:]
 
 
-def accelsearch(times, signal, delta_z=1, fmin=1, fmax=1e32,
-                gti=None, zmax=100, candidate_file=None, ref_time=0,
-                debug=False, interbin=False, nproc=4, det_p_value=0.15,
-                fft_rescale=None):
+def accelsearch(
+    times,
+    signal,
+    delta_z=1,
+    fmin=1,
+    fmax=1e32,
+    gti=None,
+    zmax=100,
+    candidate_file=None,
+    ref_time=0,
+    debug=False,
+    interbin=False,
+    nproc=4,
+    det_p_value=0.15,
+    fft_rescale=None,
+):
     """Find pulsars with accelerated search.
 
     The theory behind these methods is described in Ransom+02, AJ 124, 1788.
@@ -343,8 +364,7 @@ def accelsearch(times, signal, delta_z=1, fmin=1, fmax=1e32,
         signal[bti_mask] = mean_ops(signal[gti_mask])
     else:
         expo_fraction = 1
-        gti = np.array(
-            [[times[0] - dt /2, times[-1] + dt / 2]])
+        gti = np.array([[times[0] - dt / 2, times[-1] + dt / 2]])
 
     n_photons = np.sum(signal)
     spectr = fft(signal) * np.sqrt(2 / n_photons)
@@ -353,8 +373,7 @@ def accelsearch(times, signal, delta_z=1, fmin=1, fmax=1e32,
     if debug:
         _good_f = freq > 0
         fig = plt.figure(figsize=(12, 8))
-        plt.plot(freq[_good_f], (spectr * spectr.conj()).real[_good_f],
-                 label='initial PDS')
+        plt.plot(freq[_good_f], (spectr * spectr.conj()).real[_good_f], label="initial PDS")
         plt.xlabel("Frequency (Hz)")
         plt.ylabel("Power (Leahy)")
         plt.loglog()
@@ -364,15 +383,16 @@ def accelsearch(times, signal, delta_z=1, fmin=1, fmax=1e32,
         spectr = fft_rescale(spectr)
 
     if debug:
-        plt.plot(freq[_good_f], (spectr * spectr.conj()).real[_good_f],
-                 label='PDS after filtering (if any)')
-        fname = candidate_file + '_initial_spec.png' \
-            if candidate_file else 'initial_spec.png'
+        plt.plot(
+            freq[_good_f],
+            (spectr * spectr.conj()).real[_good_f],
+            label="PDS after filtering (if any)",
+        )
+        fname = candidate_file + "_initial_spec.png" if candidate_file else "initial_spec.png"
         plt.legend(loc=2)
         del _good_f
         plt.savefig(fname)
         plt.close(fig)
-
 
     T = times[-1] - times[0] + dt
 
@@ -380,26 +400,34 @@ def accelsearch(times, signal, delta_z=1, fmin=1, fmax=1e32,
     log.info("Starting search over full plane...")
     start_z = -zmax
     end_z = zmax
-    range_z = np.arange(start_z,end_z, delta_z)
-    log.info("min and max possible r_dot: {}--{}".format(delta_z/T**2,
-                                                         np.max(range_z)/T**2))
+    range_z = np.arange(start_z, end_z, delta_z)
+    log.info(
+        "min and max possible r_dot: {}--{}".format(delta_z / T**2, np.max(range_z) / T**2)
+    )
     freqs_to_search = freq[freq_intv_to_search]
 
     candidate_table = Table(
-        names=['time', 'length', 'frac_exposure', 'power', 'prob', 'frequency',
-               'fdot', 'fddot', 'ntrial'],
-        dtype=[float] * 8 + [int])
+        names=[
+            "time",
+            "length",
+            "frac_exposure",
+            "power",
+            "prob",
+            "frequency",
+            "fdot",
+            "fddot",
+            "ntrial",
+        ],
+        dtype=[float] * 8 + [int],
+    )
 
-    detlev = pds_detection_level(ntrial=freqs_to_search.size,
-                                 epsilon=det_p_value)
+    detlev = pds_detection_level(ntrial=freqs_to_search.size, epsilon=det_p_value)
 
     responses = _create_responses(range_z)
 
-    candidate_rs, candidate_js, candidate_powers = \
-        _calculate_all_convolutions(spectr, responses,
-                                    freq_intv_to_search, detlev,
-                                    debug=debug, interbin=interbin,
-                                    nproc=nproc)
+    candidate_rs, candidate_js, candidate_powers = _calculate_all_convolutions(
+        spectr, responses, freq_intv_to_search, detlev, debug=debug, interbin=interbin, nproc=nproc
+    )
 
     for r, j, cand_power in zip(candidate_rs, candidate_js, candidate_powers):
         z = range_z[j]
@@ -407,11 +435,21 @@ def accelsearch(times, signal, delta_z=1, fmin=1, fmax=1e32,
         fdot = z / T**2
         prob = pds_probability(cand_power, freqs_to_search.size)
         candidate_table.add_row(
-            [ref_time + gti[0, 0], T, expo_fraction, cand_power, prob,
-             cand_freq, fdot, 0, freqs_to_search.size])
+            [
+                ref_time + gti[0, 0],
+                T,
+                expo_fraction,
+                cand_power,
+                prob,
+                cand_freq,
+                fdot,
+                0,
+                freqs_to_search.size,
+            ]
+        )
 
     if candidate_file is not None:
-        candidate_table.write(candidate_file + '.csv', overwrite=True)
+        candidate_table.write(candidate_file + ".csv", overwrite=True)
 
     return candidate_table
 

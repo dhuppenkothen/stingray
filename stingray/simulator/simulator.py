@@ -9,7 +9,7 @@ from stingray import utils
 from stingray import Lightcurve
 from stingray import AveragedPowerspectrum
 
-__all__ = ['Simulator']
+__all__ = ["Simulator"]
 
 
 class Simulator(object):
@@ -40,8 +40,9 @@ class Simulator(object):
         return Poisson-distributed light curves.
     """
 
-    def __init__(self, dt, N, mean, rms, err=0., red_noise=1,
-                 random_state=None, tstart=0.0, poisson=False):
+    def __init__(
+        self, dt, N, mean, rms, err=0.0, red_noise=1, random_state=None, tstart=0.0, poisson=False
+    ):
         self.dt = dt
 
         if not isinstance(N, (int, np.integer)):
@@ -50,14 +51,15 @@ class Simulator(object):
         self.N = N
 
         if mean == 0:
-            warnings.warn("Careful! A mean of zero is unphysical!" +
-                          "This may have unintended consequences!")
+            warnings.warn(
+                "Careful! A mean of zero is unphysical!" + "This may have unintended consequences!"
+            )
         self.mean = mean
         self.nphot = self.mean * self.N
         self.rms = rms
         self.red_noise = red_noise
         self.tstart = tstart
-        self.time = dt*np.arange(N) + self.tstart
+        self.time = dt * np.arange(N) + self.tstart
         self.nphot_factor = 1000_000
         self.err = err
         self.poisson = poisson
@@ -67,8 +69,8 @@ class Simulator(object):
 
         self.random_state = utils.get_random_state(random_state)
 
-        assert rms <= 1, 'Fractional rms must be less than 1.'
-        assert dt > 0, 'Time resolution must be greater than 0'
+        assert rms <= 1, "Fractional rms must be less than 1."
+        assert dt > 0, "Time resolution must be greater than 0"
 
     def simulate(self, *args):
         """
@@ -191,7 +193,7 @@ class Simulator(object):
             self.channels.append((channel, self.simulate(*args)))
 
         else:
-            raise KeyError('A channel with this name already exists.')
+            raise KeyError("A channel with this name already exists.")
 
     def get_channel(self, channel):
         """
@@ -222,8 +224,7 @@ class Simulator(object):
         channel = [lc for lc in self.channels if lc[0] == channel]
 
         if len(channel) == 0:
-            raise KeyError('This channel does not exist or has already been '
-                           'deleted.')
+            raise KeyError("This channel does not exist or has already been " "deleted.")
         else:
             index = self.channels.index(channel[0])
             del self.channels[index]
@@ -236,8 +237,9 @@ class Simulator(object):
         channels = [lc for lc in self.channels if lc[0] in channels]
 
         if len(channels) != n:
-            raise KeyError('One of more of the channels do not exist or have '
-                           'already been deleted.')
+            raise KeyError(
+                "One of more of the channels do not exist or have " "already been deleted."
+            )
         else:
             indices = [self.channels.index(channel) for channel in channels]
             for i in sorted(indices, reverse=True):
@@ -273,15 +275,14 @@ class Simulator(object):
         """
 
         # Fill in 0 entries until the start time
-        h_zeros = np.zeros(int(start/self.dt))
+        h_zeros = np.zeros(int(start / self.dt))
 
         # Define constant impulse response
-        h_ones = np.ones(int(width/self.dt)) * intensity
+        h_ones = np.ones(int(width / self.dt)) * intensity
 
         return np.append(h_zeros, h_ones)
 
-    def relativistic_ir(self, t1=3, t2=4, t3=10, p1=1, p2=1.4, rise=0.6,
-                        decay=0.1):
+    def relativistic_ir(self, t1=3, t2=4, t3=10, p1=1, p2=1.4, rise=0.6, decay=0.1):
         """
         Construct a realistic impulse response considering the relativistic
         effects.
@@ -311,24 +312,24 @@ class Simulator(object):
 
         dt = self.dt
 
-        assert t2 > t1, 'Secondary peak must be after primary peak.'
-        assert t3 > t2, 'End time must be after secondary peak.'
-        assert p2 > p1, 'Secondary peak must be greater than primary peak.'
+        assert t2 > t1, "Secondary peak must be after primary peak."
+        assert t3 > t2, "End time must be after secondary peak."
+        assert p2 > p1, "Secondary peak must be greater than primary peak."
 
         # Append zeros before start time
-        h_primary = np.append(np.zeros(int(t1/dt)), p1)
+        h_primary = np.append(np.zeros(int(t1 / dt)), p1)
 
         # Create a rising exponential of user-provided slope
-        x = np.linspace(t1/dt, t2/dt, int((t2-t1)/dt))
-        h_rise = np.exp(rise*x)
+        x = np.linspace(t1 / dt, t2 / dt, int((t2 - t1) / dt))
+        h_rise = np.exp(rise * x)
 
         # Evaluate a factor for scaling exponential
-        factor = np.max(h_rise)/(p2-p1)
-        h_secondary = (h_rise/factor) + p1
+        factor = np.max(h_rise) / (p2 - p1)
+        h_secondary = (h_rise / factor) + p1
 
         # Create a decaying exponential until the end time
-        x = np.linspace(t2/dt, t3/dt, int((t3-t2)/dt))
-        h_decay = (np.exp((-decay)*(x-4/dt)))
+        x = np.linspace(t2 / dt, t3 / dt, int((t3 - t2) / dt))
+        h_decay = np.exp((-decay) * (x - 4 / dt))
 
         # Add the three responses
         h = np.append(h_primary, h_secondary)
@@ -364,9 +365,7 @@ class Simulator(object):
         return np.fft.irfft(f, n=self.N * self.red_noise)
 
     def _timmerkoenig(self, pds_shape):
-        """Straight application of T&K method to a PDS shape.
-
-        """
+        """Straight application of T&K method to a PDS shape."""
         pds_size = pds_shape.size
 
         real = np.random.normal(size=pds_size) * np.sqrt(0.5 * pds_shape)
@@ -385,13 +384,18 @@ class Simulator(object):
             if np.any(bad):
                 warnings.warn("Some bins of the light curve have counts < 0. Setting to 0")
                 rescaled_counts[bad] = 0
-            lc = Lightcurve(self.time, np.random.poisson(rescaled_counts),
-                            err_dist='poisson', dt=self.dt, skip_checks=True)
+            lc = Lightcurve(
+                self.time,
+                np.random.poisson(rescaled_counts),
+                err_dist="poisson",
+                dt=self.dt,
+                skip_checks=True,
+            )
             lc.smooth_counts = rescaled_counts
         else:
-            lc = Lightcurve(self.time, rescaled_counts,
-                            err=err,
-                            err_dist='gauss', dt=self.dt, skip_checks=True)
+            lc = Lightcurve(
+                self.time, rescaled_counts, err=err, err_dist="gauss", dt=self.dt, skip_checks=True
+            )
 
         return lc
 
@@ -409,9 +413,9 @@ class Simulator(object):
         lightCurve : array-like
         """
         # Define frequencies at which to compute PSD
-        w = np.fft.rfftfreq(self.red_noise*self.N, d=self.dt)[1:]
+        w = np.fft.rfftfreq(self.red_noise * self.N, d=self.dt)[1:]
 
-        pds_shape = np.power((1/w), B)
+        pds_shape = np.power((1 / w), B)
 
         return self._timmerkoenig(pds_shape)
 
@@ -430,7 +434,7 @@ class Simulator(object):
         """
         # Cast spectrum as numpy array
         pds_shape = np.zeros(s.size * self.red_noise)
-        pds_shape[:s.size] = s
+        pds_shape[: s.size] = s
 
         return self._timmerkoenig(pds_shape)
 
@@ -475,26 +479,27 @@ class Simulator(object):
         lightCurve : :class:`stingray.lightcurve.LightCurve` object
         """
         from . import models
+
         # Frequencies at which the PSD is to be computed
         # (only positive frequencies, since the signal is real)
-        nbins = self.red_noise*self.N
+        nbins = self.red_noise * self.N
         simfreq = np.fft.rfftfreq(nbins, d=self.dt)[1:]
 
         if model_str not in dir(models):
-            raise ValueError('Model is not defined!')
+            raise ValueError("Model is not defined!")
 
         if isinstance(params, dict):
-            model = eval('models.' + model_str + '(**params)')
+            model = eval("models." + model_str + "(**params)")
             # Compute PSD from model
             simpsd = model(simfreq)
         elif isinstance(params, list):
-            simpsd = eval('models.' + model_str + '(simfreq, params)')
+            simpsd = eval("models." + model_str + "(simfreq, params)")
         else:
-            raise ValueError('Params should be list or dictionary!')
+            raise ValueError("Params should be list or dictionary!")
 
         return self._timmerkoenig(simpsd)
 
-    def _simulate_impulse_response(self, s, h, mode='same'):
+    def _simulate_impulse_response(self, s, h, mode="same"):
         """
         Generate LightCurve from impulse response. To get
         accurate results, binning intervals (dt) of variability
@@ -521,16 +526,15 @@ class Simulator(object):
         """
         lc = signal.fftconvolve(s, h)
 
-        if mode == 'same':
-            lc = lc[:-(len(h) - 1)]
+        if mode == "same":
+            lc = lc[: -(len(h) - 1)]
 
-        elif mode == 'filtered':
-            lc = lc[(len(h) - 1):-(len(h) - 1)]
+        elif mode == "filtered":
+            lc = lc[(len(h) - 1) : -(len(h) - 1)]
 
         time = self.dt * np.arange(0.5, len(lc)) + self.tstart
         err = np.zeros_like(time)
-        return Lightcurve(time, lc, err_dist='gauss', dt=self.dt, err=err,
-                          skip_checks=True)
+        return Lightcurve(time, lc, err_dist="gauss", dt=self.dt, err=err, skip_checks=True)
 
     def _extract_and_scale(self, long_lc):
         """
@@ -555,17 +559,15 @@ class Simulator(object):
             lc = long_lc
         else:
             # Make random cut and extract light curve of length 'N'
-            extract = \
-                self.random_state.randint(self.N-1,
-                                          self.red_noise*self.N - self.N+1)
+            extract = self.random_state.randint(self.N - 1, self.red_noise * self.N - self.N + 1)
             lc = np.take(long_lc, range(extract, extract + self.N))
 
         mean_lc = np.mean(lc)
 
         if self.mean == 0:
-            return (lc-mean_lc)/self.std * self.rms
+            return (lc - mean_lc) / self.std * self.rms
         else:
-            return (lc-mean_lc)/self.std * self.mean * self.rms + self.mean
+            return (lc - mean_lc) / self.std * self.mean * self.rms + self.mean
 
     def powerspectrum(self, lc, seg_size=None):
         """
@@ -590,7 +592,7 @@ class Simulator(object):
         return AveragedPowerspectrum(lc, seg_size).power
 
     @staticmethod
-    def read(filename, fmt='pickle', format_=None):
+    def read(filename, fmt="pickle", format_=None):
         """
         Reads transfer function from a 'pickle' file.
 
@@ -607,7 +609,7 @@ class Simulator(object):
         if format_ is not None:
             fmt = format_
 
-        if fmt == 'pickle':
+        if fmt == "pickle":
             with open(filename, "rb") as fobj:
                 return pickle.load(fobj)
 
@@ -625,7 +627,7 @@ class Simulator(object):
         """
         if format_ is not None:
             fmt = format_
-        if fmt == 'pickle':
+        if fmt == "pickle":
             with open(filename, "wb") as fobj:
                 pickle.dump(self, fobj)
         else:

@@ -17,13 +17,14 @@ def _template_fun(phase, ph0, amplitude, baseline=0):
 
 class TestAll(object):
     """Unit tests for the stingray.pulsar module."""
+
     @classmethod
     def setup_class(cls):
         cls.curdir = os.path.abspath(os.path.dirname(__file__))
-        cls.datadir = os.path.join(cls.curdir, 'data')
+        cls.datadir = os.path.join(cls.curdir, "data")
 
     @pytest.mark.remote_data
-    @pytest.mark.skipif('not HAS_PINT')
+    @pytest.mark.skipif("not HAS_PINT")
     def test_pint_installed_correctly(self):
 
         with warnings.catch_warnings():
@@ -33,11 +34,11 @@ class TestAll(object):
             from pint.residuals import Residuals
             import pint.models.model_builder as mb
             import astropy.units as u
-            parfile = os.path.join(self.datadir, 'example_pint.par')
-            timfile = os.path.join(self.datadir, 'example_pint.tim')
 
-            toas = toa.get_TOAs(timfile, ephem="DE405",
-                                planets=False, include_bipm=False)
+            parfile = os.path.join(self.datadir, "example_pint.par")
+            timfile = os.path.join(self.datadir, "example_pint.tim")
+
+            toas = toa.get_TOAs(timfile, ephem="DE405", planets=False, include_bipm=False)
             model = mb.get_model(parfile)
 
             pint_resids_us = Residuals(toas, model).time_resids.to(u.s)
@@ -46,24 +47,23 @@ class TestAll(object):
         assert np.all(np.abs(pint_resids_us.value) < 3e-6)
 
     @pytest.mark.remote_data
-    @pytest.mark.skipif('not HAS_PINT')
+    @pytest.mark.skipif("not HAS_PINT")
     def test_orbit_from_parfile(self):
         import pint.toa as toa
-        parfile = os.path.join(self.datadir, 'example_pint.par')
-        timfile = os.path.join(self.datadir, 'example_pint.tim')
 
-        toas = toa.get_TOAs(timfile, ephem="DE405",
-                            planets=False, include_bipm=False)
+        parfile = os.path.join(self.datadir, "example_pint.par")
+        timfile = os.path.join(self.datadir, "example_pint.tim")
+
+        toas = toa.get_TOAs(timfile, ephem="DE405", planets=False, include_bipm=False)
         mjds = np.array([m.value for m in toas.get_mjds(high_precision=True)])
 
         mjdstart, mjdstop = mjds[0] - 1, mjds[-1] + 1
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
-            correction_sec, correction_mjd, model = \
-                get_orbital_correction_from_ephemeris_file(mjdstart, mjdstop,
-                                                           parfile, ntimes=1000,
-                                                           return_pint_model=True)
+            correction_sec, correction_mjd, model = get_orbital_correction_from_ephemeris_file(
+                mjdstart, mjdstop, parfile, ntimes=1000, return_pint_model=True
+            )
 
         mjdref = 50000
         toa_sec = (mjds - mjdref) * 86400
@@ -71,12 +71,11 @@ class TestAll(object):
         corr_s = correction_sec(toa_sec, mjdref)
         assert np.allclose(corr, corr_s / 86400 + mjdref)
 
-    @pytest.mark.skipif('HAS_PINT')
+    @pytest.mark.skipif("HAS_PINT")
     def test_orbit_from_parfile_raises(self):
         print("Doesn't have pint")
         with pytest.raises(ImportError):
-            get_orbital_correction_from_ephemeris_file(0, 0,
-                                                       parfile='ciaociao')
+            get_orbital_correction_from_ephemeris_file(0, 0, parfile="ciaociao")
 
     def test_stat(self):
         """Test pulse phase calculation, frequency only."""
@@ -103,13 +102,13 @@ class TestAll(object):
         """Test pulse phase calculation, fdot only."""
         times = np.arange(0, 4, 0.5)
         ph = pulse_phase(times, 0, 1, ph0=0, to_1=False)
-        np.testing.assert_array_almost_equal(ph, 0.5 * times ** 2)
+        np.testing.assert_array_almost_equal(ph, 0.5 * times**2)
 
     def test_pulse_phase3(self):
         """Test pulse phase calculation, fddot only."""
         times = np.arange(0, 4, 0.5)
         ph = pulse_phase(times, 0, 0, 1, ph0=0, to_1=False)
-        np.testing.assert_array_almost_equal(ph, 1/6 * times ** 3)
+        np.testing.assert_array_almost_equal(ph, 1 / 6 * times**3)
 
     def test_phase_exposure1(self):
         start_time = 0
@@ -126,7 +125,7 @@ class TestAll(object):
         nbin = 16
         expo = phase_exposure(start_time, stop_time, period, nbin)
         expected = np.ones(nbin)
-        expected[nbin//2:] = 0
+        expected[nbin // 2 :] = 0
         np.testing.assert_array_almost_equal(expo, expected)
 
     def test_phase_exposure3(self):
@@ -137,7 +136,7 @@ class TestAll(object):
         nbin = 16
         expo = phase_exposure(start_time, stop_time, period, nbin, gti=gti)
         expected = np.ones(nbin)
-        expected[nbin//2:] = 0
+        expected[nbin // 2 :] = 0
         np.testing.assert_array_almost_equal(expo, expected)
 
     def test_phase_exposure4(self):
@@ -152,7 +151,7 @@ class TestAll(object):
 
     def test_pulse_profile1(self):
         nbin = 16
-        times = np.arange(0, 1, 1/nbin)
+        times = np.arange(0, 1, 1 / nbin)
 
         period = 1
         with warnings.catch_warnings():
@@ -160,40 +159,35 @@ class TestAll(object):
             ph, p, pe = fold_events(times, 1, nbin=nbin)
 
         np.testing.assert_array_almost_equal(p, np.ones(nbin))
-        np.testing.assert_array_almost_equal(ph, np.arange(nbin)/nbin +
-                                             0.5/nbin)
+        np.testing.assert_array_almost_equal(ph, np.arange(nbin) / nbin + 0.5 / nbin)
         np.testing.assert_array_almost_equal(pe, np.ones(nbin))
 
     def test_pulse_profile2(self):
         nbin = 16
-        dt = 1/nbin
+        dt = 1 / nbin
         times = np.arange(0, 2, dt)
-        gti = np.array([[-0.5*dt, 2 + 0.5*dt]])
+        gti = np.array([[-0.5 * dt, 2 + 0.5 * dt]])
 
         period = 1
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
-            ph, p, pe = fold_events(times, 1, nbin=nbin, expocorr=True,
-                                    gti=gti)
+            ph, p, pe = fold_events(times, 1, nbin=nbin, expocorr=True, gti=gti)
 
-        np.testing.assert_array_almost_equal(ph, np.arange(nbin)/nbin +
-                                             0.5/nbin)
+        np.testing.assert_array_almost_equal(ph, np.arange(nbin) / nbin + 0.5 / nbin)
         np.testing.assert_array_almost_equal(p, 2 * np.ones(nbin))
         np.testing.assert_array_almost_equal(pe, 2**0.5 * np.ones(nbin))
 
     def test_pulse_profile3(self):
         nbin = 16
-        dt = 1/nbin
+        dt = 1 / nbin
         times = np.arange(0, 2 - dt, dt)
-        gti = np.array([[-0.5*dt, 2 - dt]])
+        gti = np.array([[-0.5 * dt, 2 - dt]])
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
-            ph, p, pe = fold_events(times, 1, nbin=nbin, expocorr=True,
-                                    gti=gti)
+            ph, p, pe = fold_events(times, 1, nbin=nbin, expocorr=True, gti=gti)
 
-        np.testing.assert_array_almost_equal(ph, np.arange(nbin)/nbin +
-                                             0.5/nbin)
+        np.testing.assert_array_almost_equal(ph, np.arange(nbin) / nbin + 0.5 / nbin)
         np.testing.assert_array_almost_equal(p, 2 * np.ones(nbin))
         expected_err = 2**0.5 * np.ones(nbin)
         expected_err[-1] = 2  # Because of the change of exposure
@@ -204,11 +198,11 @@ class TestAll(object):
             np.testing.assert_almost_equal(z_n(np.arange(1), n=1, norm=1), 2)
             np.testing.assert_almost_equal(z_n(np.arange(1), n=2, norm=1), 4)
             np.testing.assert_almost_equal(z_n(np.arange(2), n=2, norm=1), 8)
-            np.testing.assert_almost_equal(
-                z_n(np.arange(2)+0.5, n=2, norm=1), 8)
+            np.testing.assert_almost_equal(z_n(np.arange(2) + 0.5, n=2, norm=1), 8)
 
-        assert np.any(["The use of ``z_n(phase, norm=profile)``"
-                       in r.message.args[0] for r in record])
+        assert np.any(
+            ["The use of ``z_n(phase, norm=profile)``" in r.message.args[0] for r in record]
+        )
 
     def test_get_TOA1(self):
         np.random.seed(1234)
@@ -219,9 +213,7 @@ class TestAll(object):
         template = _template_fun(phases, start_phase, 10, 20)
         prof = np.random.poisson(template)
 
-        toa, toaerr = \
-            get_TOA(prof, period, tstart,
-                    template=_template_fun(phases, 0, 1, 0))
+        toa, toaerr = get_TOA(prof, period, tstart, template=_template_fun(phases, 0, 1, 0))
 
         real_toa = tstart + start_phase * period
         assert (real_toa >= toa - toaerr * 3) & (real_toa <= toa + toaerr * 3)
@@ -235,9 +227,9 @@ class TestAll(object):
         template = _template_fun(phases, start_phase, 10, 20)
         prof = np.random.poisson(template)
 
-        toa, toaerr = \
-            get_TOA(prof, period, tstart,
-                    template=_template_fun(phases, 0, 1, 0), nstep=200)
+        toa, toaerr = get_TOA(
+            prof, period, tstart, template=_template_fun(phases, 0, 1, 0), nstep=200
+        )
 
         real_toa = tstart + start_phase * period
         assert (real_toa >= toa - toaerr * 3) & (real_toa <= toa + toaerr * 3)
@@ -251,10 +243,15 @@ class TestAll(object):
         template = _template_fun(phases, start_phase, 10, 20)
         prof = np.random.poisson(template)
 
-        toa, toaerr = \
-            get_TOA(prof, period, tstart, quick=True,
-                    template=_template_fun(phases, 0, 1, 0), nstep=200,
-                    use_bootstrap=True)
+        toa, toaerr = get_TOA(
+            prof,
+            period,
+            tstart,
+            quick=True,
+            template=_template_fun(phases, 0, 1, 0),
+            nstep=200,
+            use_bootstrap=True,
+        )
 
         real_toa = tstart + start_phase * period
         assert (real_toa >= toa - toaerr * 3) & (real_toa <= toa + toaerr * 3)
@@ -268,10 +265,9 @@ class TestAll(object):
         template = _template_fun(phases, start_phase, 10, 20)
         prof = np.random.poisson(template)
 
-        toa, toaerr = \
-            get_TOA(prof, period, tstart,
-                    template=_template_fun(phases, 0, 1, 0), nstep=200,
-                    debug=True)
+        toa, toaerr = get_TOA(
+            prof, period, tstart, template=_template_fun(phases, 0, 1, 0), nstep=200, debug=True
+        )
 
         real_toa = tstart + start_phase * period
         assert (real_toa >= toa - toaerr * 3) & (real_toa <= toa + toaerr * 3)
@@ -285,9 +281,7 @@ class TestAll(object):
         template = _template_fun(phases, start_phase, 10, 20)
         prof = np.random.poisson(template)
 
-        toa, toaerr = \
-            get_TOA(prof, period, tstart, nstep=200,
-                    debug=True)
+        toa, toaerr = get_TOA(prof, period, tstart, nstep=200, debug=True)
 
         real_toa = tstart + start_phase * period
         assert (real_toa >= toa - toaerr * 3) & (real_toa <= toa + toaerr * 3)
@@ -295,6 +289,7 @@ class TestAll(object):
 
 def create_pulsed_events(nevents, freq, t0=0, t1=1000, nback=0):
     from numpy.random import Generator, PCG64
+
     rg = Generator(PCG64())
     events = rg.normal(0.5, 0.1, nevents - nback)
     events = events - np.floor(events)
@@ -314,6 +309,7 @@ def poissonize_gaussian_profile(prof, err):
 
 class TestZandH(object):
     """Unit tests for the stingray.pulsar module."""
+
     @classmethod
     def setup_class(cls):
         nevents = 10000
@@ -322,8 +318,7 @@ class TestZandH(object):
         phases = cls.events * f
         cls.phases = phases - np.floor(phases)
 
-        cls.prof512, cls.bins = \
-            np.histogram(cls.phases, range=[0, 1], bins=512)
+        cls.prof512, cls.bins = np.histogram(cls.phases, range=[0, 1], bins=512)
 
     def test_zn_events(self):
         phases = self.phases
@@ -356,15 +351,16 @@ class TestZandH(object):
             z_dep = z_n(np.zeros(prof512.size), norm=prof512, n=3, datatype="binned")
             np.testing.assert_almost_equal(z, z_dep)
 
-        assert np.any(["The use of ``z_n(phase, norm=profile)``"
-                       in r.message.args[0] for r in record])
+        assert np.any(
+            ["The use of ``z_n(phase, norm=profile)``" in r.message.args[0] for r in record]
+        )
 
     def test_zn_gauss(self):
         nbin = 512
         dph = 1 / nbin
         err = 0.1
         ph = np.arange(-0.5 + dph / 2, 0.5, dph)
-        prof = np.random.normal(np.exp(-ph**2 / 2 / 0.1**2), err)
+        prof = np.random.normal(np.exp(-(ph**2) / 2 / 0.1**2), err)
 
         prof_poiss = poissonize_gaussian_profile(prof, err)
 
@@ -377,8 +373,7 @@ class TestZandH(object):
 
         assert np.isclose(hg, hp)
         assert np.isclose(mg, mp)
-        assert np.isclose(hg + 4 * mg - 4,
-                          z_n(prof, n=mg, err=err, datatype="gauss"))
+        assert np.isclose(hg + 4 * mg - 4, z_n(prof, n=mg, err=err, datatype="gauss"))
 
     def test_wrong_args_H_datatype(self):
         with pytest.raises(ValueError) as excinfo:

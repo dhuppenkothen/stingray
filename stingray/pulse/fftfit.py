@@ -31,11 +31,10 @@ def _find_delay_with_ccf(amp, pha):
     nh = 32
     nprof = nh * 2
     ccf_inv = np.zeros(64, dtype=complex)
-    ccf_inv[:nh] = \
-        amp[:nh] * np.cos(pha[:nh]) + 1.0j * amp[:nh] * np.sin(pha[:nh])
-    ccf_inv[nprof: nprof - nh: -1] = np.conj(ccf_inv[nprof: nprof - nh: -1])
-    ccf_inv[nh // 2: nh] = 0
-    ccf_inv[nprof - nh // 2: nprof - nh: -1] = 0
+    ccf_inv[:nh] = amp[:nh] * np.cos(pha[:nh]) + 1.0j * amp[:nh] * np.sin(pha[:nh])
+    ccf_inv[nprof : nprof - nh : -1] = np.conj(ccf_inv[nprof : nprof - nh : -1])
+    ccf_inv[nh // 2 : nh] = 0
+    ccf_inv[nprof - nh // 2 : nprof - nh : -1] = 0
     ccf = np.fft.ifft(ccf_inv)
 
     imax = np.argmax(ccf.real)
@@ -68,7 +67,7 @@ def best_phase_func(tau, amp, pha, ngood=20):
     return res
 
 
-TWOPI  = 2 * np.pi
+TWOPI = 2 * np.pi
 
 
 def fftfit(prof, template):
@@ -145,9 +144,9 @@ def fftfit(prof, template):
         if np.sign(func_to_minimize(trial_val_down)) != start_sign:
             best_dph = trial_val_down
             break
-        trial_val_down -= 1/nbin
+        trial_val_down -= 1 / nbin
         count_down += 1
-        trial_val_up += 1/nbin
+        trial_val_up += 1 / nbin
         count_up += 1
 
     a, b = best_dph - 2 / nbin, best_dph + 2 / nbin
@@ -162,16 +161,16 @@ def fftfit(prof, template):
 
     # We end with the error calculation, from Taylor 1992, eqns. A10--11
     big_sum = np.sum(
-            idx[good] ** 2 *
-            amp[good] * np.cos(-pha[good] + 2 * np.pi * idx[good] * -shift)
-        )
+        idx[good] ** 2 * amp[good] * np.cos(-pha[good] + 2 * np.pi * idx[good] * -shift)
+    )
 
-    b = np.sum(amp[good] * np.cos(-pha[good] + 2 * np.pi * idx[good] * -shift)
-        ) / np.sum(S[good]**2)
+    b = np.sum(amp[good] * np.cos(-pha[good] + 2 * np.pi * idx[good] * -shift)) / np.sum(
+        S[good] ** 2
+    )
 
     eshift = sigma**2 / (2 * b * big_sum)
 
-    eb = sigma**2 / (2 * np.sum(S[good]**2))
+    eb = sigma**2 / (2 * np.sum(S[good] ** 2))
 
     return b, np.sqrt(eb), shift, np.sqrt(eshift)
 

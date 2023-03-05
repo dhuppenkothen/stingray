@@ -16,9 +16,7 @@ from .events import EventList
 from .lightcurve import Lightcurve
 from .utils import rebin_data, simon, fft, rfft, rfftfreq
 
-__all__ = [
-    "Multitaper"
-]
+__all__ = ["Multitaper"]
 
 # Inspired from nitime (https://nipy.org/nitime/)
 
@@ -125,13 +123,24 @@ class Multitaper(Powerspectrum):
 
     """
 
-    def __init__(self, data=None, norm="frac", gti=None, dt=None, lc=None,
-                 NW=4, adaptive=False, jackknife=True, low_bias=True,
-                 lombscargle=False):
+    def __init__(
+        self,
+        data=None,
+        norm="frac",
+        gti=None,
+        dt=None,
+        lc=None,
+        NW=4,
+        adaptive=False,
+        jackknife=True,
+        low_bias=True,
+        lombscargle=False,
+    ):
 
         if lc is not None:
-            warnings.warn("The lc keyword is now deprecated. Use data "
-                          "instead", DeprecationWarning)
+            warnings.warn(
+                "The lc keyword is now deprecated. Use data " "instead", DeprecationWarning
+            )
         if data is None:
             data = lc
 
@@ -145,8 +154,8 @@ class Multitaper(Powerspectrum):
 
         if isinstance(data, EventList) and dt is None:
             raise ValueError(
-                "If using event lists, please specify "
-                "the bin time to generate lightcurves.")
+                "If using event lists, please specify " "the bin time to generate lightcurves."
+            )
 
         if data is None:
             self.freq = None
@@ -167,16 +176,21 @@ class Multitaper(Powerspectrum):
 
         self.gti = gti
         self.lc = lc
-        self.power_type = 'real'
+        self.power_type = "real"
         self.fullspec = False
 
-        self._make_multitaper_periodogram(lc, NW=NW, adaptive=adaptive,
-                                          jackknife=jackknife, low_bias=low_bias,
-                                          lombscargle=lombscargle)
+        self._make_multitaper_periodogram(
+            lc,
+            NW=NW,
+            adaptive=adaptive,
+            jackknife=jackknife,
+            low_bias=low_bias,
+            lombscargle=lombscargle,
+        )
 
-    def _make_multitaper_periodogram(self, lc, NW=4, adaptive=False,
-                                     jackknife=True, low_bias=True,
-                                     lombscargle=False):
+    def _make_multitaper_periodogram(
+        self, lc, NW=4, adaptive=False, jackknife=True, low_bias=True, lombscargle=False
+    ):
         """Compute the normalized multitaper spectral estimate.
 
         This includes checking for the presence of and applying Good Time Intervals,
@@ -216,20 +230,19 @@ class Multitaper(Powerspectrum):
         check_gtis(self.gti)
 
         if self.gti.shape[0] != 1:
-            raise TypeError("Non-averaged Spectra need "
-                            "a single Good Time Interval")
+            raise TypeError("Non-averaged Spectra need " "a single Good Time Interval")
 
         lc = lc.split_by_gti()[0]
 
         self.meancounts = lc.meancounts
         self.nphots = np.float64(np.sum(lc.counts))
 
-        self.err_dist = 'poisson'
-        if lc.err_dist == 'poisson':
+        self.err_dist = "poisson"
+        if lc.err_dist == "poisson":
             self.var = lc.meancounts
         else:
             self.var = np.mean(lc.counts_err) ** 2
-            self.err_dist = 'gauss'
+            self.err_dist = "gauss"
 
         self.dt = lc.dt
         self.n = lc.n
@@ -242,31 +255,31 @@ class Multitaper(Powerspectrum):
         self.m = 1
 
         if lombscargle:
-            self.freq, self.multitaper_norm_power = \
-                self._fourier_multitaper_lomb_scargle(lc, NW=NW,
-                                                      low_bias=low_bias)
+            self.freq, self.multitaper_norm_power = self._fourier_multitaper_lomb_scargle(
+                lc, NW=NW, low_bias=low_bias
+            )
 
             self.unnorm_power = self.multitaper_norm_power * lc.n * 2
 
         else:
 
-            self.freq, self.multitaper_norm_power = \
-                self._fourier_multitaper(lc, NW=NW, adaptive=adaptive,
-                                         jackknife=jackknife, low_bias=low_bias)
+            self.freq, self.multitaper_norm_power = self._fourier_multitaper(
+                lc, NW=NW, adaptive=adaptive, jackknife=jackknife, low_bias=low_bias
+            )
 
             self.unnorm_power = self.multitaper_norm_power * lc.n / lc.dt
 
-        self.power = \
-            self._normalize_multitaper(self.unnorm_power)
+        self.power = self._normalize_multitaper(self.unnorm_power)
 
         if lc.err_dist.lower() != "poisson":
-            simon("Looks like your lightcurve statistic is not poisson."
-                  "The errors in the Powerspectrum will be incorrect.")
+            simon(
+                "Looks like your lightcurve statistic is not poisson."
+                "The errors in the Powerspectrum will be incorrect."
+            )
 
         self.power_err = self.power / np.sqrt(self.m)
 
-    def _fourier_multitaper(self, lc, NW=4, adaptive=False,
-                            jackknife=True, low_bias=True):
+    def _fourier_multitaper(self, lc, NW=4, adaptive=False, jackknife=True, low_bias=True):
         """Compute the multitaper periodogram.
 
         Auxiliary method to apply the multitaper algorithm by first computing
@@ -308,27 +321,24 @@ class Multitaper(Powerspectrum):
         """
 
         if NW < 0.5:
-            raise ValueError("The value of normalized half-bandwidth "
-                             "should be greater than 0.5")
+            raise ValueError("The value of normalized half-bandwidth " "should be greater than 0.5")
 
         Kmax = int(2 * NW)
 
-        dpss_tapers, eigvals = \
-            signal.windows.dpss(M=lc.n, NW=NW, Kmax=Kmax,
-                                sym=False, return_ratios=True)
+        dpss_tapers, eigvals = signal.windows.dpss(
+            M=lc.n, NW=NW, Kmax=Kmax, sym=False, return_ratios=True
+        )
 
         if low_bias:
-            selected_tapers = (eigvals > 0.9)
+            selected_tapers = eigvals > 0.9
             if not selected_tapers.any():
-                simon("Could not properly use low_bias, "
-                      "keeping the lowest-bias taper")
+                simon("Could not properly use low_bias, " "keeping the lowest-bias taper")
                 selected_tapers = [np.argmax(eigvals)]
 
             eigvals = eigvals[selected_tapers]
             dpss_tapers = dpss_tapers[selected_tapers, :]
 
-        print(f"Using {len(eigvals)} DPSS windows for "
-              "multitaper spectrum estimator")
+        print(f"Using {len(eigvals)} DPSS windows for " "multitaper spectrum estimator")
 
         data_multitaper = lc.counts - np.mean(lc.counts)  # De-mean
         data_multitaper = np.tile(data_multitaper, (len(eigvals), 1))
@@ -337,31 +347,27 @@ class Multitaper(Powerspectrum):
         freq_response = rfft(data_multitaper, n=lc.n)
 
         # Adjust DC and maybe Nyquist, depending on one-sided transform
-        freq_response[..., 0] /= np.sqrt(2.)
+        freq_response[..., 0] /= np.sqrt(2.0)
         if lc.n % 2 == 0:
-            freq_response[..., -1] /= np.sqrt(2.)
+            freq_response[..., -1] /= np.sqrt(2.0)
 
         freq_response = freq_response[..., 1:-1]
         freq_multitaper = rfftfreq(lc.n, d=lc.dt)[1:-1]
 
         if adaptive:
-            psd_multitaper, weights_multitaper = \
-                self._get_adaptive_psd(freq_response, eigvals)
+            psd_multitaper, weights_multitaper = self._get_adaptive_psd(freq_response, eigvals)
         else:
             weights_multitaper = np.sqrt(eigvals)[:, np.newaxis]
-            psd_multitaper = \
-                self.psd_from_freq_response(freq_response, weights_multitaper)
+            psd_multitaper = self.psd_from_freq_response(freq_response, weights_multitaper)
 
         psd_multitaper *= lc.dt  # /= sampling_freq
         self.eigvals = eigvals
 
         if jackknife:
-            self.jk_var_deg_freedom = \
-                self.jackknifed_sdf_variance(freq_response, eigvals, adaptive)
+            self.jk_var_deg_freedom = self.jackknifed_sdf_variance(freq_response, eigvals, adaptive)
         else:
             if adaptive:
-                self.jk_var_deg_freedom = \
-                    2 * (weights_multitaper ** 2).sum(axis=-2)
+                self.jk_var_deg_freedom = 2 * (weights_multitaper**2).sum(axis=-2)
             else:
                 self.jk_var_deg_freedom = np.full((len(freq_multitaper)), 2 * len(eigvals))
 
@@ -447,8 +453,7 @@ class Multitaper(Powerspectrum):
             weights = sqrt_eigvals[:, np.newaxis]
             return self.psd_from_freq_response(freq_response, weights), weights
 
-        psd_est = \
-            self.psd_from_freq_response(freq_response, sqrt_eigvals[:, np.newaxis])
+        psd_est = self.psd_from_freq_response(freq_response, sqrt_eigvals[:, np.newaxis])
 
         var = np.trapz(psd_est, dx=np.pi / n_freqs) / (2 * np.pi)
         del psd_est
@@ -474,15 +479,14 @@ class Multitaper(Powerspectrum):
         # (1/2pi) int_{-pi}^{pi} E{B_k(f)} = sig^2(1-lam_k)
 
         # start with an estimate from incomplete data--the first 2 tapers
-        psd_iter = \
-            self.psd_from_freq_response(freq_response[:2],
-                                        sqrt_eigvals[:2, np.newaxis])
+        psd_iter = self.psd_from_freq_response(freq_response[:2], sqrt_eigvals[:2, np.newaxis])
 
         err = np.zeros_like(freq_response)
 
         for ite in range(max_iter):
-            d_k = (psd_iter / (eigvals[:, np.newaxis] *
-                   psd_iter + (1 - eigvals[:, np.newaxis]) * var))
+            d_k = psd_iter / (
+                eigvals[:, np.newaxis] * psd_iter + (1 - eigvals[:, np.newaxis]) * var
+            )
             d_k *= sqrt_eigvals[:, np.newaxis]
             # Test for convergence -- this is overly conservative, since
             # iteration only stops when all frequencies have converged.
@@ -493,14 +497,14 @@ class Multitaper(Powerspectrum):
             # less than 1e-10, then we're converged
 
             err -= d_k
-            if np.max(np.mean(err ** 2, axis=0)) < 1e-10:
+            if np.max(np.mean(err**2, axis=0)) < 1e-10:
                 break
 
             # update the iterative estimate with this d_k
             psd_iter = self.psd_from_freq_response(freq_response, d_k)
             err = d_k
         if ite == max_iter - 1:
-            simon('Iterative multi-taper PSD computation did not converge.')
+            simon("Iterative multi-taper PSD computation did not converge.")
 
         return psd_iter, d_k
 
@@ -523,11 +527,18 @@ class Multitaper(Powerspectrum):
 
         mean = self.nphots / self.n
         variance = None
-        if self.err_dist != 'poisson':
+        if self.err_dist != "poisson":
             variance = self.var
         return normalize_periodograms(
-            unnorm_power, self.dt, self.n, mean, n_ph=self.nphots, variance=variance, norm=self.norm,
-            power_type=self.power_type)
+            unnorm_power,
+            self.dt,
+            self.n,
+            mean,
+            n_ph=self.nphots,
+            variance=variance,
+            norm=self.norm,
+            power_type=self.power_type,
+        )
 
     def jackknifed_sdf_variance(self, freq_response, eigvals, adaptive):
         r"""Compute the variance of the spectrum through jack-knife.
@@ -575,13 +586,13 @@ class Multitaper(Powerspectrum):
             selected_eigvals = np.take(eigvals, selected_indices)
 
             if adaptive:
-                selected_psd, selected_weights = \
-                    self._get_adaptive_psd(selected_data, selected_eigvals)
+                selected_psd, selected_weights = self._get_adaptive_psd(
+                    selected_data, selected_eigvals
+                )
 
             else:
                 selected_weights = np.sqrt(selected_eigvals)[:, np.newaxis]
-                selected_psd = \
-                    self.psd_from_freq_response(selected_data, selected_weights)
+                selected_psd = self.psd_from_freq_response(selected_data, selected_weights)
 
             jk_sdk.append(selected_psd)
 
@@ -595,7 +606,7 @@ class Multitaper(Powerspectrum):
         # Jackknifing Multitaper Spectrum Estimates
         # IEEE SIGNAL PROCESSING MAGAZINE [20] JULY 2007
         K = float(K)
-        f = (K - 1)**2 / K / (K - 0.5)
+        f = (K - 1) ** 2 / K / (K - 0.5)
         jk_var *= f
         return jk_var
 
@@ -623,15 +634,14 @@ class Multitaper(Powerspectrum):
         """
 
         if f is None and df is None:
-            raise ValueError('You need to specify at least one between f and '
-                             'df')
+            raise ValueError("You need to specify at least one between f and " "df")
         elif f is not None:
             df = f * self.df
 
         # rebin cross spectrum to new resolution
-        binfreq, binmtp, binerr, step_size = \
-            rebin_data(self.freq, self.power, df, self.power_err,
-                       method=method, dx=self.df)
+        binfreq, binmtp, binerr, step_size = rebin_data(
+            self.freq, self.power, df, self.power_err, method=method, dx=self.df
+        )
         # make an empty cross spectrum object
         # note: syntax deliberate to work with subclass Powerspectrum
         bin_mtp = copy.copy(self)
@@ -646,24 +656,24 @@ class Multitaper(Powerspectrum):
         bin_mtp.nphots = self.nphots
         bin_mtp.power_err = binerr
 
-        if hasattr(self, 'unnorm_power'):
-            _, binpower_unnorm, _, _ = \
-                rebin_data(self.freq, self.unnorm_power, df,
-                           method=method, dx=self.df)
+        if hasattr(self, "unnorm_power"):
+            _, binpower_unnorm, _, _ = rebin_data(
+                self.freq, self.unnorm_power, df, method=method, dx=self.df
+            )
 
             bin_mtp.unnorm_power = binpower_unnorm
 
-        if hasattr(self, 'multitaper_norm_power'):
-            _, bin_multitaper_norm_power, _, _ = \
-                rebin_data(self.freq, self.multitaper_norm_power, df,
-                           method=method, dx=self.df)
+        if hasattr(self, "multitaper_norm_power"):
+            _, bin_multitaper_norm_power, _, _ = rebin_data(
+                self.freq, self.multitaper_norm_power, df, method=method, dx=self.df
+            )
 
             bin_mtp.multitaper_norm_power = bin_multitaper_norm_power
 
-        if hasattr(self, 'jk_var_deg_freedom'):
-            _, bin_jk_var_deg_freedom, _, _ = \
-                rebin_data(self.freq, self.jk_var_deg_freedom, df,
-                           method=method, dx=self.df)
+        if hasattr(self, "jk_var_deg_freedom"):
+            _, bin_jk_var_deg_freedom, _, _ = rebin_data(
+                self.freq, self.jk_var_deg_freedom, df, method=method, dx=self.df
+            )
 
             bin_mtp.jk_var_deg_freedom = bin_jk_var_deg_freedom
 
@@ -672,12 +682,14 @@ class Multitaper(Powerspectrum):
         return bin_mtp
 
     def compute_rms(self, min_freq, max_freq, white_noise_offset):
-        return Powerspectrum.compute_rms(self, min_freq, max_freq,
-                                         white_noise_offset=white_noise_offset)
+        return Powerspectrum.compute_rms(
+            self, min_freq, max_freq, white_noise_offset=white_noise_offset
+        )
 
     def classical_significances(self, threshold, trial_correction):
-        return Powerspectrum.classical_significances(self, threshold=threshold,
-                                                     trial_correction=trial_correction)
+        return Powerspectrum.classical_significances(
+            self, threshold=threshold, trial_correction=trial_correction
+        )
 
     def _fourier_multitaper_lomb_scargle(self, lc, NW=4, low_bias=True):
         """Compute the multitaper lomb-scargle spectral estimate.
@@ -718,37 +730,34 @@ class Multitaper(Powerspectrum):
         lc.apply_gtis()  # Remove bins with missing data
 
         if NW < 0.5:
-            raise ValueError("The value of normalized half-bandwidth "
-                             "should be greater than 0.5")
+            raise ValueError("The value of normalized half-bandwidth " "should be greater than 0.5")
 
         Kmax = int(2 * NW)
 
-        dpss_tapers, eigvals = \
-            signal.windows.dpss(M=lc.n, NW=NW, Kmax=Kmax,
-                                sym=False, return_ratios=True)
+        dpss_tapers, eigvals = signal.windows.dpss(
+            M=lc.n, NW=NW, Kmax=Kmax, sym=False, return_ratios=True
+        )
 
         if low_bias:
-            selected_tapers = (eigvals > 0.9)
+            selected_tapers = eigvals > 0.9
             if not selected_tapers.any():
-                simon("Could not properly use low_bias, "
-                      "keeping the lowest-bias taper")
+                simon("Could not properly use low_bias, " "keeping the lowest-bias taper")
                 selected_tapers = [np.argmax(eigvals)]
 
             eigvals = eigvals[selected_tapers]
             dpss_tapers = dpss_tapers[selected_tapers, :]
 
-        print(f"Using {len(eigvals)} DPSS windows for "
-              "multitaper spectrum estimator")
+        print(f"Using {len(eigvals)} DPSS windows for " "multitaper spectrum estimator")
 
         dpss_data_interpolated = []
 
         data_irregular = lc.counts - np.mean(lc.counts)
-        times_regular = np.linspace(
-            lc.time[0], lc.time[-1], lc.n)
+        times_regular = np.linspace(lc.time[0], lc.time[-1], lc.n)
 
         for dpss_taper in dpss_tapers:
             cubic_spline_interp = interpolate.InterpolatedUnivariateSpline(
-                times_regular, dpss_taper, k=3)
+                times_regular, dpss_taper, k=3
+            )
             # Interpolating DPSS tapers to IRREGULAR times
             dpss_interpolated = cubic_spline_interp(lc.time)
             dpss_interpolated /= np.sum(dpss_interpolated**2)  # Re normalizing
@@ -759,20 +768,20 @@ class Multitaper(Powerspectrum):
 
         psd_multitaper_ls = []
 
-        tseg = (lc.time[-1] - lc.time[0])
+        tseg = lc.time[-1] - lc.time[0]
 
         # These are the frequencies given in Springford et al. (2020)
         # freq_mtls = np.arange(0, lc.times.shape[0])*(1/tseg) # This works
         # freq_mtls = freq_mtls[1:]
 
         # The frequencies rest of Stingray uses
-        freq_multitaper_ls = rfftfreq(
-            n=lc.n, d=lc.dt)[1:-1]  # Avoiding zero
+        freq_multitaper_ls = rfftfreq(n=lc.n, d=lc.dt)[1:-1]  # Avoiding zero
 
         for values in dpss_data_interpolated:
 
             psd = LombScargle(lc.time, values).power(
-                frequency=freq_multitaper_ls, normalization="psd")
+                frequency=freq_multitaper_ls, normalization="psd"
+            )
 
             # Normalization in Springford et al. (2020)
             # psd *= 0.5 * tseg / lc.time.shape[0]

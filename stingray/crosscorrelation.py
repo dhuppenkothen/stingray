@@ -9,7 +9,7 @@ from stingray.crossspectrum import Crossspectrum, AveragedCrossspectrum
 from stingray.exceptions import StingrayError
 import stingray.utils as utils
 
-__all__ = ['CrossCorrelation', 'AutoCorrelation']
+__all__ = ["CrossCorrelation", "AutoCorrelation"]
 
 
 class CrossCorrelation(object):
@@ -78,7 +78,7 @@ class CrossCorrelation(object):
     .. [scipy-docs] https://docs.scipy.org/doc/scipy-0.19.0/reference/generated/scipy.signal.correlate.html
     """
 
-    def __init__(self, lc1=None, lc2=None, cross=None, mode='same', norm="none"):
+    def __init__(self, lc1=None, lc2=None, cross=None, mode="same", norm="none"):
 
         self.auto = False
         self.norm = norm
@@ -96,8 +96,7 @@ class CrossCorrelation(object):
         # Populate all attributes by ``None` if user passes no lightcurve data
         if lc1 is None or lc2 is None:
             if lc1 is not None or lc2 is not None:
-                raise TypeError("You can't do a cross correlation with just one "
-                                "light curve!")
+                raise TypeError("You can't do a cross correlation with just one " "light curve!")
 
             else:
                 if cross is None:
@@ -128,14 +127,16 @@ class CrossCorrelation(object):
 
         if not isinstance(cross, Crossspectrum):
             if not isinstance(cross, AveragedCrossspectrum):
-                raise TypeError("cross must be a crossspectrum.Crossspectrum \
-                        or crossspectrum.AveragedCrossspectrum object")
+                raise TypeError(
+                    "cross must be a crossspectrum.Crossspectrum \
+                        or crossspectrum.AveragedCrossspectrum object"
+                )
 
         if self.cross is None:
             self.cross = cross
-            self.dt = 1/(cross.df * cross.n)
+            self.dt = 1 / (cross.df * cross.n)
         if self.dt is None:
-            self.dt = 1/(cross.df * cross.n)
+            self.dt = 1 / (cross.df * cross.n)
 
         prelim_corr = abs(ifft(cross.power).real)  # keep only the real
         self.n = len(prelim_corr)
@@ -148,7 +149,6 @@ class CrossCorrelation(object):
         time, corr = np.array(sorted(zip(times, prelim_corr))).T
         self.corr = corr
         self.time_shift, self.time_lags, self.n = self.cal_timeshift(dt=self.dt)
-
 
     def _make_corr(self, lc1, lc2):
 
@@ -172,8 +172,7 @@ class CrossCorrelation(object):
             raise TypeError("lc2 must be a lightcurve.Lightcurve object")
 
         if not np.isclose(lc1.dt, lc2.dt):
-            raise StingrayError("Light curves do not have "
-                                "same time binning dt.")
+            raise StingrayError("Light curves do not have " "same time binning dt.")
         else:
             # ignore very small differences in dt neglected by np.isclose()
             lc1.dt = lc2.dt
@@ -190,8 +189,7 @@ class CrossCorrelation(object):
         lc2_counts = self.lc2.counts - np.mean(self.lc2.counts)
 
         # Calculates cross-correlation of two lightcurves
-        self.corr = \
-            signal.correlate(lc1_counts, lc2_counts, self.mode)
+        self.corr = signal.correlate(lc1_counts, lc2_counts, self.mode)
 
         self.n = np.size(self.corr)
         self.time_shift, self.time_lags, self.n = self.cal_timeshift(dt=self.dt)
@@ -202,8 +200,8 @@ class CrossCorrelation(object):
             # Note that self.corr is normalized so that the maximum is
             # proportional to the number of bins in the first input
             # light curve. Hence, the division by the lc size
-            variance1 = np.var(lc1.counts) - np.mean(lc1.counts_err)**2
-            variance2 = np.var(lc2.counts) - np.mean(lc2.counts_err)**2
+            variance1 = np.var(lc1.counts) - np.mean(lc1.counts_err) ** 2
+            variance2 = np.var(lc2.counts) - np.mean(lc2.counts_err) ** 2
             self.corr = self.corr / np.sqrt(variance1 * variance2) / lc1_counts.size
 
     def cal_timeshift(self, dt=1.0):
@@ -211,11 +209,11 @@ class CrossCorrelation(object):
         Calculate the cross correlation against all possible time lags, both positive and negative.
 
         The method signal.correlation_lags() uses SciPy versions >= 1.6.1 ([scipy-docs-lag]_)
-        
+
         References
         ----------
         .. [scipy-docs-lag] https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.correlation_lags.html
-        
+
         Parameters
         ----------
         dt: float, optional, default ``1.0``
@@ -235,8 +233,10 @@ class CrossCorrelation(object):
             self.dt = dt
         if self.corr is None:
             if (self.lc1 is None or self.lc2 is None) and (self.cross is None):
-                raise StingrayError('Please provide either two lightcurve objects or \
-                 a [average]crossspectrum object to calculate correlation and time_shift')
+                raise StingrayError(
+                    "Please provide either two lightcurve objects or \
+                 a [average]crossspectrum object to calculate correlation and time_shift"
+                )
             else:
                 # This will cover very rare case of assigning self.lc1 and lc2
                 # or self.cross and also self.corr = ``None``.
@@ -249,27 +249,30 @@ class CrossCorrelation(object):
                     self._make_corr(self.lc1, self.lc2)
 
         self.n = len(self.corr)
-        
+
         if self.cross is not None:
-          # Obtains correlation lags if a cross spectrum object is given
-          # Correlation against all possible lags, positive as well as negative lags are stored
-          # signal.correlation_lags() method uses SciPy versions >= 1.6.1
-          x_lags = signal.correlation_lags(self.n, self.n, self.mode)
-          
+            # Obtains correlation lags if a cross spectrum object is given
+            # Correlation against all possible lags, positive as well as negative lags are stored
+            # signal.correlation_lags() method uses SciPy versions >= 1.6.1
+            x_lags = signal.correlation_lags(self.n, self.n, self.mode)
+
         else:
-          # Obtains correlation lags if two light curves are porvided
-          # Correlation against all possible lags, positive as well as negative lags are stored
-          # signal.correlation_lags() method uses SciPy versions >= 1.6.1
-          x_lags = \
-              signal.correlation_lags(np.size(self.lc1.counts), np.size(self.lc2.counts), self.mode)
-        
+            # Obtains correlation lags if two light curves are porvided
+            # Correlation against all possible lags, positive as well as negative lags are stored
+            # signal.correlation_lags() method uses SciPy versions >= 1.6.1
+            x_lags = signal.correlation_lags(
+                np.size(self.lc1.counts), np.size(self.lc2.counts), self.mode
+            )
+
         self.time_lags = x_lags * self.dt
         # time_shift is the time lag for max. correlation
         self.time_shift = self.time_lags[np.argmax(self.corr)]
 
         return self.time_shift, self.time_lags, self.n
 
-    def plot(self, labels=None, axis=None, title=None, marker='-', save=False, filename=None, ax=None):
+    def plot(
+        self, labels=None, axis=None, title=None, marker="-", save=False, filename=None, ax=None
+    ):
         """
         Plot the :class:`Crosscorrelation` as function using Matplotlib.
         Plot the Crosscorrelation object on a graph ``self.time_lags`` on x-axis and
@@ -311,12 +314,10 @@ class CrossCorrelation(object):
                 ax.set_xlabel(labels[0])
                 ax.set_ylabel(labels[1])
             except TypeError:
-                utils.simon("``labels`` must be either a list or tuple with "
-                            "x and y labels.")
+                utils.simon("``labels`` must be either a list or tuple with " "x and y labels.")
                 raise
             except IndexError:
-                utils.simon("``labels`` must have two labels for x and y "
-                            "axes.")
+                utils.simon("``labels`` must have two labels for x and y " "axes.")
                 # Not raising here because in case of len(labels)==1, only
                 # x-axis will be labelled.
 
@@ -329,7 +330,7 @@ class CrossCorrelation(object):
 
         if save:
             if filename is None:
-                plt.savefig('corr.pdf', format="pdf")
+                plt.savefig("corr.pdf", format="pdf")
             else:
                 plt.savefig(filename)
         else:
@@ -375,7 +376,7 @@ class AutoCorrelation(CrossCorrelation):
          Number of points in self.corr(Length of auto-correlation data)
     """
 
-    def __init__(self, lc=None, mode='same'):
+    def __init__(self, lc=None, mode="same"):
 
         CrossCorrelation.__init__(self, lc1=lc, lc2=lc, mode=mode)
         self.auto = True

@@ -13,14 +13,13 @@ from stingray.utils import ifft, fftfreq
 import matplotlib.pyplot as plt
 
 
-
 class TestCrossCorrelationBase(object):
     @classmethod
     def setup_class(cls):
         dt = 0.01
         length = 10000
         gti = [[0, length]]
-        times = np.arange(dt/2, length, dt)
+        times = np.arange(dt / 2, length, dt)
         freq = 1 / 50
         flux1 = 0.5 + 0.5 * np.sin(2 * np.pi * freq * times)
         flux2 = 0.5 + 0.5 * np.sin(2 * np.pi * freq * (times - 20))
@@ -37,6 +36,7 @@ class TestCrossCorrelationBase(object):
         assert np.isclose(cr.time_shift, -20, atol=0.1)
         assert np.isclose(np.max(cr.corr), 1, atol=0.01)
         assert np.isclose(np.min(cr.corr), -1, atol=0.01)
+
 
 class TestCrossCorrelation(object):
     @classmethod
@@ -98,7 +98,7 @@ class TestCrossCorrelation(object):
         assert cr.n == 5
         assert np.allclose(cr.time_lags, lags_result)
         assert np.isclose(cr.time_shift, 2.0)
-        assert cr.mode == 'same'
+        assert cr.mode == "same"
         assert cr.auto is False
 
     def test_crossparam_input(self):
@@ -116,12 +116,12 @@ class TestCrossCorrelation(object):
         assert np.isclose(cr2.dt, self.lc1.dt)
         assert cr2.n == 5
         assert np.allclose(cr2.time_lags, lags_result)
-        assert cr2.mode == 'same'
+        assert cr2.mode == "same"
         assert cr2.auto is False
 
     def test_cross_correlation_with_unequal_lc(self):
-        result = np.array([-0.66666667, -0.33333333, -1., 0.66666667, 3.13333333])
-        lags_result = np.array([-1.,  0.,  1.,  2.,  3.])
+        result = np.array([-0.66666667, -0.33333333, -1.0, 0.66666667, 3.13333333])
+        lags_result = np.array([-1.0, 0.0, 1.0, 2.0, 3.0])
         cr = CrossCorrelation(self.lc1, self.lc_s)
         assert np.allclose(cr.lc1, self.lc1)
         assert np.allclose(cr.lc2, self.lc_s)
@@ -130,7 +130,7 @@ class TestCrossCorrelation(object):
         assert cr.n == 5
         assert np.isclose(cr.time_shift, 3.0)
         assert np.allclose(cr.time_lags, lags_result)
-        assert cr.mode == 'same'
+        assert cr.mode == "same"
         assert cr.auto is False
 
     def test_mode_with_bad_input(self):
@@ -139,15 +139,15 @@ class TestCrossCorrelation(object):
 
     def test_mode_with_wrong_input(self):
         with pytest.raises(ValueError):
-            CrossCorrelation(self.lc1, self.lc2, mode='default')
+            CrossCorrelation(self.lc1, self.lc2, mode="default")
 
     def test_full_mode_is_correct(self):
         result = np.array([-1.76, 1.68, 1.92, 2.16, 1.8, -14.44, 11.12, -6.12, 3.64])
         lags_result = np.array([-4, -3, -2, -1, 0, 1, 2, 3, 4])
-        cr = CrossCorrelation(self.lc1, self.lc2, mode='full')
+        cr = CrossCorrelation(self.lc1, self.lc2, mode="full")
         assert np.allclose(cr.lc1, self.lc1)
         assert np.allclose(cr.lc2, self.lc2)
-        assert cr.mode == 'full'
+        assert cr.mode == "full"
         assert cr.n == 9
         assert np.allclose(cr.corr, result)
         assert np.allclose(cr.time_lags, lags_result)
@@ -168,7 +168,7 @@ class TestCrossCorrelation(object):
         assert cr.n == 5
         assert np.allclose(cr.time_lags, lags_result)
         assert np.isclose(cr.time_shift, 2.0)
-        assert cr.mode == 'same'
+        assert cr.mode == "same"
         assert cr.auto is False
 
     def test_timeshift_with_corr_and_lc_assigned(self):
@@ -186,7 +186,7 @@ class TestCrossCorrelation(object):
         assert cr.n == 5
         assert np.allclose(cr.time_lags, lags_result)
         assert np.isclose(cr.time_shift, 2.0)
-        assert cr.mode == 'same'
+        assert cr.mode == "same"
         assert cr.auto is False
 
     def test_simple_plot(self):
@@ -204,7 +204,7 @@ class TestCrossCorrelation(object):
     def test_plot_labels_index_error(self):
         cr = CrossCorrelation(self.lc1, self.lc2)
         with warnings.catch_warnings(record=True) as w:
-            cr.plot(labels='x')
+            cr.plot(labels="x")
             assert np.any(["must have two labels" in str(wi.message) for wi in w])
 
     def test_plot_axis(self):
@@ -220,14 +220,14 @@ class TestCrossCorrelation(object):
     def test_plot_default_filename(self):
         cr = CrossCorrelation(self.lc1, self.lc2)
         cr.plot(save=True, title="Correlation")
-        assert os.path.isfile('corr.pdf')
-        os.unlink('corr.pdf')
+        assert os.path.isfile("corr.pdf")
+        os.unlink("corr.pdf")
 
     def test_plot_custom_filename(self):
         cr = CrossCorrelation(self.lc1, self.lc2)
-        cr.plot(save=True, filename='cr.png')
-        assert os.path.isfile('cr.png')
-        os.unlink('cr.png')
+        cr.plot(save=True, filename="cr.png")
+        assert os.path.isfile("cr.png")
+        os.unlink("cr.png")
 
     def test_auto_correlation(self):
         result = np.array([1.68, -3.36, 5.2, -3.36, 1.68])
@@ -240,13 +240,13 @@ class TestCrossCorrelation(object):
         assert ac.n == 5
         assert np.allclose(ac.time_lags, lags_result)
         assert np.isclose(ac.time_shift, 0.0)
-        assert ac.mode == 'same'
+        assert ac.mode == "same"
         assert ac.auto is True
 
     def test_auto_correlation_with_full_mode(self):
         result = np.array([0.56, -1.48, 1.68, -3.36, 5.2, -3.36, 1.68, -1.48, 0.56])
         lags_result = np.array([-4, -3, -2, -1, 0, 1, 2, 3, 4])
-        ac = AutoCorrelation(self.lc1, mode='full')
+        ac = AutoCorrelation(self.lc1, mode="full")
         assert np.allclose(ac.lc1, self.lc1)
         assert np.allclose(ac.lc2, self.lc1)
         assert np.allclose(ac.corr, result)
@@ -254,31 +254,31 @@ class TestCrossCorrelation(object):
         assert ac.n == 9
         assert np.allclose(ac.time_lags, lags_result)
         assert np.isclose(ac.time_shift, 0.0)
-        assert ac.mode == 'full'
+        assert ac.mode == "full"
         assert ac.auto is True
-        
+
     def test_cross_correlation_with_identical_lc_oddlength(self):
-        result =  np.array([ 1.68, -3.36, 5.2, -3.36, 1.68])
+        result = np.array([1.68, -3.36, 5.2, -3.36, 1.68])
         lags_result = np.array([-2, -1, 0, 1, 2])
-        cr = CrossCorrelation(self.lc_odd,self.lc_odd)
+        cr = CrossCorrelation(self.lc_odd, self.lc_odd)
         assert np.allclose(cr.lc1, cr.lc2)
         assert np.allclose(cr.corr, result)
         assert np.isclose(cr.dt, self.lc_odd.dt)
         assert cr.n == 5
         assert np.allclose(cr.time_lags, lags_result)
-        assert np.isclose(cr.time_shift,0.0)
-        assert cr.mode == 'same'
+        assert np.isclose(cr.time_shift, 0.0)
+        assert cr.mode == "same"
         assert cr.auto is False
-   
+
     def test_cross_correlation_with_identical_lc_evenlength(self):
-        result =  np.array([-1.75, 2.5, -4.25, 5.5, -4.25, 2.5])
+        result = np.array([-1.75, 2.5, -4.25, 5.5, -4.25, 2.5])
         lags_result = np.array([-3, -2, -1, 0, 1, 2])
-        cr = CrossCorrelation(self.lc_even,self.lc_even)
+        cr = CrossCorrelation(self.lc_even, self.lc_even)
         assert np.allclose(cr.lc1, cr.lc2)
         assert np.allclose(cr.corr, result)
         assert np.isclose(cr.dt, self.lc_even.dt)
         assert cr.n == 6
         assert np.allclose(cr.time_lags, lags_result)
-        assert np.isclose(cr.time_shift,0.0)
-        assert cr.mode == 'same'
+        assert np.isclose(cr.time_shift, 0.0)
+        assert cr.mode == "same"
         assert cr.auto is False

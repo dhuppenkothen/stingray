@@ -1,10 +1,9 @@
-
 from astropy.modeling.models import custom_model
 
 
-#TODO: Add Jacobian
+# TODO: Add Jacobian
 @custom_model
-def GeneralizedLorentz1D(x, x_0=1., fwhm=1., value=1., power_coeff=1.):
+def GeneralizedLorentz1D(x, x_0=1.0, fwhm=1.0, value=1.0, power_coeff=1.0):
     """
     Generalized Lorentzian function,
     implemented using astropy.modeling.models custom model
@@ -31,13 +30,18 @@ def GeneralizedLorentz1D(x, x_0=1., fwhm=1., value=1., power_coeff=1.):
     model: astropy.modeling.Model
         generalized Lorentzian psd model
     """
-    assert power_coeff > 0., "The power coefficient should be greater than zero."
-    return value * (fwhm / 2)**power_coeff * 1./(abs(x - x_0)**power_coeff + (fwhm / 2)**power_coeff)
+    assert power_coeff > 0.0, "The power coefficient should be greater than zero."
+    return (
+        value
+        * (fwhm / 2) ** power_coeff
+        * 1.0
+        / (abs(x - x_0) ** power_coeff + (fwhm / 2) ** power_coeff)
+    )
 
 
-#TODO: Add Jacobian
+# TODO: Add Jacobian
 @custom_model
-def SmoothBrokenPowerLaw(x, norm=1., gamma_low=1., gamma_high=1., break_freq=1.):
+def SmoothBrokenPowerLaw(x, norm=1.0, gamma_low=1.0, gamma_high=1.0, break_freq=1.0):
     """
     Smooth broken power law function,
     implemented using astropy.modeling.models custom model
@@ -64,8 +68,10 @@ def SmoothBrokenPowerLaw(x, norm=1., gamma_low=1., gamma_high=1., break_freq=1.)
     model: astropy.modeling.Model
         generalized smooth broken power law psd model
     """
-    return norm * x**(-gamma_low) / (1. + (x / break_freq)**2)**(-(gamma_low - gamma_high) / 2)
-    
+    return (
+        norm * x ** (-gamma_low) / (1.0 + (x / break_freq) ** 2) ** (-(gamma_low - gamma_high) / 2)
+    )
+
 
 def generalized_lorentzian(x, p):
     """
@@ -89,8 +95,8 @@ def generalized_lorentzian(x, p):
         generalized lorentzian psd model
     """
 
-    assert p[3] > 0., "The power coefficient should be greater than zero."
-    return p[2] * (p[1] / 2)**p[3] * 1./(abs(x - p[0])**p[3] + (p[1] / 2)**p[3])
+    assert p[3] > 0.0, "The power coefficient should be greater than zero."
+    return p[2] * (p[1] / 2) ** p[3] * 1.0 / (abs(x - p[0]) ** p[3] + (p[1] / 2) ** p[3])
 
 
 def smoothbknpo(x, p):
@@ -115,4 +121,4 @@ def smoothbknpo(x, p):
         generalized smooth broken power law psd model
     """
 
-    return p[0] * x**(-p[1]) / (1. + (x / p[3])**2)**(-(p[1] - p[2]) / 2)
+    return p[0] * x ** (-p[1]) / (1.0 + (x / p[3]) ** 2) ** (-(p[1] - p[2]) / 2)

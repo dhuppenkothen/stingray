@@ -8,7 +8,7 @@ from stingray import Lightcurve
 from stingray.events import EventList
 import stingray.utils as utils
 
-__all__ = ['Covariancespectrum', 'AveragedCovariancespectrum']
+__all__ = ["Covariancespectrum", "AveragedCovariancespectrum"]
 
 
 class Covariancespectrum(object):
@@ -100,8 +100,7 @@ class Covariancespectrum(object):
 
     """
 
-    def __init__(self, data, dt=None, band_interest=None,
-                 ref_band_interest=None, std=None):
+    def __init__(self, data, dt=None, band_interest=None, ref_band_interest=None, std=None):
 
         self.dt = dt
         self.std = std
@@ -123,33 +122,36 @@ class Covariancespectrum(object):
             if not self.use_lc:
                 self._create_band_interest(data)
             else:
-                self.band_interest = np.vstack([np.arange(len(data)),
-                                                np.arange(1, len(data)+1, 1)]).T
+                self.band_interest = np.vstack(
+                    [np.arange(len(data)), np.arange(1, len(data) + 1, 1)]
+                ).T
         else:
             if np.size(band_interest) < 2:
-                raise ValueError('band_interest must contain at least 2 values '
-                                 '(minimum and maximum values for each band) '
-                                 'and be a 2D array!')
+                raise ValueError(
+                    "band_interest must contain at least 2 values "
+                    "(minimum and maximum values for each band) "
+                    "and be a 2D array!"
+                )
 
             self.band_interest = np.atleast_2d(band_interest)
 
         if self.use_lc is False and not dt:
-            raise ValueError("If the input data is event data, the dt keyword "
-                             "must be set and supply a time resolution for "
-                             "creating light curves!")
+            raise ValueError(
+                "If the input data is event data, the dt keyword "
+                "must be set and supply a time resolution for "
+                "creating light curves!"
+            )
 
         # if we don't have light curves already, make them:
         if not self.use_lc:
             if not np.all(np.diff(data, axis=0).T[0] >= 0):
-                utils.simon("The event list must be sorted with respect to "
-                            "times of arrivals.")
+                utils.simon("The event list must be sorted with respect to " "times of arrivals.")
                 data = data[data[:, 0].argsort()]
 
             self.lcs = self._make_lightcurves(data)
 
         # check whether band of interest contains a Lightcurve object:
-        if np.size(ref_band_interest) == 1  or isinstance(ref_band_interest,
-                                                          Lightcurve):
+        if np.size(ref_band_interest) == 1 or isinstance(ref_band_interest, Lightcurve):
             if isinstance(ref_band_interest, Lightcurve):
                 self.ref_band_lcs = ref_band_interest
             # ref_band_interest must either be a Lightcurve, or must have
@@ -157,35 +159,38 @@ class Covariancespectrum(object):
 
             elif ref_band_interest is None:
                 if self.use_lc:
-                    self.ref_band_lcs = \
-                        self._make_reference_bands_from_lightcurves(ref_band_interest)
+                    self.ref_band_lcs = self._make_reference_bands_from_lightcurves(
+                        ref_band_interest
+                    )
                 else:
-                    self.ref_band_lcs = \
-                        self._make_reference_bands_from_event_data(data)
+                    self.ref_band_lcs = self._make_reference_bands_from_event_data(data)
             else:
-                raise ValueError("ref_band_interest must contain either "
-                                 "a Lightcurve object, a list of Lightcurve "
-                                 "objects or a tuple of length 2.")
+                raise ValueError(
+                    "ref_band_interest must contain either "
+                    "a Lightcurve object, a list of Lightcurve "
+                    "objects or a tuple of length 2."
+                )
         else:
             # check whether ref_band_interest is a list of light curves
             if isinstance(ref_band_interest[0], Lightcurve):
                 self.ref_band_lcs = ref_band_interest
-                assert len(ref_band_interest) == len(self.lcs), "The list of " \
-                                                                "reference light " \
-                                                                "curves must have " \
-                                                                "the same length as " \
-                                                                "the list of light curves" \
-                                                                "of interest."
+                assert len(ref_band_interest) == len(self.lcs), (
+                    "The list of "
+                    "reference light "
+                    "curves must have "
+                    "the same length as "
+                    "the list of light curves"
+                    "of interest."
+                )
             # if not, it must be a tuple, so we're going to make a list of light
             # curves
             else:
                 if self.use_lc:
-                    self.ref_band_lcs = \
-                        self._make_reference_bands_from_lightcurves(bounds=
-                                                                    ref_band_interest)
+                    self.ref_band_lcs = self._make_reference_bands_from_lightcurves(
+                        bounds=ref_band_interest
+                    )
                 else:
-                    self.ref_band_lcs = \
-                        self._make_reference_bands_from_event_data(data)
+                    self.ref_band_lcs = self._make_reference_bands_from_event_data(data)
 
         self._construct_covar()
 
@@ -216,18 +221,15 @@ class Covariancespectrum(object):
         if not bounds:
             bounds = [np.min(data[:, 1]), np.max(data[:, 1])]
 
-        if bounds[1] <= np.min(self.band_interest[:, 0]) or \
-           bounds[0] >= np.max(self.band_interest[:, 1]):
+        if bounds[1] <= np.min(self.band_interest[:, 0]) or bounds[0] >= np.max(
+            self.band_interest[:, 1]
+        ):
             elow = bounds[0]
             ehigh = bounds[1]
 
-            toa = data[np.logical_and(
-                data[:, 1] >= elow,
-                data[:, 1] <= ehigh)]
+            toa = data[np.logical_and(data[:, 1] >= elow, data[:, 1] <= ehigh)]
 
-            lc_all = Lightcurve.make_lightcurve(toa, self.dt,
-                                                tstart=self.tstart,
-                                                tseg=self.tseg)
+            lc_all = Lightcurve.make_lightcurve(toa, self.dt, tstart=self.tstart, tseg=self.tseg)
 
         else:
 
@@ -236,24 +238,18 @@ class Covariancespectrum(object):
                 elow = b[0]
                 ehigh = b[1]
 
-                emask1 = data[np.logical_and(
-                    data[:, 1] <= elow,
-                    data[:, 1] >= bounds[0])]
+                emask1 = data[np.logical_and(data[:, 1] <= elow, data[:, 1] >= bounds[0])]
 
-                emask2 = data[np.logical_and(
-                    data[:, 1] <= bounds[1],
-                    data[:, 1] >= ehigh)]
+                emask2 = data[np.logical_and(data[:, 1] <= bounds[1], data[:, 1] >= ehigh)]
 
                 toa = np.vstack([emask1, emask2])
-                lc = Lightcurve.make_lightcurve(toa, self.dt,
-                                                tstart=self.tstart,
-                                                tseg=self.tseg)
+                lc = Lightcurve.make_lightcurve(toa, self.dt, tstart=self.tstart, tseg=self.tseg)
                 lc_all.append(lc)
 
         return lc_all
 
     def _make_reference_bands_from_lightcurves(self, bounds=None):
-        '''
+        """
         Helper class to construct reference bands for all light curves in ``band_interest``, assuming the
         data is given to the class :class:`Covariancespectrum` as a (set of) lightcurve(s). Generally
         sums up all other light curves within ``bounds`` that are *not* the band of interest.
@@ -269,7 +265,7 @@ class Covariancespectrum(object):
             The list of :class:`stingray.Lightcurve` objects containing all reference bands,
             between the values given in ``bounds``.
 
-        '''
+        """
 
         if not bounds:
             bounds_idx = [0, len(self.band_interest)]
@@ -312,8 +308,7 @@ class Covariancespectrum(object):
         for i in range(len(self.lcs)):
             lc = self.lcs[i]
 
-            if np.size(self.ref_band_lcs) == 1 or isinstance(self.ref_band_lcs,
-                                                             Lightcurve):
+            if np.size(self.ref_band_lcs) == 1 or isinstance(self.ref_band_lcs, Lightcurve):
                 lc_ref = self.ref_band_lcs
             else:
                 lc_ref = self.ref_band_lcs[i]
@@ -326,10 +321,12 @@ class Covariancespectrum(object):
 
             xs = self._calculate_excess_variance(lc_ref)
             if not xs > 0:
-                utils.simon("The excess variance in the reference band is "
-                            "negative. This implies that the reference "
-                            "band was badly chosen. Beware that the "
-                            "covariance spectra will have NaNs!")
+                utils.simon(
+                    "The excess variance in the reference band is "
+                    "negative. This implies that the reference "
+                    "band was badly chosen. Beware that the "
+                    "covariance spectra will have NaNs!"
+                )
 
             xs_var[i] = xs
 
@@ -371,12 +368,9 @@ class Covariancespectrum(object):
             elow = b[0]
             ehigh = b[1]
 
-            toa = data[np.logical_and(
-                data[:, 1] >= elow,
-                data[:, 1] <= ehigh)]
+            toa = data[np.logical_and(data[:, 1] >= elow, data[:, 1] <= ehigh)]
 
-            lc = Lightcurve.make_lightcurve(toa, self.dt, tstart=self.tstart,
-                                            tseg=self.tseg)
+            lc = Lightcurve.make_lightcurve(toa, self.dt, tstart=self.tstart, tseg=self.tseg)
             lc_all.append(lc)
 
         return lc_all
@@ -418,7 +412,7 @@ class Covariancespectrum(object):
     def _calculate_std(self, lc):
         """Return std calculated for the possible types of `std`"""
         if self.std is None:
-            std = np.mean(lc)**0.5
+            std = np.mean(lc) ** 0.5
         elif isinstance(self.std, Iterable):
             std = np.mean(self.std)  # Iterable of numbers
         else:  # Single float number
@@ -448,10 +442,10 @@ class Covariancespectrum(object):
         else:
             mm = self.nbins
 
-        num = xs_x*err_y + xs_y*err_x + err_x*err_y
+        num = xs_x * err_y + xs_y * err_x + err_x * err_y
         denom = nn * mm * xs_y
 
-        return (num / denom)**0.5
+        return (num / denom) ** 0.5
 
 
 class AveragedCovariancespectrum(Covariancespectrum):
@@ -520,15 +514,20 @@ class AveragedCovariancespectrum(Covariancespectrum):
     .. [covar spectrum] http://arxiv.org/pdf/1405.6575v2.pdf
     """
 
-    def __init__(self, data, segment_size, dt=None, band_interest=None,
-                 ref_band_interest=None, std=None):
+    def __init__(
+        self, data, segment_size, dt=None, band_interest=None, ref_band_interest=None, std=None
+    ):
 
         self.segment_size = segment_size
 
-        Covariancespectrum.__init__(self, data, dt=dt,
-                                    band_interest=band_interest,
-                                    ref_band_interest=ref_band_interest,
-                                    std=std)
+        Covariancespectrum.__init__(
+            self,
+            data,
+            dt=dt,
+            band_interest=band_interest,
+            ref_band_interest=ref_band_interest,
+            std=std,
+        )
 
     def _construct_covar(self):
         """
@@ -556,7 +555,7 @@ class AveragedCovariancespectrum(Covariancespectrum):
             cv_err = 0.0
             xs = 0.0
 
-            self.nbins = int((tend - tstart)/self.segment_size)
+            self.nbins = int((tend - tstart) / self.segment_size)
             for k in range(self.nbins):
                 start_ind = lc.time.searchsorted(tstart)
                 end_ind = lc.time.searchsorted(tend)
@@ -568,18 +567,19 @@ class AveragedCovariancespectrum(Covariancespectrum):
                 cv_err += self._calculate_covariance_error(lc_seg, lc_ref_seg)
                 xs += self._calculate_excess_variance(lc_ref_seg)
                 if not xs > 0:
-                    utils.simon("The excess variance in the reference band is "
-                                "negative. This implies that the reference "
-                                "band was badly chosen. Beware that the "
-                                "covariance spectra will have NaNs!")
+                    utils.simon(
+                        "The excess variance in the reference band is "
+                        "negative. This implies that the reference "
+                        "band was badly chosen. Beware that the "
+                        "covariance spectra will have NaNs!"
+                    )
 
                 tstart += self.segment_size
                 tend += self.segment_size
 
-
-            covar[i] = cv/self.nbins
-            covar_err[i] = cv_err/self.nbins
-            xs_var[i] = xs/self.nbins
+            covar[i] = cv / self.nbins
+            covar_err[i] = cv_err / self.nbins
+            xs_var[i] = xs / self.nbins
 
         self.unnorm_covar = covar
         energy_covar = covar / xs_var**0.5

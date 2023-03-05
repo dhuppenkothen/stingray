@@ -28,7 +28,6 @@ def compare_tables(table1, table2, rtol=0.001, discard=[]):
         assert np.allclose(oe, oc, rtol=rtol)
 
 
-
 def test_norm():
     mean = var = 100000
     N = 1000000
@@ -64,18 +63,22 @@ class TestCoherence(object):
         good = (freq > 0) & (freq < 0.1)
         ft1, ft2 = ft1[good], ft2[good]
         cls.cross = normalize_periodograms(
-            ft1.conj() * ft2, dt, cls.N, mean, norm="abs", power_type="all")
+            ft1.conj() * ft2, dt, cls.N, mean, norm="abs", power_type="all"
+        )
         cls.pds1 = normalize_periodograms(
-            ft1 * ft1.conj(), dt, cls.N, mean, norm="abs", power_type="real")
+            ft1 * ft1.conj(), dt, cls.N, mean, norm="abs", power_type="real"
+        )
         cls.pds2 = normalize_periodograms(
-            ft2 * ft2.conj(), dt, cls.N, mean, norm="abs", power_type="real")
+            ft2 * ft2.conj(), dt, cls.N, mean, norm="abs", power_type="real"
+        )
 
         cls.p1noise = poisson_level(meanrate=meanrate, norm="abs")
         cls.p2noise = poisson_level(meanrate=meanrate, norm="abs")
 
     def test_intrinsic_coherence(self):
         coh = estimate_intrinsic_coherence(
-            self.cross, self.pds1, self.pds2, self.p1noise, self.p2noise, self.N)
+            self.cross, self.pds1, self.pds2, self.p1noise, self.p2noise, self.N
+        )
         assert np.allclose(coh, 1, atol=0.001)
 
     def test_raw_high_coherence(self):
@@ -87,22 +90,22 @@ class TestCoherence(object):
         C, P1, P2 = self.cross[:nbins], self.pds1[:nbins], self.pds2[:nbins]
         bsq = bias_term(P1, P2, self.p1noise, self.p2noise, self.N)
         # must be lower than bsq!
-        low_coh_cross = np.random.normal(bsq**0.5 / 10, bsq**0.5 / 100) + 0.j
+        low_coh_cross = np.random.normal(bsq**0.5 / 10, bsq**0.5 / 100) + 0.0j
         coh = raw_coherence(low_coh_cross, P1, P2, self.p1noise, self.p2noise, self.N)
         assert np.allclose(coh, 0)
         # Do it with a single number
-        coh = raw_coherence(low_coh_cross[0], P1[0],
-                            P2[0], self.p1noise, self.p2noise, self.N)
+        coh = raw_coherence(low_coh_cross[0], P1[0], P2[0], self.p1noise, self.p2noise, self.N)
         # Do it with a single complex object
-        coh = raw_coherence(complex(low_coh_cross[0]), P1[0],
-                            P2[0], self.p1noise, self.p2noise, self.N)
+        coh = raw_coherence(
+            complex(low_coh_cross[0]), P1[0], P2[0], self.p1noise, self.p2noise, self.N
+        )
 
     def test_raw_high_bias(self):
         """Test when squared bias higher than squared norm of cross spec"""
         # Values chosen to have a high bias term, larger than |C|^2
-        C = np.array([12986. + 8694.j])
-        P1 = np.array([476156.])
-        P2 = np.array([482751.])
+        C = np.array([12986.0 + 8694.0j])
+        P1 = np.array([476156.0])
+        P2 = np.array([482751.0])
         P1noise = 495955
         P2noise = 494967
 
@@ -132,28 +135,32 @@ class TestFourier(object):
 
     def test_error_on_averaged_cross_spectrum_low_nave(self):
         with pytest.warns(UserWarning) as record:
-            error_on_averaged_cross_spectrum(4 + 1.j, 2, 4, 29, 2, 2)
-        assert np.any(["n_ave is below 30."
-                       in r.message.args[0] for r in record])
+            error_on_averaged_cross_spectrum(4 + 1.0j, 2, 4, 29, 2, 2)
+        assert np.any(["n_ave is below 30." in r.message.args[0] for r in record])
 
     def test_ctrate_events(self):
         assert get_average_ctrate(self.times, self.gti, self.segment_size) == self.ctrate
 
     def test_ctrate_counts(self):
-        assert get_average_ctrate(self.bin_times, self.gti, self.segment_size,
-                                self.counts) == self.ctrate
+        assert (
+            get_average_ctrate(self.bin_times, self.gti, self.segment_size, self.counts)
+            == self.ctrate
+        )
 
     def test_fts_from_segments_invalid(self):
         with pytest.raises(ValueError) as excinfo:
             # N and counts are both None. This should make the function fail immediately
             for _ in get_flux_iterable_from_segments(1, 2, 3, n_bin=None, fluxes=None):
                 pass
-        assert 'At least one between fluxes' in str(excinfo.value)
+        assert "At least one between fluxes" in str(excinfo.value)
 
     def test_fts_from_segments_cts_and_events_are_equal(self):
         N = np.rint(self.segment_size / self.dt).astype(int)
         fts_evts = [
-            f for f in get_flux_iterable_from_segments(self.times, self.gti, self.segment_size, n_bin=N)
+            f
+            for f in get_flux_iterable_from_segments(
+                self.times, self.gti, self.segment_size, n_bin=N
+            )
         ]
         fts_cts = [
             f
@@ -173,8 +180,9 @@ class TestFourier(object):
     def test_avg_cs_bad_input(self, return_auxil):
         times1 = np.sort(np.random.uniform(0, 1000, 1))
         times2 = np.sort(np.random.uniform(0, 1000, 1))
-        out_ev = avg_cs_from_events(times1, times2, self.gti,
-                                    self.segment_size, self.dt, return_auxil=return_auxil)
+        out_ev = avg_cs_from_events(
+            times1, times2, self.gti, self.segment_size, self.dt, return_auxil=return_auxil
+        )
         assert out_ev is None
 
     @pytest.mark.parametrize("norm", ["frac", "abs", "none", "leahy"])
@@ -347,7 +355,7 @@ class TestFourier(object):
 class TestNorms(object):
     @classmethod
     def setup_class(cls):
-        cls.mean = cls.var = 100000.
+        cls.mean = cls.var = 100000.0
         cls.N = 800000
         cls.dt = 0.2
         cls.df = 1 / (cls.N * cls.dt)
@@ -391,7 +399,7 @@ class TestNorms(object):
         ratio = (
             normalize_frac(self.pds, self.dt, self.N, self.mean)
             / normalize_abs(self.pds, self.dt, self.N)
-            * self.meanrate ** 2
+            * self.meanrate**2
         )
         assert np.isclose(ratio.mean(), 1, rtol=0.01)
 
@@ -407,8 +415,9 @@ class TestNorms(object):
 
     @pytest.mark.parametrize("norm", ["abs", "frac", "leahy"])
     def test_poisson_level(self, norm):
-        pdsnorm = normalize_periodograms(self.pds, self.dt, self.N,
-                                         self.mean, n_ph=self.nph, norm=norm)
+        pdsnorm = normalize_periodograms(
+            self.pds, self.dt, self.N, self.mean, n_ph=self.nph, norm=norm
+        )
 
         assert np.isclose(
             pdsnorm.mean(), poisson_level(meanrate=self.meanrate, norm=norm), rtol=0.01
@@ -417,8 +426,7 @@ class TestNorms(object):
     @pytest.mark.parametrize("norm", ["abs", "frac", "leahy"])
     def test_poisson_level_real(self, norm):
         pdsnorm = normalize_periodograms(
-            self.pds, self.dt, self.N, self.mean, n_ph=self.nph,
-            norm=norm, power_type="real"
+            self.pds, self.dt, self.N, self.mean, n_ph=self.nph, norm=norm, power_type="real"
         )
 
         assert np.isclose(
@@ -428,8 +436,7 @@ class TestNorms(object):
     @pytest.mark.parametrize("norm", ["abs", "frac", "leahy"])
     def test_poisson_level_absolute(self, norm):
         pdsnorm = normalize_periodograms(
-            self.pds, self.dt, self.N, self.mean, n_ph=self.nph,
-            norm=norm, power_type="abs"
+            self.pds, self.dt, self.N, self.mean, n_ph=self.nph, norm=norm, power_type="abs"
         )
 
         assert np.isclose(
@@ -445,12 +452,13 @@ class TestNorms(object):
     def test_normalize_with_variance_fails_if_variance_zero(self):
         # If the variance is zero, it will fail:
         with pytest.raises(ValueError) as excinfo:
-            pdsnorm = normalize_leahy_from_variance(self.pds, 0., self.N)
+            pdsnorm = normalize_leahy_from_variance(self.pds, 0.0, self.N)
         assert "The variance used to normalize the" in str(excinfo.value)
 
     def test_normalize_none(self):
-        pdsnorm = normalize_periodograms(self.pds, self.dt, self.N,
-                                         self.mean, n_ph=self.nph, norm="none")
+        pdsnorm = normalize_periodograms(
+            self.pds, self.dt, self.N, self.mean, n_ph=self.nph, norm="none"
+        )
         assert np.isclose(pdsnorm.mean(), self.pds.mean(), rtol=0.01)
 
     def test_normalize_badnorm(self):

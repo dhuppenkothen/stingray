@@ -7,34 +7,35 @@ from stingray.utils import simon
 from stingray.utils import vectorize, float64, float32, int32, int64
 
 
-__all__ = ['p_multitrial_from_single_trial',
-           'p_single_trial_from_p_multitrial',
-           'fold_profile_probability',
-           'fold_profile_logprobability',
-           'fold_detection_level',
-           'pds_probability',
-           'pds_detection_level',
-           'z2_n_detection_level',
-           'z2_n_probability',
-           'z2_n_logprobability',
-           'classical_pvalue',
-           'chi2_logp',
-           'equivalent_gaussian_Nsigma',
-           'equivalent_gaussian_Nsigma_from_logp',
-           'power_confidence_limits',
-           'power_upper_limit',
-           'pf_from_ssig',
-           'pf_from_a',
-           'pf_upper_limit',
-           'a_from_pf',
-           'a_from_ssig',
-           'ssig_from_a',
-           'ssig_from_pf',
-           'amplitude_upper_limit']
+__all__ = [
+    "p_multitrial_from_single_trial",
+    "p_single_trial_from_p_multitrial",
+    "fold_profile_probability",
+    "fold_profile_logprobability",
+    "fold_detection_level",
+    "pds_probability",
+    "pds_detection_level",
+    "z2_n_detection_level",
+    "z2_n_probability",
+    "z2_n_logprobability",
+    "classical_pvalue",
+    "chi2_logp",
+    "equivalent_gaussian_Nsigma",
+    "equivalent_gaussian_Nsigma_from_logp",
+    "power_confidence_limits",
+    "power_upper_limit",
+    "pf_from_ssig",
+    "pf_from_a",
+    "pf_upper_limit",
+    "a_from_pf",
+    "a_from_ssig",
+    "ssig_from_a",
+    "ssig_from_pf",
+    "amplitude_upper_limit",
+]
 
 
-@vectorize([float64(float32),
-            float64(float64)], nopython=True)
+@vectorize([float64(float32), float64(float64)], nopython=True)
 def _extended_equiv_gaussian_Nsigma(logp):
     """Equivalent gaussian sigma for small log-probability.
 
@@ -125,8 +126,7 @@ def equivalent_gaussian_Nsigma(p):
     return equivalent_gaussian_Nsigma_from_logp(np.log(p))
 
 
-@vectorize([float64(float32, float32),
-            float64(float64, float64)], nopython=True)
+@vectorize([float64(float32, float32), float64(float64, float64)], nopython=True)
 def _log_asymptotic_incomplete_gamma(a, z):
     """Asymptotic natural log of incomplete gamma function.
 
@@ -142,8 +142,8 @@ def _log_asymptotic_incomplete_gamma(a, z):
     term = 1.0
     ii = 1
 
-    while (np.abs(newxpart) > 1e-15):
-        term *= (a - ii)
+    while np.abs(newxpart) > 1e-15:
+        term *= a - ii
         newxpart = term / np.power(z, ii)
         x += newxpart
         ii += 1
@@ -151,8 +151,7 @@ def _log_asymptotic_incomplete_gamma(a, z):
     return (a - 1.0) * np.log(z) - z + np.log(x)
 
 
-@vectorize([float64(float32),
-            float64(float64)], nopython=True)
+@vectorize([float64(float32), float64(float64)], nopython=True)
 def _log_asymptotic_gamma(z):
     """Natural log of the Gamma function in its asymptotic limit.
 
@@ -168,7 +167,7 @@ def _log_asymptotic_gamma(z):
     one_over_1260 = 7.9365079365079365079365e-4
     x = (z - 0.5) * np.log(z) - z + half_log_twopi
     y = 1.0 / (z * z)
-    x += (((-one_over_1680 * y + one_over_1260)* y - one_degree) * y + one_twelfth) / z
+    x += (((-one_over_1680 * y + one_over_1260) * y - one_degree) * y + one_twelfth) / z
     return x
 
 
@@ -200,16 +199,22 @@ def chi2_logp(chi2, dof):
     # approximation and the scipy version is tiny, but above which the scipy
     # version starts failing.
     if (chi2 / dof > 15.0) or ((dof > 150) and (chi2 / dof > 6.0)):
-        return _log_asymptotic_incomplete_gamma(0.5 * dof, 0.5 * chi2) - \
-               _log_asymptotic_gamma(0.5 * dof)
+        return _log_asymptotic_incomplete_gamma(0.5 * dof, 0.5 * chi2) - _log_asymptotic_gamma(
+            0.5 * dof
+        )
 
     return stats.chi2.logsf(chi2, dof)
 
 
-@vectorize([float64(float32, int32),
-            float64(float32, int64),
-            float64(float64, int32),
-            float64(float64, int64)], nopython=True)
+@vectorize(
+    [
+        float64(float32, int32),
+        float64(float32, int64),
+        float64(float64, int32),
+        float64(float64, int64),
+    ],
+    nopython=True,
+)
 def _logp_multitrial_from_single_logp(logp1, n):
     """Calculate a multi-trial p-value from the log of a single-trial one.
 
@@ -271,16 +276,20 @@ def p_multitrial_from_single_trial(p1, n):
         The significance at which we reject the null hypothesis
         after multiple trials
     """
-    logpn = _logp_multitrial_from_single_logp(
-        np.log(p1).astype(np.double), n)
+    logpn = _logp_multitrial_from_single_logp(np.log(p1).astype(np.double), n)
 
     return np.exp(np.longdouble(logpn))
 
 
-@vectorize([float64(float32, int32),
-            float64(float32, int64),
-            float64(float64, int32),
-            float64(float64, int64)], nopython=True)
+@vectorize(
+    [
+        float64(float32, int32),
+        float64(float32, int64),
+        float64(float64, int32),
+        float64(float64, int64),
+    ],
+    nopython=True,
+)
 def _logp_single_trial_from_logp_multitrial(logpn, n):
     """Calculate a multi-trial p-value from the log of a single-trial one.
 
@@ -365,8 +374,7 @@ def p_single_trial_from_p_multitrial(pn, n):
         each single trial.
     """
 
-    logp = _logp_single_trial_from_logp_multitrial(
-        np.log(pn).astype(np.float64), n)
+    logp = _logp_single_trial_from_logp_multitrial(np.log(pn).astype(np.float64), n)
 
     if np.any(np.isnan(logp)):
         if np.any(1 - pn < np.finfo(np.double).resolution * 1000):
@@ -474,8 +482,7 @@ def z2_n_probability(z2, n, ntrial=1, n_summed_spectra=1):
     p : float
         The probability that the Z^2_n value has been produced by noise
     """
-    epsilon_1 = stats.chi2.sf(z2 * n_summed_spectra,
-                              2 * n * n_summed_spectra)
+    epsilon_1 = stats.chi2.sf(z2 * n_summed_spectra, 2 * n * n_summed_spectra)
     epsilon = p_multitrial_from_single_trial(epsilon_1, ntrial)
     return epsilon
 
@@ -503,8 +510,7 @@ def z2_n_logprobability(z2, n, ntrial=1, n_summed_spectra=1):
         The probability that the Z^2_n value has been produced by noise
     """
 
-    epsilon_1 = chi2_logp(np.double(z2 * n_summed_spectra),
-                          2 * n * n_summed_spectra)
+    epsilon_1 = chi2_logp(np.double(z2 * n_summed_spectra), 2 * n * n_summed_spectra)
     epsilon = _logp_multitrial_from_single_logp(epsilon_1, ntrial)
     return epsilon
 
@@ -536,8 +542,9 @@ def z2_n_detection_level(n=2, epsilon=0.01, ntrial=1, n_summed_spectra=1):
     """
 
     epsilon = p_single_trial_from_p_multitrial(epsilon, ntrial)
-    retlev = stats.chi2.isf(epsilon.astype(np.double),
-                            2 * n_summed_spectra * n) / (n_summed_spectra)
+    retlev = stats.chi2.isf(epsilon.astype(np.double), 2 * n_summed_spectra * n) / (
+        n_summed_spectra
+    )
 
     return retlev
 
@@ -572,8 +579,7 @@ def pds_probability(level, ntrial=1, n_summed_spectra=1, n_rebin=1):
         The probability value(s)
     """
 
-    epsilon_1 = stats.chi2.sf(level * n_summed_spectra * n_rebin,
-                              2 * n_summed_spectra * n_rebin)
+    epsilon_1 = stats.chi2.sf(level * n_summed_spectra * n_rebin, 2 * n_summed_spectra * n_rebin)
 
     epsilon = p_multitrial_from_single_trial(epsilon_1, ntrial)
     return epsilon
@@ -623,8 +629,7 @@ def pds_logprobability(level, ntrial=1, n_summed_spectra=1, n_rebin=1):
     True
     """
 
-    epsilon_1 = chi2_logp(level * n_summed_spectra * n_rebin,
-                          2 * n_summed_spectra * n_rebin)
+    epsilon_1 = chi2_logp(level * n_summed_spectra * n_rebin, 2 * n_summed_spectra * n_rebin)
 
     epsilon = _logp_multitrial_from_single_logp(epsilon_1, ntrial)
     return epsilon
@@ -664,13 +669,14 @@ def pds_detection_level(epsilon=0.01, ntrial=1, n_summed_spectra=1, n_rebin=1):
     epsilon = p_single_trial_from_p_multitrial(epsilon, ntrial)
     epsilon = epsilon.astype(np.double)
     if isinstance(n_rebin, Iterable):
-        retlev = [stats.chi2.isf(epsilon, 2 * n_summed_spectra * r) /
-                  (n_summed_spectra * r) for r in n_rebin]
+        retlev = [
+            stats.chi2.isf(epsilon, 2 * n_summed_spectra * r) / (n_summed_spectra * r)
+            for r in n_rebin
+        ]
         retlev = np.array(retlev)
     else:
         r = n_rebin
-        retlev = stats.chi2.isf(epsilon, 2 * n_summed_spectra * r) \
-            / (n_summed_spectra * r)
+        retlev = stats.chi2.isf(epsilon, 2 * n_summed_spectra * r) / (n_summed_spectra * r)
     return retlev
 
 
@@ -736,8 +742,7 @@ def classical_pvalue(power, nspec):
 
     """
 
-    warnings.warn("This function was substituted by pds_probability.",
-                  DeprecationWarning)
+    warnings.warn("This function was substituted by pds_probability.", DeprecationWarning)
 
     if not np.isfinite(power):
         raise ValueError("power must be a finite floating point number!")
@@ -886,9 +891,10 @@ def power_upper_limit(pmeas, n=1, c=0.95):
     >>> np.isclose(pup, 75, atol=2)
     True
     """
+
     def ppf(x):
         rv = stats.ncx2(2 * n, x)
-        return rv.ppf(1-c)
+        return rv.ppf(1 - c)
 
     def isf(x):
         rv = stats.ncx2(2 * n, x)
@@ -898,6 +904,7 @@ def power_upper_limit(pmeas, n=1, c=0.95):
         return np.abs(ppf(x) - xmeas)
 
     from scipy.optimize import minimize
+
     initial = isf(pmeas)
 
     res = minimize(func_to_minimize, [initial], pmeas, bounds=[(0, initial * 2)])
@@ -1084,7 +1091,7 @@ def ssig_from_a(a, ncounts):
     >>> round(ssig_from_a(0.1, 30000), 1)
     150.0
     """
-    return ncounts / 2 * a ** 2
+    return ncounts / 2 * a**2
 
 
 def a_from_ssig(ssig, ncounts):
@@ -1117,7 +1124,7 @@ def ssig_from_pf(pf, ncounts):
     150.0
     """
     a = a_from_pf(pf)
-    return ncounts / 2 * a ** 2
+    return ncounts / 2 * a**2
 
 
 def pf_from_ssig(ssig, ncounts):

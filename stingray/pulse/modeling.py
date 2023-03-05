@@ -2,8 +2,7 @@ import numpy as np
 from astropy.modeling import models, fitting
 
 
-__all__ = ["sinc_square_model", "sinc_square_deriv", "fit_sinc",
-           "fit_gaussian", "SincSquareModel"]
+__all__ = ["sinc_square_model", "sinc_square_deriv", "fit_sinc", "fit_gaussian", "SincSquareModel"]
 
 
 def sinc(x):
@@ -20,11 +19,11 @@ def sinc(x):
     -------
     values : array-like
     """
-    values = np.sinc(x/np.pi)
+    values = np.sinc(x / np.pi)
     return values
 
 
-def sinc_square_model(x, amplitude=1., mean=0., width=1.):
+def sinc_square_model(x, amplitude=1.0, mean=0.0, width=1.0):
     """
     Calculate a sinc-squared function.
 
@@ -53,11 +52,11 @@ def sinc_square_model(x, amplitude=1., mean=0., width=1.):
     >>> sinc_square_model(0, amplitude=2.)
     2.0
     """
-    sqvalues = amplitude * sinc((x-mean)/width) ** 2
+    sqvalues = amplitude * sinc((x - mean) / width) ** 2
     return sqvalues
 
 
-def sinc_square_deriv(x, amplitude=1., mean=0., width=1.):
+def sinc_square_deriv(x, amplitude=1.0, mean=0.0, width=1.0):
     """
     Calculate partial derivatives of sinc-squared.
 
@@ -93,22 +92,24 @@ def sinc_square_deriv(x, amplitude=1., mean=0., width=1.):
     """
     x_is_zero = x == mean
 
-    d_x = 2 * amplitude * \
-        sinc((x-mean)/width) * (
-                  x * np.cos((x-mean)/width) -
-                  np.sin((x - mean) / width)) / ((x - mean) / width) ** 2
+    d_x = (
+        2
+        * amplitude
+        * sinc((x - mean) / width)
+        * (x * np.cos((x - mean) / width) - np.sin((x - mean) / width))
+        / ((x - mean) / width) ** 2
+    )
     d_x = np.asarray(d_x)
-    d_amplitude = sinc((x-mean)/width)**2
+    d_amplitude = sinc((x - mean) / width) ** 2
     d_x[x_is_zero] = 0
 
-    d_mean = d_x*(-1/width)
-    d_width = d_x*(-(x-mean)/(width)**2)
+    d_mean = d_x * (-1 / width)
+    d_width = d_x * (-(x - mean) / (width) ** 2)
 
     return [d_amplitude, d_mean, d_width]
 
 
-_SincSquareModel = models.custom_model(sinc_square_model,
-                                       fit_deriv=sinc_square_deriv)
+_SincSquareModel = models.custom_model(sinc_square_model, fit_deriv=sinc_square_deriv)
 
 
 class SincSquareModel(_SincSquareModel):
@@ -117,8 +118,7 @@ class SincSquareModel(_SincSquareModel):
         return (type(cls), (), members)
 
 
-def fit_sinc(x, y, amp=1.5, mean=0., width=1., tied={}, fixed={}, bounds={},
-             obs_length=None):
+def fit_sinc(x, y, amp=1.5, mean=0.0, width=1.0, tied={}, fixed={}, bounds={}, obs_length=None):
     """
     Fit a sinc function to x,y values.
 
@@ -165,15 +165,15 @@ def fit_sinc(x, y, amp=1.5, mean=0., width=1., tied={}, fixed={}, bounds={},
         width = 1 / (np.pi * obs_length)
         fixed["width"] = True
 
-    sinc_in = SincSquareModel(amplitude=amp, mean=mean, width=width, tied=tied,
-                              fixed=fixed, bounds=bounds)
+    sinc_in = SincSquareModel(
+        amplitude=amp, mean=mean, width=width, tied=tied, fixed=fixed, bounds=bounds
+    )
     fit_s = fitting.LevMarLSQFitter()
     sincfit = fit_s(sinc_in, x, y)
     return sincfit
 
 
-def fit_gaussian(x, y, amplitude=1.5, mean=0., stddev=2., tied={}, fixed={},
-                 bounds={}):
+def fit_gaussian(x, y, amplitude=1.5, mean=0.0, stddev=2.0, tied={}, fixed={}, bounds={}):
     """
     Fit a gaussian function to x,y values.
 
@@ -201,8 +201,9 @@ def fit_gaussian(x, y, amplitude=1.5, mean=0., stddev=2., tied={}, fixed={},
         The best-fit function, accepting x as input
         and returning the best-fit model as output
     """
-    g_in = models.Gaussian1D(amplitude=amplitude, mean=mean, stddev=stddev,
-                             tied=tied, fixed=fixed, bounds=bounds)
+    g_in = models.Gaussian1D(
+        amplitude=amplitude, mean=mean, stddev=stddev, tied=tied, fixed=fixed, bounds=bounds
+    )
     fit_g = fitting.LevMarLSQFitter()
     g = fit_g(g_in, x, y)
     return g

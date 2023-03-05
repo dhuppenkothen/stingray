@@ -1,4 +1,3 @@
-
 import re
 import numpy as np
 import logging
@@ -13,24 +12,38 @@ from .utils import check_iterables_close
 from stingray.exceptions import StingrayError
 
 
-__all__ = ['load_gtis', 'check_gtis',
-           'create_gti_mask_jit', 'create_gti_mask',
-           'create_gti_mask_complete', 'create_gti_from_condition',
-           'cross_two_gtis', 'cross_gtis', 'get_btis',
-           'get_gti_extensions_from_pattern', 'get_gti_from_all_extensions',
-           'get_gti_from_hdu', 'get_gti_lengths', 'get_total_gti_length',
-           'check_separate', 'append_gtis', 'join_gtis',
-           'generate_indices_of_gti_boundaries',
-           'time_intervals_from_gtis', 'bin_intervals_from_gtis',
-           'gti_border_bins',
-           'generate_indices_of_segment_boundaries_unbinned',
-           'generate_indices_of_segment_boundaries_binned']
+__all__ = [
+    "load_gtis",
+    "check_gtis",
+    "create_gti_mask_jit",
+    "create_gti_mask",
+    "create_gti_mask_complete",
+    "create_gti_from_condition",
+    "cross_two_gtis",
+    "cross_gtis",
+    "get_btis",
+    "get_gti_extensions_from_pattern",
+    "get_gti_from_all_extensions",
+    "get_gti_from_hdu",
+    "get_gti_lengths",
+    "get_total_gti_length",
+    "check_separate",
+    "append_gtis",
+    "join_gtis",
+    "generate_indices_of_gti_boundaries",
+    "time_intervals_from_gtis",
+    "bin_intervals_from_gtis",
+    "gti_border_bins",
+    "generate_indices_of_segment_boundaries_unbinned",
+    "generate_indices_of_segment_boundaries_binned",
+]
 
 
 def gti_len(gti):
     """Deprecated, will be removed in version 2.0. Use get_total_gti_length."""
-    warnings.warn("This function is deprecated. Use get_total_gti_length "\
-                  "instead", DeprecationWarning)
+    warnings.warn(
+        "This function is deprecated. Use get_total_gti_length " "instead", DeprecationWarning
+    )
     return get_total_gti_length(gti, minlen=0)
 
 
@@ -105,16 +118,16 @@ def load_gtis(fits_file, gtistring=None):
         A list of GTI ``(start, stop)`` pairs extracted from the FITS file.
     """
 
-    gtistring = assign_value_if_none(gtistring, 'GTI')
+    gtistring = assign_value_if_none(gtistring, "GTI")
     logging.info("Loading GTIS from file %s" % fits_file)
     lchdulist = fits.open(fits_file, checksum=True, ignore_missing_end=True)
-    lchdulist.verify('warn')
+    lchdulist.verify("warn")
 
     gtitable = lchdulist[gtistring].data
-    gti_list = np.array([[a, b]
-                         for a, b in zip(gtitable.field('START'),
-                                         gtitable.field('STOP'))],
-                        dtype=np.longdouble)
+    gti_list = np.array(
+        [[a, b] for a, b in zip(gtitable.field("START"), gtitable.field("STOP"))],
+        dtype=np.longdouble,
+    )
     lchdulist.close()
     return gti_list
 
@@ -224,8 +237,7 @@ def get_gti_from_hdu(gtihdu):
     return gti_list
 
 
-def get_gti_from_all_extensions(lchdulist, accepted_gtistrings=["GTI"],
-                                det_numbers=None):
+def get_gti_from_all_extensions(lchdulist, accepted_gtistrings=["GTI"], det_numbers=None):
     """
     Intersect the GTIs from the all accepted extensions.
 
@@ -266,12 +278,8 @@ def get_gti_from_all_extensions(lchdulist, accepted_gtistrings=["GTI"],
     acc_gti_strs = copy.deepcopy(accepted_gtistrings)
     if det_numbers is not None:
         for i in det_numbers:
-            acc_gti_strs += [
-                x + "{:02d}".format(i) for x in accepted_gtistrings
-            ]
-            acc_gti_strs += [
-                x + "{:02d}.*".format(i) for x in accepted_gtistrings
-            ]
+            acc_gti_strs += [x + "{:02d}".format(i) for x in accepted_gtistrings]
+            acc_gti_strs += [x + "{:02d}.*".format(i) for x in accepted_gtistrings]
     gtiextn = []
     for pattern in acc_gti_strs:
         gtiextn.extend(get_gti_extensions_from_pattern(lchdulist, pattern))
@@ -312,7 +320,8 @@ def check_gtis(gti):
         if np.size(g) != 2 or np.ndim(g) != 1:
             raise TypeError(
                 "Please check the formatting of the GTIs. They need to be"
-                " provided as [[gti00, gti01], [gti10, gti11], ...].")
+                " provided as [[gti00, gti01], [gti10, gti11], ...]."
+            )
 
     gti = np.array(gti)
     gti_start = gti[:, 0]
@@ -320,19 +329,17 @@ def check_gtis(gti):
 
     # Check that GTIs are well-behaved
     if not np.all(gti_end >= gti_start):
-        raise ValueError('The GTI end times must be larger than the '
-                         'GTI start times.')
+        raise ValueError("The GTI end times must be larger than the " "GTI start times.")
 
     # Check that there are no overlaps in GTIs
     if not np.all(gti_start[1:] >= gti_end[:-1]):
-        raise ValueError('This GTI has overlaps.')
+        raise ValueError("This GTI has overlaps.")
 
     return
 
 
 @jit(nopython=True)
-def create_gti_mask_jit(time, gtis, mask, gti_mask,
-                        min_length=0):  # pragma: no cover
+def create_gti_mask_jit(time, gtis, mask, gti_mask, min_length=0):  # pragma: no cover
     """
     Compiled and fast function to create GTI mask.
 
@@ -383,8 +390,9 @@ def create_gti_mask_jit(time, gtis, mask, gti_mask,
     return mask, gti_mask
 
 
-def create_gti_mask(time, gtis, safe_interval=None, min_length=0,
-                    return_new_gtis=False, dt=None, epsilon=0.001):
+def create_gti_mask(
+    time, gtis, safe_interval=None, min_length=0, return_new_gtis=False, dt=None, epsilon=0.001
+):
     """
     Create GTI mask.
 
@@ -440,22 +448,24 @@ def create_gti_mask(time, gtis, safe_interval=None, min_length=0,
         lengths = gtis[:, 1] - gtis[:, 0]
         good = lengths >= np.max(min_length, dt)
         if np.all(~good):
-            warnings.warn("No GTIs longer than "
-                          "min_length {}".format(min_length))
+            warnings.warn("No GTIs longer than " "min_length {}".format(min_length))
             return mask
         gtis = gtis[good]
 
     if not HAS_NUMBA:
-        return create_gti_mask_complete(time, gtis,
-                                        safe_interval=safe_interval,
-                                        min_length=min_length,
-                                        return_new_gtis=return_new_gtis,
-                                        dt=dt, epsilon=epsilon)
+        return create_gti_mask_complete(
+            time,
+            gtis,
+            safe_interval=safe_interval,
+            min_length=min_length,
+            return_new_gtis=return_new_gtis,
+            dt=dt,
+            epsilon=epsilon,
+        )
 
     check_gtis(gtis)
 
-    dt = apply_function_if_none(dt, time,
-                                lambda x: np.median(np.diff(x)))
+    dt = apply_function_if_none(dt, time, lambda x: np.median(np.diff(x)))
     dt_start = dt_stop = dt
     epsilon_times_dt_start = epsilon_times_dt_stop = epsilon * dt
     if isinstance(dt, Iterable):
@@ -485,15 +495,15 @@ def create_gti_mask(time, gtis, safe_interval=None, min_length=0,
     gtis_to_mask[:, 1] = gtis_new[:, 1] + epsilon_times_dt_stop - dt_stop / 2
 
     if isinstance(dt, Iterable):
-        dt = np.min(abs(dt_stop-dt_start))
+        dt = np.min(abs(dt_stop - dt_start))
 
-    mask, gtimask = \
-        create_gti_mask_jit((time - time[0]).astype(np.float64),
-                            (gtis_to_mask - time[0]).astype(np.float64),
-                            mask, gti_mask=gti_mask,
-                            min_length=float(
-            min_length - 2 * (1 + epsilon) * dt
-        ))
+    mask, gtimask = create_gti_mask_jit(
+        (time - time[0]).astype(np.float64),
+        (gtis_to_mask - time[0]).astype(np.float64),
+        mask,
+        gti_mask=gti_mask,
+        min_length=float(min_length - 2 * (1 + epsilon) * dt),
+    )
 
     if return_new_gtis:
         return mask, gtis_new[gtimask]
@@ -501,8 +511,9 @@ def create_gti_mask(time, gtis, safe_interval=None, min_length=0,
     return mask
 
 
-def create_gti_mask_complete(time, gtis, safe_interval=0, min_length=0,
-                             return_new_gtis=False, dt=None, epsilon=0.001):
+def create_gti_mask_complete(
+    time, gtis, safe_interval=0, min_length=0, return_new_gtis=False, dt=None, epsilon=0.001
+):
     """
     Create GTI mask, allowing for non-constant ``dt``.
 
@@ -548,9 +559,7 @@ def create_gti_mask_complete(time, gtis, safe_interval=0, min_length=0,
 
     check_gtis(gtis)
 
-    dt = assign_value_if_none(dt,
-                              np.zeros_like(time) +
-                              np.median(np.diff(np.sort(time)) / 2))
+    dt = assign_value_if_none(dt, np.zeros_like(time) + np.median(np.diff(np.sort(time)) / 2))
 
     epsilon_times_dt = epsilon * dt
     mask = np.zeros(len(time), dtype=bool)
@@ -583,8 +592,7 @@ def create_gti_mask_complete(time, gtis, safe_interval=0, min_length=0,
     return res
 
 
-def create_gti_from_condition(time, condition,
-                              safe_interval=0, dt=None):
+def create_gti_from_condition(time, condition, safe_interval=0, dt=None):
     """
     Create a GTI list from a time array and a boolean mask (``condition``).
 
@@ -612,16 +620,14 @@ def create_gti_from_condition(time, condition,
     """
 
     if len(time) != len(condition):
-        raise StingrayError('The length of the condition and '
-                            'time arrays must be the same.')
+        raise StingrayError("The length of the condition and " "time arrays must be the same.")
 
     idxs = contiguous_regions(condition)
 
     if not isinstance(safe_interval, Iterable):
         safe_interval = [safe_interval, safe_interval]
 
-    dt = assign_value_if_none(dt,
-                              np.zeros_like(time) + (time[1] - time[0]) / 2)
+    dt = assign_value_if_none(dt, np.zeros_like(time) + (time[1] - time[0]) / 2)
 
     gtis = []
     for idx in idxs:
@@ -708,10 +714,8 @@ def cross_two_gtis(gti0, gti1):
         # Check that this closes intervals in both series.
         # 1. Check that there is an opening in both series 0 and 1 lower than e
         try:
-            st_pos = \
-                np.argmax(gti_start[this_series][gti_start[this_series] < e])
-            so_pos = \
-                np.argmax(gti_start[other_series][gti_start[other_series] < e])
+            st_pos = np.argmax(gti_start[this_series][gti_start[this_series] < e])
+            so_pos = np.argmax(gti_start[other_series][gti_start[other_series] < e])
             st = gti_start[this_series][st_pos]
             so = gti_start[other_series][so_pos]
 
@@ -815,8 +819,7 @@ def get_btis(gtis, start_time=None, stop_time=None):
     # Check GTIs
     if len(gtis) == 0:
         if start_time is None or stop_time is None:
-            raise ValueError('Empty GTI and no valid start_time '
-                             'and stop_time. BAD!')
+            raise ValueError("Empty GTI and no valid start_time " "and stop_time. BAD!")
 
         return np.asarray([[start_time, stop_time]])
     check_gtis(gtis)
@@ -834,7 +837,7 @@ def get_btis(gtis, start_time=None, stop_time=None):
     btis.extend(new_flat_btis)
 
     if stop_time > gtis[-1][1]:
-        btis.extend([[gtis[-1][1],  stop_time]])
+        btis.extend([[gtis[-1][1], stop_time]])
 
     return np.asarray(btis)
 
@@ -915,8 +918,7 @@ def check_separate(gti0, gti1):
     check_gtis(gti0)
     check_gtis(gti1)
     t0 = min(gti0[0, 0], gti1[0, 0])
-    return _check_separate((gti0 - t0).astype(np.double),
-                           (gti1 - t0).astype(np.double))
+    return _check_separate((gti0 - t0).astype(np.double), (gti1 - t0).astype(np.double))
 
 
 def join_equal_gti_boundaries(gti, threshold=0.0):
@@ -942,9 +944,9 @@ def join_equal_gti_boundaries(gti, threshold=0.0):
     touching = (np.abs(gti[:-1, 1] - gti[1:, 0])) <= threshold
     ng = []
     count = 0
-    while count < len(gti)-1:
+    while count < len(gti) - 1:
         if touching[count]:
-            new_gtis[count+1] = [new_gtis[count][0], new_gtis[count+1][1]]
+            new_gtis[count + 1] = [new_gtis[count][0], new_gtis[count + 1][1]]
         else:
             ng.append(new_gtis[count])
         count += 1
@@ -991,8 +993,7 @@ def append_gtis(gti0, gti1):
 
     # Check if GTIs are mutually exclusive.
     if not check_separate(gti0, gti1):
-        raise ValueError('In order to append, GTIs must be mutually'
-                         'exclusive.')
+        raise ValueError("In order to append, GTIs must be mutually" "exclusive.")
 
     new_gtis = np.concatenate([gti0, gti1])
     order = np.argsort(new_gtis[:, 0])
@@ -1046,11 +1047,9 @@ def join_gtis(gti0, gti1):
 
     g0 = gti0.flatten()
     # Opening GTI: type = 1; Closing: type = -1
-    g0_type = np.asarray(list(zip(-np.ones(int(len(g0) / 2)),
-                                  np.ones(int(len(g0) / 2)))))
+    g0_type = np.asarray(list(zip(-np.ones(int(len(g0) / 2)), np.ones(int(len(g0) / 2)))))
     g1 = gti1.flatten()
-    g1_type = np.asarray(list(zip(-np.ones(int(len(g1) / 2)),
-                                  np.ones(int(len(g1) / 2)))))
+    g1_type = np.asarray(list(zip(-np.ones(int(len(g1) / 2)), np.ones(int(len(g1) / 2)))))
 
     g_all = np.append(g0, g1)
     g_type_all = np.append(g0_type, g1_type)
@@ -1077,8 +1076,7 @@ def join_gtis(gti0, gti1):
     return np.sort(final_gti, axis=0)
 
 
-def time_intervals_from_gtis(gtis, segment_size, fraction_step=1,
-                             epsilon=1e-5):
+def time_intervals_from_gtis(gtis, segment_size, fraction_step=1, epsilon=1e-5):
     """
     Compute start/stop times of equal time intervals, compatible with GTIs.
 
@@ -1113,15 +1111,15 @@ def time_intervals_from_gtis(gtis, segment_size, fraction_step=1,
         if g[1] - g[0] + epsilon < segment_size:
             continue
 
-        newtimes = np.arange(g[0], g[1] - segment_size + epsilon,
-                             np.longdouble(segment_size) * fraction_step,
-                             dtype=np.longdouble)
-        spectrum_start_times = \
-            np.append(spectrum_start_times,
-                      newtimes)
+        newtimes = np.arange(
+            g[0],
+            g[1] - segment_size + epsilon,
+            np.longdouble(segment_size) * fraction_step,
+            dtype=np.longdouble,
+        )
+        spectrum_start_times = np.append(spectrum_start_times, newtimes)
 
-    assert len(spectrum_start_times) > 0, \
-        ("No GTIs are equal to or longer than segment_size.")
+    assert len(spectrum_start_times) > 0, "No GTIs are equal to or longer than segment_size."
     return spectrum_start_times, spectrum_start_times + segment_size
 
 
@@ -1177,8 +1175,7 @@ def calculate_segment_bin_start(startbin, stopbin, nbin, fraction_step=1):
     return st
 
 
-def bin_intervals_from_gtis(gtis, segment_size, time, dt=None, fraction_step=1,
-                            epsilon=0.001):
+def bin_intervals_from_gtis(gtis, segment_size, time, dt=None, fraction_step=1, epsilon=0.001):
     """
     Compute start/stop times of equal time intervals, compatible with GTIs,
     and map them to the indices of an array of time stamps.
@@ -1274,13 +1271,9 @@ def bin_intervals_from_gtis(gtis, segment_size, time, dt=None, fraction_step=1,
         if time[stopbin - 1] > g1:
             stopbin -= 1
 
-        newbins = calculate_segment_bin_start(
-            startbin, stopbin, nbin, fraction_step=fraction_step)
-        spectrum_start_bins = \
-            np.append(spectrum_start_bins,
-                      newbins)
-    assert len(spectrum_start_bins) > 0, \
-        ("No GTIs are equal to or longer than segment_size.")
+        newbins = calculate_segment_bin_start(startbin, stopbin, nbin, fraction_step=fraction_step)
+        spectrum_start_bins = np.append(spectrum_start_bins, newbins)
+    assert len(spectrum_start_bins) > 0, "No GTIs are equal to or longer than segment_size."
     return spectrum_start_bins, spectrum_start_bins + nbin
 
 
@@ -1354,7 +1347,7 @@ def gti_border_bins(gtis, time, dt=None, epsilon=0.001):
     >>> np.allclose(times[start_bins[0]:stop_bins[0]], [0.5, 1.5, 2.5, 3.5, 4.5])
     True
     >>> np.allclose(times[start_bins[1]:stop_bins[1]], [6.5, 7.5, 8.5, 9.5, 10.5, 11.5, 12.5])
-    True    """
+    True"""
     time = np.asarray(time)
     gtis = np.asarray(gtis)
     if dt is None:
@@ -1431,11 +1424,11 @@ def generate_indices_of_boundaries(times, gti, segment_size=None, dt=0):
     """
     if segment_size is not None:
         if dt is None or dt == 0:
-            segment_iter = generate_indices_of_segment_boundaries_unbinned(
-                times, gti, segment_size)
+            segment_iter = generate_indices_of_segment_boundaries_unbinned(times, gti, segment_size)
         else:
             segment_iter = generate_indices_of_segment_boundaries_binned(
-                times, gti, segment_size, dt=dt)
+                times, gti, segment_size, dt=dt
+            )
     else:
         segment_iter = generate_indices_of_gti_boundaries(times, gti, dt=0)
     return segment_iter
@@ -1551,8 +1544,7 @@ def generate_indices_of_segment_boundaries_unbinned(times, gti, segment_size):
         yield s, e, idx0, idx1
 
 
-def generate_indices_of_segment_boundaries_binned(times, gti, segment_size,
-                                                  dt=None):
+def generate_indices_of_segment_boundaries_binned(times, gti, segment_size, dt=None):
     """
     Get the indices of binned times from different segments of the observation.
 
@@ -1594,11 +1586,9 @@ def generate_indices_of_segment_boundaries_binned(times, gti, segment_size,
     """
     gti = np.asarray(gti)
     times = np.asarray(times)
-    startidx, stopidx = bin_intervals_from_gtis(gti, segment_size, times,
-                                                dt=dt)
+    startidx, stopidx = bin_intervals_from_gtis(gti, segment_size, times, dt=dt)
 
     if dt is None:
         dt = 0
     for idx0, idx1 in zip(startidx, stopidx):
-        yield times[idx0] - dt / 2, times[min(idx1, times.size - 1)] - dt / 2,\
-              idx0, idx1
+        yield times[idx0] - dt / 2, times[min(idx1, times.size - 1)] - dt / 2, idx0, idx1

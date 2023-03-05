@@ -1,4 +1,3 @@
-
 import numpy as np
 from collections.abc import Iterable
 from .pulsar import profile_stat, fold_events, z_n, pulse_phase
@@ -8,23 +7,31 @@ from astropy.stats import poisson_conf_interval
 import matplotlib.pyplot as plt
 
 
-__all__ = ['epoch_folding_search', 'z_n_search', 'search_best_peaks',
-           'plot_profile', 'plot_phaseogram', 'phaseogram']
+__all__ = [
+    "epoch_folding_search",
+    "z_n_search",
+    "search_best_peaks",
+    "plot_profile",
+    "plot_phaseogram",
+    "phaseogram",
+]
 
 
 @jit(nopython=True)
 def _pulse_phase_fast(time, f, fdot, buffer_array):
     for i in range(len(time)):
-        buffer_array[i] = time[i] * f + 0.5 * time[i]**2 * fdot
+        buffer_array[i] = time[i] * f + 0.5 * time[i] ** 2 * fdot
         buffer_array[i] -= np.floor(buffer_array[i])
     return buffer_array
 
 
-def _folding_search(stat_func, times, frequencies, segment_size=np.inf,
-                    use_times=False, fdots=0, **kwargs):
+def _folding_search(
+    stat_func, times, frequencies, segment_size=np.inf, use_times=False, fdots=0, **kwargs
+):
 
-    fgrid, fdgrid = np.meshgrid(np.asarray(frequencies).astype(np.float64),
-                                np.asarray(fdots).astype(np.float64))
+    fgrid, fdgrid = np.meshgrid(
+        np.asarray(frequencies).astype(np.float64), np.asarray(fdots).astype(np.float64)
+    )
     stats = np.zeros_like(fgrid)
     times = (times - times[0]).astype(np.float64)
     length = times[-1]
@@ -45,8 +52,7 @@ def _folding_search(stat_func, times, frequencies, segment_size=np.inf,
                 if use_times:
                     kwargs_copy = {}
                     for key in kwargs.keys():
-                        if isinstance(kwargs[key], Iterable) and \
-                                len(kwargs[key]) == len(times):
+                        if isinstance(kwargs[key], Iterable) and len(kwargs[key]) == len(times):
 
                             kwargs_copy[key] = kwargs[key][good]
                         else:
@@ -82,8 +88,9 @@ def _profile_fast(phase, nbin=128):
     return bc
 
 
-def epoch_folding_search(times, frequencies, nbin=128, segment_size=np.inf,
-                         expocorr=False, gti=None, weights=1, fdots=0):
+def epoch_folding_search(
+    times, frequencies, nbin=128, segment_size=np.inf, expocorr=False, gti=None, weights=1, fdots=0
+):
     """Performs epoch folding at trial frequencies in photon data.
 
     If no exposure correction is needed and numba is installed, it uses a fast
@@ -136,25 +143,44 @@ def epoch_folding_search(times, frequencies, nbin=128, segment_size=np.inf,
     """
     if expocorr or not HAS_NUMBA or isinstance(weights, Iterable):
         if expocorr and gti is None:
-            raise ValueError('To calculate exposure correction, you need to'
-                             ' specify the GTIs')
+            raise ValueError("To calculate exposure correction, you need to" " specify the GTIs")
 
         def stat_fun(t, f, fd=0, **kwargs):
             return profile_stat(fold_events(t, f, fd, **kwargs)[1])
 
-        return \
-            _folding_search(stat_fun, times, frequencies,
-                            segment_size=segment_size,
-                            use_times=True, expocorr=expocorr, weights=weights,
-                            gti=gti, nbin=nbin, fdots=fdots)
+        return _folding_search(
+            stat_fun,
+            times,
+            frequencies,
+            segment_size=segment_size,
+            use_times=True,
+            expocorr=expocorr,
+            weights=weights,
+            gti=gti,
+            nbin=nbin,
+            fdots=fdots,
+        )
 
-    return _folding_search(lambda x: profile_stat(_profile_fast(x, nbin=nbin)),
-                           times, frequencies, segment_size=segment_size,
-                           fdots=fdots)
+    return _folding_search(
+        lambda x: profile_stat(_profile_fast(x, nbin=nbin)),
+        times,
+        frequencies,
+        segment_size=segment_size,
+        fdots=fdots,
+    )
 
 
-def z_n_search(times, frequencies, nharm=4, nbin=128, segment_size=np.inf,
-               expocorr=False, weights=1, gti=None, fdots=0):
+def z_n_search(
+    times,
+    frequencies,
+    nharm=4,
+    nbin=128,
+    segment_size=np.inf,
+    expocorr=False,
+    weights=1,
+    gti=None,
+    fdots=0,
+):
     """Calculates the Z^2_n statistics at trial frequencies in photon data.
 
     The "real" Z^2_n statistics is very slow. Therefore, in this function data
@@ -213,20 +239,30 @@ def z_n_search(times, frequencies, nharm=4, nbin=128, segment_size=np.inf,
     phase = np.arange(0, 1, 1 / nbin)
     if expocorr or not HAS_NUMBA or isinstance(weights, Iterable):
         if expocorr and gti is None:
-            raise ValueError('To calculate exposure correction, you need to'
-                             ' specify the GTIs')
+            raise ValueError("To calculate exposure correction, you need to" " specify the GTIs")
 
         def stat_fun(t, f, fd=0, **kwargs):
-            return z_n(fold_events(t, f, fd, nbin=nbin, **kwargs)[1], n=nharm, datatype='binned')
-        return \
-            _folding_search(stat_fun, times, frequencies,
-                            segment_size=segment_size,
-                            use_times=True, expocorr=expocorr, weights=weights,
-                            gti=gti, fdots=fdots)
+            return z_n(fold_events(t, f, fd, nbin=nbin, **kwargs)[1], n=nharm, datatype="binned")
 
-    return _folding_search(lambda x: z_n(_profile_fast(x, nbin=nbin), n=nharm, datatype='binned'),
-                           times, frequencies, segment_size=segment_size,
-                           fdots=fdots)
+        return _folding_search(
+            stat_fun,
+            times,
+            frequencies,
+            segment_size=segment_size,
+            use_times=True,
+            expocorr=expocorr,
+            weights=weights,
+            gti=gti,
+            fdots=fdots,
+        )
+
+    return _folding_search(
+        lambda x: z_n(_profile_fast(x, nbin=nbin), n=nharm, datatype="binned"),
+        times,
+        frequencies,
+        segment_size=segment_size,
+        fdots=fdots,
+    )
 
 
 def search_best_peaks(x, stat, threshold):
@@ -292,8 +328,8 @@ def search_best_peaks(x, stat, threshold):
     best_x = np.zeros(len(regions))
     best_stat = np.zeros(len(regions))
     for i, r in enumerate(regions):
-        stat_filt = stat[r[0]:r[1]]
-        x_filt = x[r[0]:r[1]]
+        stat_filt = stat[r[0] : r[1]]
+        x_filt = x[r[0] : r[1]]
         max_arg = np.argmax(stat_filt)
         best_stat[i] = stat_filt[max_arg]
         best_x[i] = x_filt[max_arg]
@@ -328,29 +364,26 @@ def plot_profile(phase, profile, err=None, ax=None):
         Axis where the profile was plotted.
     """
     if ax is None:
-        plt.figure('Pulse profile')
+        plt.figure("Pulse profile")
         ax = plt.subplot()
     mean = np.mean(profile)
     if np.all(phase < 1.5):
         phase = np.concatenate((phase, phase + 1))
         profile = np.concatenate((profile, profile))
-    ax.plot(phase, profile, drawstyle='steps-mid')
+    ax.plot(phase, profile, drawstyle="steps-mid")
     if err is None:
-        err_low, err_high = \
-            poisson_conf_interval(mean, interval='frequentist-confidence',
-                                  sigma=1)
+        err_low, err_high = poisson_conf_interval(mean, interval="frequentist-confidence", sigma=1)
         ax.axhspan(err_low, err_high, alpha=0.5)
     else:
         err = np.concatenate((err, err))
-        ax.errorbar(phase, profile, yerr=err, fmt='none')
+        ax.errorbar(phase, profile, yerr=err, fmt="none")
 
-    ax.set_ylabel('Counts')
-    ax.set_xlabel('Phase')
+    ax.set_ylabel("Counts")
+    ax.set_xlabel("Phase")
     return ax
 
 
-def plot_phaseogram(phaseogram, phase_bins, time_bins, unit_str='s', ax=None,
-                    **plot_kwargs):
+def plot_phaseogram(phaseogram, phase_bins, time_bins, unit_str="s", ax=None, **plot_kwargs):
     """Plot a phaseogram.
 
     Parameters
@@ -381,20 +414,32 @@ def plot_phaseogram(phaseogram, phase_bins, time_bins, unit_str='s', ax=None,
         Axis where the phaseogram was plotted.
     """
     if ax is None:
-        plt.figure('Phaseogram')
+        plt.figure("Phaseogram")
         ax = plt.subplot()
 
     ax.pcolormesh(phase_bins, time_bins, phaseogram.T, **plot_kwargs)
-    ax.set_ylabel('Time ({})'.format(unit_str))
-    ax.set_xlabel('Phase')
+    ax.set_ylabel("Time ({})".format(unit_str))
+    ax.set_xlabel("Phase")
     ax.set_xlim([0, np.max(phase_bins)])
     ax.set_ylim([np.min(time_bins), np.max(time_bins)])
     return ax
 
 
-def phaseogram(times, f, nph=128, nt=32, ph0=0, mjdref=None, fdot=0, fddot=0,
-               pepoch=None, plot=False, phaseogram_ax=None,
-               weights=None, **plot_kwargs):
+def phaseogram(
+    times,
+    f,
+    nph=128,
+    nt=32,
+    ph0=0,
+    mjdref=None,
+    fdot=0,
+    fddot=0,
+    pepoch=None,
+    plot=False,
+    phaseogram_ax=None,
+    weights=None,
+    **plot_kwargs
+):
     """
     Calculate and plot the phaseogram of a pulsar observation.
 
@@ -472,38 +517,36 @@ def phaseogram(times, f, nph=128, nt=32, ph0=0, mjdref=None, fdot=0, fddot=0,
         if use_mjdref:
             pepoch /= 86400
 
-    plot_unit = 's'
+    plot_unit = "s"
     if use_mjdref:
         pepoch = (pepoch - mjdref) * 86400
-        plot_unit = 'MJD'
+        plot_unit = "MJD"
 
     phases = pulse_phase((times - pepoch), f, fdot, fddot, to_1=True, ph0=ph0)
 
-    allphases = np.concatenate([phases, phases + 1]).astype('float64')
-    allts = \
-        np.concatenate([times, times]).astype('float64')
+    allphases = np.concatenate([phases, phases + 1]).astype("float64")
+    allts = np.concatenate([times, times]).astype("float64")
 
     if weights is not None and isinstance(weights, Iterable):
         if len(weights) != len(times):
-            raise ValueError('The length of weights must match the length of '
-                             'times')
-        weights = \
-            np.concatenate([weights, weights]).astype('float64')
+            raise ValueError("The length of weights must match the length of " "times")
+        weights = np.concatenate([weights, weights]).astype("float64")
 
     if use_mjdref:
         allts = allts / 86400 + mjdref
 
     phas, binx, biny = np.histogram2d(
-        allphases, allts,
-        bins=(np.linspace(0, 2, nph * 2 + 1),
-              np.linspace(np.min(allts),
-                          np.max(allts), nt + 1)),
-        weights=weights)
+        allphases,
+        allts,
+        bins=(np.linspace(0, 2, nph * 2 + 1), np.linspace(np.min(allts), np.max(allts), nt + 1)),
+        weights=weights,
+    )
 
     if plot:
-        phaseogram_ax = plot_phaseogram(phas, binx, biny, ax=phaseogram_ax,
-                                        unit_str=plot_unit, **plot_kwargs)
-        additional_info = {'ax': phaseogram_ax}
+        phaseogram_ax = plot_phaseogram(
+            phas, binx, biny, ax=phaseogram_ax, unit_str=plot_unit, **plot_kwargs
+        )
+        additional_info = {"ax": phaseogram_ax}
     else:
         additional_info = {}
 

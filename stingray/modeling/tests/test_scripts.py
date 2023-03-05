@@ -1,4 +1,3 @@
-
 import numpy as np
 
 from astropy.modeling import models
@@ -10,7 +9,6 @@ from stingray.modeling.scripts import fit_powerspectrum, fit_crossspectrum
 
 
 class TestFitLorentzians(object):
-
     @classmethod
     def setup_class(cls):
         np.random.seed(150)
@@ -30,17 +28,25 @@ class TestFitLorentzians(object):
 
         cls.whitenoise = 2.0
 
-        cls.priors = {'x_0_0': cls.x_0_0, 'x_0_1': cls.x_0_1,
-                      'x_0_2': cls.x_0_2, 'amplitude_0': cls.amplitude_0,
-                      'amplitude_1': cls.amplitude_1,
-                      'amplitude_2': cls.amplitude_2, 'fwhm_0': cls.fwhm_0,
-                      'fwhm_1': cls.fwhm_1, 'fwhm_2': cls.fwhm_2,
-                      'whitenoise': cls.whitenoise}
+        cls.priors = {
+            "x_0_0": cls.x_0_0,
+            "x_0_1": cls.x_0_1,
+            "x_0_2": cls.x_0_2,
+            "amplitude_0": cls.amplitude_0,
+            "amplitude_1": cls.amplitude_1,
+            "amplitude_2": cls.amplitude_2,
+            "fwhm_0": cls.fwhm_0,
+            "fwhm_1": cls.fwhm_1,
+            "fwhm_2": cls.fwhm_2,
+            "whitenoise": cls.whitenoise,
+        }
 
-        cls.model = models.Lorentz1D(cls.amplitude_0, cls.x_0_0, cls.fwhm_0) +\
-            models.Lorentz1D(cls.amplitude_1, cls.x_0_1, cls.fwhm_1) + \
-            models.Lorentz1D(cls.amplitude_2, cls.x_0_2, cls.fwhm_2) + \
-            models.Const1D(cls.whitenoise)
+        cls.model = (
+            models.Lorentz1D(cls.amplitude_0, cls.x_0_0, cls.fwhm_0)
+            + models.Lorentz1D(cls.amplitude_1, cls.x_0_1, cls.fwhm_1)
+            + models.Lorentz1D(cls.amplitude_2, cls.x_0_2, cls.fwhm_2)
+            + models.Const1D(cls.whitenoise)
+        )
 
         freq = np.linspace(0.01, 10.0, 1000)
         p = cls.model(freq)
@@ -50,19 +56,18 @@ class TestFitLorentzians(object):
         cls.ps = Powerspectrum()
         cls.ps.freq = freq
         cls.ps.power = power
-        cls.ps.power_err = np.array([0.]*len(power))
+        cls.ps.power_err = np.array([0.0] * len(power))
         cls.ps.df = cls.ps.freq[1] - cls.ps.freq[0]
         cls.ps.m = 1
 
         cls.cs = Crossspectrum()
         cls.cs.freq = freq
         cls.cs.power = power
-        cls.cs.power_err = np.array([0.]*len(power))
+        cls.cs.power_err = np.array([0.0] * len(power))
         cls.cs.df = cls.cs.freq[1] - cls.cs.freq[0]
         cls.cs.m = 1
 
-        cls.t0 = np.asarray([200.0, 0.5, 0.1, 100.0, 2.0, 1.0,
-                             50.0, 7.5, 0.5, 2.0])
+        cls.t0 = np.asarray([200.0, 0.5, 0.1, 100.0, 2.0, 1.0, 50.0, 7.5, 0.5, 2.0])
 
         cls.parest, cls.res = fit_lorentzians(cls.ps, cls.nlor, cls.t0)
 
@@ -70,16 +75,23 @@ class TestFitLorentzians(object):
         assert (len(self.parest.lpost.model.parameters) - 1) / 3 == self.nlor
 
     def test_correct_parameters_without_whitenoise(self):
-        parest, res = fit_lorentzians(self.ps, self.nlor, self.t0[:-1],
-                                      fit_whitenoise=False)
+        parest, res = fit_lorentzians(self.ps, self.nlor, self.t0[:-1], fit_whitenoise=False)
 
         assert len(parest.lpost.model.parameters) / 3 == self.nlor
 
     def test_parameters_in_right_ballpark(self):
-        true_pars = [self.amplitude_0, self.x_0_0, self.fwhm_0,
-                     self.amplitude_1, self.x_0_1, self.fwhm_1,
-                     self.amplitude_2, self.x_0_2, self.fwhm_2,
-                     self.whitenoise]
+        true_pars = [
+            self.amplitude_0,
+            self.x_0_0,
+            self.fwhm_0,
+            self.amplitude_1,
+            self.x_0_1,
+            self.fwhm_1,
+            self.amplitude_2,
+            self.x_0_2,
+            self.fwhm_2,
+            self.whitenoise,
+        ]
 
         assert np.all(np.isclose(true_pars, self.res.p_opt, rtol=0.5))
 
@@ -92,20 +104,31 @@ class TestFitLorentzians(object):
         model.amplitude_0 = self.t0[0]
         # model.bounds = {}
 
-        t0 = np.array([self.amplitude_0, self.x_0_0, self.fwhm_0,
-                       self.amplitude_1, self.fwhm_1,
-                       self.amplitude_2, self.fwhm_2,
-                       self.whitenoise])
+        t0 = np.array(
+            [
+                self.amplitude_0,
+                self.x_0_0,
+                self.fwhm_0,
+                self.amplitude_1,
+                self.fwhm_1,
+                self.amplitude_2,
+                self.fwhm_2,
+                self.whitenoise,
+            ]
+        )
 
-        parest, res = fit_powerspectrum(self.ps, model,
-                                        np.random.normal(t0,
-                                                         t0 / 10))
+        parest, res = fit_powerspectrum(self.ps, model, np.random.normal(t0, t0 / 10))
 
-        true_pars = [self.amplitude_0,
-                     self.x_0_0, self.fwhm_0,
-                     self.amplitude_1, self.fwhm_1,
-                     self.amplitude_2, self.fwhm_2,
-                     self.whitenoise]
+        true_pars = [
+            self.amplitude_0,
+            self.x_0_0,
+            self.fwhm_0,
+            self.amplitude_1,
+            self.fwhm_1,
+            self.amplitude_2,
+            self.fwhm_2,
+            self.whitenoise,
+        ]
 
         assert np.all(np.isclose(true_pars, res.p_opt, rtol=0.5))
 
@@ -115,19 +138,33 @@ class TestFitLorentzians(object):
         model.amplitude_0.fixed = True
         # model.bounds = {}
 
-        t0 = np.array([self.x_0_0, self.fwhm_0,
-                       self.amplitude_1, self.x_0_1, self.fwhm_1,
-                       self.amplitude_2, self.x_0_2, self.fwhm_2,
-                       self.whitenoise])
+        t0 = np.array(
+            [
+                self.x_0_0,
+                self.fwhm_0,
+                self.amplitude_1,
+                self.x_0_1,
+                self.fwhm_1,
+                self.amplitude_2,
+                self.x_0_2,
+                self.fwhm_2,
+                self.whitenoise,
+            ]
+        )
 
-        parest, res = fit_powerspectrum(self.ps, model,
-                                        np.random.normal(t0,
-                                                         t0 / 10))
+        parest, res = fit_powerspectrum(self.ps, model, np.random.normal(t0, t0 / 10))
 
-        true_pars = [self.x_0_0, self.fwhm_0,
-                     self.amplitude_1, self.x_0_1, self.fwhm_1,
-                     self.amplitude_2, self.x_0_2, self.fwhm_2,
-                     self.whitenoise]
+        true_pars = [
+            self.x_0_0,
+            self.fwhm_0,
+            self.amplitude_1,
+            self.x_0_1,
+            self.fwhm_1,
+            self.amplitude_2,
+            self.x_0_2,
+            self.fwhm_2,
+            self.whitenoise,
+        ]
 
         assert np.all(np.isclose(true_pars, res.p_opt, rtol=0.5))
 

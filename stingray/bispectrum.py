@@ -1,11 +1,9 @@
-
-
 import numpy as np
 from scipy.linalg import toeplitz
 import warnings
 import matplotlib.pyplot as plt
 
-from  scipy.linalg import hankel
+from scipy.linalg import hankel
 
 from stingray import lightcurve
 import stingray.utils as utils
@@ -117,7 +115,7 @@ class Bispectrum(object):
            [ -3.46944695e-14,  -2.25347190e-14,   9.65946229e-01]])
     """
 
-    def __init__(self, lc, maxlag=None, window=None, scale='biased'):
+    def __init__(self, lc, maxlag=None, window=None, scale="biased"):
 
         # Function call to create Bispectrum Object
         self._make_bispetrum(lc, maxlag, window, scale)
@@ -130,14 +128,23 @@ class Bispectrum(object):
         """
 
         if not isinstance(lc, lightcurve.Lightcurve):
-            raise TypeError('lc must be a lightcurve.ightcurve object')
+            raise TypeError("lc must be a lightcurve.ightcurve object")
 
         # Available Windows. Used to resolve window paramneter
-        WINDOWS = ['uniform', 'parzen', 'hamming', 'hanning', 'triangular', 'welch', 'blackmann', 'flat-top']
+        WINDOWS = [
+            "uniform",
+            "parzen",
+            "hamming",
+            "hanning",
+            "triangular",
+            "welch",
+            "blackmann",
+            "flat-top",
+        ]
 
         if window:
             if not isinstance(window, str):
-                raise TypeError('Window must be specified as string!')
+                raise TypeError("Window must be specified as string!")
             window = window.lower()
             if window not in WINDOWS:
                 raise ValueError("Wrong window specified or window function is not available")
@@ -151,7 +158,7 @@ class Bispectrum(object):
             self.maxlag = int(self.lc.n / 2)
         else:
             if not (isinstance(maxlag, int)):
-                raise ValueError('maxlag must be an integer')
+                raise ValueError("maxlag must be an integer")
 
             # if negative maxlag is entered, convert it to +ve
             if maxlag < 0:
@@ -167,7 +174,7 @@ class Bispectrum(object):
         self.scale = scale.lower()
 
         if window is None:
-            self.window_name = 'No Window'
+            self.window_name = "No Window"
             self.window = None
         else:
             self.window_name = window
@@ -199,12 +206,17 @@ class Bispectrum(object):
         window_even = utils.create_window(N, self.window_name)
 
         # 2d even window
-        window2d = np.array([window_even, ] * N)
+        window2d = np.array(
+            [
+                window_even,
+            ]
+            * N
+        )
 
         ## One-sided window with zero padding
         window = np.zeros(N)
-        window[:self.maxlag + 1] = window_even[self.maxlag:]
-        window[self.maxlag:] = 0
+        window[: self.maxlag + 1] = window_even[self.maxlag :]
+        window[self.maxlag :] = 0
 
         # 2d window function to apply to bispectrum
         row = np.concatenate(([window[0]], np.zeros(2 * self.maxlag)))
@@ -259,18 +271,18 @@ class Bispectrum(object):
         """
 
         # Biased scaling of cummulant
-        if self.scale == 'biased':
+        if self.scale == "biased":
             self.cum3 = self.cum3 / self.n
         else:
             # unbiased Scaling of cummulant
             maxlag1 = self.maxlag + 1
 
             # Scaling matrix initialized used to do unbiased normalization of cumulant
-            scal_matrix = np.zeros((maxlag1, maxlag1), dtype='int64')
+            scal_matrix = np.zeros((maxlag1, maxlag1), dtype="int64")
 
             # Calculate scaling matrix for unbiased normalization
             for k in range(maxlag1):
-                maxlag1k = (maxlag1 - (k + 1))
+                maxlag1k = maxlag1 - (k + 1)
                 scal_matrix[k, k:maxlag1] = np.tile(self.n - maxlag1k, (1, maxlag1k + 1))
             scal_matrix += np.triu(scal_matrix, k=1).transpose()
 
@@ -347,16 +359,16 @@ class Bispectrum(object):
         """
         cont = plt.contourf(self.lags, self.lags, self.cum3, 100, cmap=plt.cm.Spectral_r)
         plt.colorbar(cont)
-        plt.title('3rd Order Cumulant')
-        plt.xlabel('lags 1')
-        plt.ylabel('lags 2')
+        plt.title("3rd Order Cumulant")
+        plt.xlabel("lags 1")
+        plt.ylabel("lags 2")
 
         if axis is not None:
             plt.axis(axis)
 
         if save:
             if filename is None:
-                plt.savefig('bispec_cum3.png')
+                plt.savefig("bispec_cum3.png")
             else:
                 plt.savefig(filename)
         return plt
@@ -389,16 +401,16 @@ class Bispectrum(object):
 
         cont = plt.contourf(self.freq, self.freq, self.bispec_mag, 100, cmap=plt.cm.Spectral_r)
         plt.colorbar(cont)
-        plt.title('Bispectrum Magnitude')
-        plt.xlabel('freq 1')
-        plt.ylabel('freq 2')
+        plt.title("Bispectrum Magnitude")
+        plt.xlabel("freq 1")
+        plt.ylabel("freq 2")
 
         if axis is not None:
             plt.axis(axis)
 
         if save:
             if filename is None:
-                plt.savefig('bispec_mag.png')
+                plt.savefig("bispec_mag.png")
             else:
                 plt.savefig(filename)
         return plt
@@ -431,9 +443,9 @@ class Bispectrum(object):
 
         cont = plt.contourf(self.freq, self.freq, self.bispec_phase, 100, cmap=plt.cm.Spectral_r)
         plt.colorbar(cont)
-        plt.title('Bispectrum Phase')
-        plt.xlabel('freq 1')
-        plt.ylabel('freq 2')
+        plt.title("Bispectrum Phase")
+        plt.xlabel("freq 1")
+        plt.ylabel("freq 2")
 
         if axis is not None:
             plt.axis(axis)
@@ -441,7 +453,7 @@ class Bispectrum(object):
         # Save figure
         if save:
             if filename is None:
-                plt.savefig('bispec_phase.png')
+                plt.savefig("bispec_phase.png")
             else:
                 plt.savefig(filename)
         return plt

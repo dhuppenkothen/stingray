@@ -80,7 +80,7 @@ def nextpow(a: float, x: float) -> float:
         return 1.0
     n = np.ceil(np.math.log(x, a))
     p = a ** (n - 1)
-    return p if p >= x else a ** n
+    return p if p >= x else a**n
 
 
 def nextprod(a: List[int], x: int) -> int:
@@ -122,8 +122,7 @@ def nextprod(a: List[int], x: int) -> int:
     return int(mx[-1] if mx[-1] < best else best)
 
 
-def array_range(start: List[int], stop: List[int], step: List[int]) -> \
-        Iterable[Tuple]:
+def array_range(start: List[int], stop: List[int], step: List[int]) -> Iterable[Tuple]:
     """Make an iterable of non-overlapping slices.
 
     Returns an iterable of tuples of slices, each of which can be used to
@@ -167,8 +166,8 @@ def array_range(start: List[int], stop: List[int], step: List[int]) -> \
     assert all(map(lambda x: x > 0, step))
     startRangesGen = map(lambda v: range(*v), zip(start, stop, step))
     startToSliceMapper = lambda multiStart: tuple(
-        slice(i, min(i + step, stop)) for i, stop, step in
-        zip(multiStart, stop, step))
+        slice(i, min(i + step, stop)) for i, stop, step in zip(multiStart, stop, step)
+    )
     return map(startToSliceMapper, product(*startRangesGen))
 
 
@@ -227,8 +226,7 @@ def edgesReflect(x, slices):
         for (s, xdim) in zip(slices, x.shape)
     ]
     stops = [
-        xdim if s.stop > xdim else np.max([s.stop, -s.start])
-        for (s, xdim) in zip(slices, x.shape)
+        xdim if s.stop > xdim else np.max([s.stop, -s.start]) for (s, xdim) in zip(slices, x.shape)
     ]
     edges = tuple(slice(lo, hi) for (lo, hi) in zip(starts, stops))
     return edges
@@ -250,24 +248,25 @@ def edgesConstant(x, slices):
     """
     return tuple(
         slice(np.maximum(0, s.start), np.minimum(xdim, s.stop))
-        for (s, xdim) in zip(slices, x.shape))
+        for (s, xdim) in zip(slices, x.shape)
+    )
 
 
-def padEdges(x, slices, mode='constant', **kwargs):
+def padEdges(x, slices, mode="constant", **kwargs):
     """Wrapper around `np.pad`
 
     This wrapper seeks to call `np.pad` with the smallest amount of data as
     needed, as dictated by `slices`.
     """
-    if all(map(lambda s, xdim: s.start >= 0 and s.stop <= xdim,
-               slices, x.shape)):
+    if all(map(lambda s, xdim: s.start >= 0 and s.stop <= xdim, slices, x.shape)):
         return x[slices]
-    beforeAfters = [(-s.start if s.start < 0 else 0, s.stop - xdim
-                     if s.stop > xdim else 0)
-                    for (s, xdim) in zip(slices, x.shape)]
-    if mode == 'constant':
+    beforeAfters = [
+        (-s.start if s.start < 0 else 0, s.stop - xdim if s.stop > xdim else 0)
+        for (s, xdim) in zip(slices, x.shape)
+    ]
+    if mode == "constant":
         edges = edgesConstant(x, slices)
-    elif mode == 'reflect':
+    elif mode == "reflect":
         edges = edgesReflect(x, slices)
     else:
         assert False
@@ -279,16 +278,18 @@ def padEdges(x, slices, mode='constant', **kwargs):
     return xpadded[firsts]
 
 
-def olsStep(x,
-            hfftconj,
-            starts: List[int],
-            lengths: List[int],
-            nfft: List[int],
-            nh: List[int],
-            rfftn=None,
-            irfftn=None,
-            mode='constant',
-            **kwargs):
+def olsStep(
+    x,
+    hfftconj,
+    starts: List[int],
+    lengths: List[int],
+    nfft: List[int],
+    nh: List[int],
+    rfftn=None,
+    irfftn=None,
+    mode="constant",
+    **kwargs
+):
     """Implements a single step of the overlap-save algorithm
 
     Given an entire signal array `x` and the pre-transformed filter array
@@ -363,14 +364,14 @@ def olsStep(x,
     border = np.array(nh) // 2
     slices = tuple(
         slice(start - border, start + length + nh - 1 - border)
-        for (start, length, nh, border) in zip(starts, lengths, nh, border))
+        for (start, length, nh, border) in zip(starts, lengths, nh, border)
+    )
     xpart = padEdges(x, slices, mode=mode, **kwargs)
     output = irfftn(rfftn(xpart, nfft) * hfftconj, nfft)
     return output[tuple(slice(0, s) for s in lengths)]
 
 
-def ols(x, h, size=None, nfft=None, out=None, rfftn=None, irfftn=None,
-        mode='constant', **kwargs):
+def ols(x, h, size=None, nfft=None, out=None, rfftn=None, irfftn=None, mode="constant", **kwargs):
     """Perform multidimensional overlap-save fast-convolution.
 
     As mentioned in the module docstring, the output of this function will be
@@ -447,8 +448,7 @@ def ols(x, h, size=None, nfft=None, out=None, rfftn=None, irfftn=None,
     """
     assert len(x.shape) == len(h.shape)
     size = size or [4 * x for x in h.shape]
-    nfft = nfft or [nextprod([2, 3, 5, 7], size + nh - 1)
-                    for size, nh in zip(size, h.shape)]
+    nfft = nfft or [nextprod([2, 3, 5, 7], size + nh - 1) for size, nh in zip(size, h.shape)]
     rfftn = rfftn or np.fft.rfftn
     irfftn = irfftn or np.fft.irfftn
     assert len(x.shape) == len(size)
@@ -461,12 +461,14 @@ def ols(x, h, size=None, nfft=None, out=None, rfftn=None, irfftn=None,
     for tup in array_range([0 for _ in out.shape], out.shape, size):
         out[tup] = olsStep(
             x,
-            hpre, [s.start for s in tup],
+            hpre,
+            [s.start for s in tup],
             size,
             nfft,
             h.shape,
             rfftn=rfftn,
             irfftn=irfftn,
             mode=mode,
-            **kwargs)
+            **kwargs
+        )
     return out

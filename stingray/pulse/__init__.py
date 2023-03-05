@@ -4,12 +4,14 @@
 # should keep this content at the top.
 # ----------------------------------------------------------------------------
 from .._astropy_init import *
+
 # ----------------------------------------------------------------------------
 
 try:
     import pint.toa as toa
     import pint
     from pint.models import get_model
+
     HAS_PINT = True
 except ImportError:
     HAS_PINT = False

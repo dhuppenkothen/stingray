@@ -14,10 +14,23 @@ from ..utils import simon, jit
 from . import HAS_PINT, get_model, toa
 
 
-__all__ = ['pulse_phase', 'phase_exposure', 'fold_events', 'profile_stat',
-           'z_n', 'fftfit', 'get_TOA', 'z_n_binned_events', 'z_n_gauss',
-           'z_n_events', 'htest', 'z_n_binned_events_all', 'z_n_gauss_all',
-           'z_n_events_all', 'get_orbital_correction_from_ephemeris_file']
+__all__ = [
+    "pulse_phase",
+    "phase_exposure",
+    "fold_events",
+    "profile_stat",
+    "z_n",
+    "fftfit",
+    "get_TOA",
+    "z_n_binned_events",
+    "z_n_gauss",
+    "z_n_events",
+    "htest",
+    "z_n_binned_events_all",
+    "z_n_gauss_all",
+    "z_n_events_all",
+    "get_orbital_correction_from_ephemeris_file",
+]
 
 
 def _default_value_if_no_key(dictionary, key, default):
@@ -71,8 +84,7 @@ def p_to_f(*period_derivatives):
 
     if nder > 3:
         pddd = period_derivatives[3]
-        fder[3] = - 6 / p**4 * pd ** 3 + 6 / p**3 * pd * pdd - \
-                  1 / p**2 * pddd
+        fder[3] = -6 / p**4 * pd**3 + 6 / p**3 * pd * pdd - 1 / p**2 * pddd
     if nder > 4:
         warnings.warn("Derivatives above third are not supported")
 
@@ -109,7 +121,7 @@ def pulse_phase(times, *frequency_derivatives, **opts):
     ph = ph0
 
     for i_f, f in enumerate(frequency_derivatives):
-        ph += 1 / np.math.factorial(i_f + 1) * times**(i_f + 1) * f
+        ph += 1 / np.math.factorial(i_f + 1) * times ** (i_f + 1) * f
 
     if to_1:
         ph -= np.floor(ph)
@@ -201,7 +213,7 @@ def phase_exposure(start_time, stop_time, period, nbin=16, gti=None):
 
 
 def fold_events(times, *frequency_derivatives, **opts):
-    '''Epoch folding with exposure correction.
+    """Epoch folding with exposure correction.
 
     Parameters
     ----------
@@ -232,10 +244,10 @@ def fold_events(times, *frequency_derivatives, **opts):
     The pulse profile
     profile_err : array of floats
     The uncertainties on the pulse profile
-    '''
+    """
     nbin = _default_value_if_no_key(opts, "nbin", 16)
     weights = _default_value_if_no_key(opts, "weights", 1)
-    # If no key is passed, *or gti is None*, defaults to the 
+    # If no key is passed, *or gti is None*, defaults to the
     # initial and final event
     gti = _default_value_if_no_key(opts, "gti", None)
     if gti is None:
@@ -259,16 +271,13 @@ def fold_events(times, *frequency_derivatives, **opts):
 
     phases = pulse_phase(times, *frequency_derivatives, to_1=True)
     gti_phases = pulse_phase(gti, *frequency_derivatives, to_1=False)
-    start_phase, stop_phase = pulse_phase(np.array([start_time, stop_time]),
-                                          *frequency_derivatives,
-                                          to_1=False)
-    raw_profile, bins = np.histogram(phases,
-                                     bins=np.linspace(0, 1, nbin + 1),
-                                     weights=weights)
+    start_phase, stop_phase = pulse_phase(
+        np.array([start_time, stop_time]), *frequency_derivatives, to_1=False
+    )
+    raw_profile, bins = np.histogram(phases, bins=np.linspace(0, 1, nbin + 1), weights=weights)
 
     if expocorr:
-        expo_norm = phase_exposure(start_phase, stop_phase, 1, nbin,
-                                   gti=gti_phases)
+        expo_norm = phase_exposure(start_phase, stop_phase, 1, nbin, gti=gti_phases)
         simon("For exposure != 1, the uncertainty might be incorrect")
     else:
         expo_norm = 1
@@ -277,8 +286,7 @@ def fold_events(times, *frequency_derivatives, **opts):
 
     raw_profile_err = np.sqrt(raw_profile)
 
-    return bins[:-1] + np.diff(bins) / 2, raw_profile / expo_norm, \
-        raw_profile_err / expo_norm
+    return bins[:-1] + np.diff(bins) / 2, raw_profile / expo_norm, raw_profile_err / expo_norm
 
 
 def profile_stat(profile, err=None):
@@ -302,7 +310,7 @@ def profile_stat(profile, err=None):
     mean = np.mean(profile)
     if err is None:
         err = np.sqrt(mean)
-    return np.sum((profile - mean) ** 2 / err ** 2)
+    return np.sum((profile - mean) ** 2 / err**2)
 
 
 @functools.lru_cache(maxsize=128)
@@ -320,7 +328,7 @@ def _cached_sin_harmonics(nbin, z_n_n):
     twopiphases = np.pi * 2 * np.arange(dph / 2, 1, dph)
     cached_sin = np.zeros(z_n_n * nbin)
     for i in range(z_n_n):
-        cached_sin[i * nbin: (i + 1) * nbin] = np.sin(twopiphases)
+        cached_sin[i * nbin : (i + 1) * nbin] = np.sin(twopiphases)
     return cached_sin
 
 
@@ -339,13 +347,13 @@ def _cached_cos_harmonics(nbin, z_n_n):
     twopiphases = np.pi * 2 * np.arange(dph / 2, 1, dph)
     cached_cos = np.zeros(z_n_n * nbin)
     for i in range(z_n_n):
-        cached_cos[i * nbin: (i + 1) * nbin] = np.cos(twopiphases)
+        cached_cos[i * nbin : (i + 1) * nbin] = np.cos(twopiphases)
     return cached_cos
 
 
 @jit(nopython=True)
 def _z_n_fast_cached_sums_unnorm(prof, ks, cached_sin, cached_cos):
-    '''Calculate the unnormalized Z^2_k, for (k=1,.. n), of a pulsed profile.
+    """Calculate the unnormalized Z^2_k, for (k=1,.. n), of a pulsed profile.
 
     Parameters
     ----------
@@ -357,7 +365,7 @@ def _z_n_fast_cached_sums_unnorm(prof, ks, cached_sin, cached_cos):
         Cached sine values for each phase bin in the profile
     cached_cos : :class:`numpy.array`
         Cached cosine values for each phase bin in the profile
-    '''
+    """
 
     all_zs = np.zeros(ks.size)
     N = prof.size
@@ -365,8 +373,8 @@ def _z_n_fast_cached_sums_unnorm(prof, ks, cached_sin, cached_cos):
     total_sum = 0
     for k in ks:
         local_z = (
-            np.sum(cached_cos[: N * k: k] * prof) ** 2
-            + np.sum(cached_sin[: N * k: k] * prof) ** 2
+            np.sum(cached_cos[: N * k : k] * prof) ** 2
+            + np.sum(cached_sin[: N * k : k] * prof) ** 2
         )
         total_sum += local_z
         all_zs[k - 1] = total_sum
@@ -375,7 +383,7 @@ def _z_n_fast_cached_sums_unnorm(prof, ks, cached_sin, cached_cos):
 
 
 def z_n_binned_events_all(profile, nmax=20):
-    '''Z^2_n statistic for multiple harmonics and binned events
+    """Z^2_n statistic for multiple harmonics and binned events
 
     See Bachetti+2021, arXiv:2012.11397
 
@@ -393,7 +401,7 @@ def z_n_binned_events_all(profile, nmax=20):
         Harmonic numbers, from 1 to nmax (included)
     z2_n : float
         The value of the statistic for all ks
-    '''
+    """
     cached_sin = _cached_sin_harmonics(profile.size, nmax)
     cached_cos = _cached_cos_harmonics(profile.size, nmax)
     ks = np.arange(1, nmax + 1, dtype=int)
@@ -407,7 +415,7 @@ def z_n_binned_events_all(profile, nmax=20):
 
 
 def z_n_gauss_all(profile, err, nmax=20):
-    '''Z^2_n statistic for n harmonics and normally-distributed profiles
+    """Z^2_n statistic for n harmonics and normally-distributed profiles
 
     See Bachetti+2021, arXiv:2012.11397
 
@@ -426,7 +434,7 @@ def z_n_gauss_all(profile, err, nmax=20):
         Harmonic numbers, from 1 to nmax (included)
     z2_n : list of floats
         The value of the statistic for all ks
-    '''
+    """
     cached_sin = _cached_sin_harmonics(profile.size, nmax)
     cached_cos = _cached_cos_harmonics(profile.size, nmax)
     ks = np.arange(1, nmax + 1, dtype=int)
@@ -438,7 +446,7 @@ def z_n_gauss_all(profile, err, nmax=20):
 
 @jit(nopython=True)
 def z_n_events_all(phase, nmax=20):
-    '''Z^2_n statistics, a` la Buccheri+83, A&A, 128, 245, eq. 2.
+    """Z^2_n statistics, a` la Buccheri+83, A&A, 128, 245, eq. 2.
 
     Parameters
     ----------
@@ -453,7 +461,7 @@ def z_n_events_all(phase, nmax=20):
         Harmonic numbers, from 1 to nmax (included)
     z2_n : float
         The Z^2_n statistic for all ks
-    '''
+    """
     all_zs = np.zeros(nmax)
     ks = np.arange(1, nmax + 1)
     nphot = phase.size
@@ -462,10 +470,7 @@ def z_n_events_all(phase, nmax=20):
     phase = phase * 2 * np.pi
 
     for k in ks:
-        local_z = (
-            np.sum(np.cos(k * phase)) ** 2
-            + np.sum(np.sin(k * phase)) ** 2
-        )
+        local_z = np.sum(np.cos(k * phase)) ** 2 + np.sum(np.sin(k * phase)) ** 2
         total_sum += local_z
         all_zs[k - 1] = total_sum
 
@@ -473,7 +478,7 @@ def z_n_events_all(phase, nmax=20):
 
 
 def z_n_binned_events(profile, n):
-    '''Z^2_n statistic for pulse profiles from binned events
+    """Z^2_n statistic for pulse profiles from binned events
 
     See Bachetti+2021, arXiv:2012.11397
 
@@ -489,13 +494,13 @@ def z_n_binned_events(profile, n):
     -------
     z2_n : float
         The value of the statistic
-    '''
+    """
     _, all_zs = z_n_binned_events_all(profile, nmax=n)
     return all_zs[-1]
 
 
 def z_n_gauss(profile, err, n):
-    '''Z^2_n statistic for normally-distributed profiles
+    """Z^2_n statistic for normally-distributed profiles
 
     See Bachetti+2021, arXiv:2012.11397
 
@@ -512,13 +517,13 @@ def z_n_gauss(profile, err, n):
     -------
     z2_n : float
         The value of the statistic
-    '''
+    """
     _, all_zs = z_n_gauss_all(profile, err, nmax=n)
     return all_zs[-1]
 
 
 def z_n_events(phase, n):
-    '''Z^2_n statistics, a` la Buccheri+83, A&A, 128, 245, eq. 2.
+    """Z^2_n statistics, a` la Buccheri+83, A&A, 128, 245, eq. 2.
 
     Parameters
     ----------
@@ -531,13 +536,13 @@ def z_n_events(phase, n):
     -------
     z2_n : float
         The Z^2_n statistic
-    '''
+    """
     ks, all_zs = z_n_events_all(phase, nmax=n)
     return all_zs[-1]
 
 
 def z_n(data, n, datatype="events", err=None, norm=None):
-    '''Z^2_n statistics, a` la Buccheri+83, A&A, 128, 245, eq. 2.
+    """Z^2_n statistics, a` la Buccheri+83, A&A, 128, 245, eq. 2.
 
     If datatype is "binned" or "gauss", uses the formulation from
     Bachetti+2021, ApJ, arxiv:2012.11397
@@ -567,13 +572,15 @@ def z_n(data, n, datatype="events", err=None, norm=None):
     -------
     z2_n : float
         The Z^2_n statistics of the events.
-    '''
+    """
     data = np.asarray(data)
 
     if norm is not None:
-        warnings.warn("The use of ``z_n(phase, norm=profile)`` is deprecated. Use "
-                      "``z_n(profile, datatype='binned')`` instead",
-                      DeprecationWarning)
+        warnings.warn(
+            "The use of ``z_n(phase, norm=profile)`` is deprecated. Use "
+            "``z_n(profile, datatype='binned')`` instead",
+            DeprecationWarning,
+        )
         if isinstance(norm, Iterable):
             data = norm
             datatype = "binned"
@@ -589,15 +596,14 @@ def z_n(data, n, datatype="events", err=None, norm=None):
         return z_n_events(data, n)
     elif datatype == "gauss":
         if err is None:
-            raise ValueError(
-                "If datatype='gauss', you need to specify an uncertainty (err)")
+            raise ValueError("If datatype='gauss', you need to specify an uncertainty (err)")
         return z_n_gauss(data, n=n, err=err)
 
     raise ValueError(f"Unknown datatype requested for Z_n ({datatype})")
 
 
 def htest(data, nmax=20, datatype="binned", err=None):
-    '''htest-test statistic, a` la De Jager+89, A&A, 221, 180D, eq. 2.
+    """htest-test statistic, a` la De Jager+89, A&A, 221, 180D, eq. 2.
 
     If datatype is "binned" or "gauss", uses the formulation from
     Bachetti+2021, ApJ, arxiv:2012.11397
@@ -625,15 +631,14 @@ def htest(data, nmax=20, datatype="binned", err=None):
         The best number of harmonics that describe the signal.
     htest : float
         The htest statistics of the events.
-    '''
+    """
     if datatype == "binned":
         ks, zs = z_n_binned_events_all(data, nmax)
     elif datatype == "events":
         ks, zs = z_n_events_all(data, nmax)
     elif datatype == "gauss":
         if err is None:
-            raise ValueError(
-                "If datatype='gauss', you need to specify an uncertainty (err)")
+            raise ValueError("If datatype='gauss', you need to specify an uncertainty (err)")
         ks, zs = z_n_gauss_all(data, nmax=nmax, err=err)
     else:
         raise ValueError(f"Unknown datatype requested for htest ({datatype})")
@@ -645,13 +650,12 @@ def htest(data, nmax=20, datatype="binned", err=None):
 
 
 def fftfit_fun(profile, template, amplitude, phase):
-    '''Function to be minimized for the FFTFIT method.'''
+    """Function to be minimized for the FFTFIT method."""
 
     pass
 
 
-def fftfit(prof, template=None, quick=False, sigma=None, use_bootstrap=False,
-           **fftfit_kwargs):
+def fftfit(prof, template=None, quick=False, sigma=None, use_bootstrap=False, **fftfit_kwargs):
     """Align a template to a pulse profile.
 
     Parameters
@@ -684,19 +688,21 @@ def fftfit(prof, template=None, quick=False, sigma=None, use_bootstrap=False,
     return taylor_fftfit(prof, template)
 
 
-def _plot_TOA_fit(profile, template, toa, mod=None, toaerr=None,
-                  additional_phase=0., show=True, period=1):
+def _plot_TOA_fit(
+    profile, template, toa, mod=None, toaerr=None, additional_phase=0.0, show=True, period=1
+):
     """Plot diagnostic information on the TOA."""
     from scipy.interpolate import interp1d
     import time
+
     phases = np.arange(0, 2, 1 / len(profile))
     profile = np.concatenate((profile, profile))
     template = np.concatenate((template, template))
     if mod is None:
-        mod = interp1d(phases, template, fill_value='extrapolate')
+        mod = interp1d(phases, template, fill_value="extrapolate")
 
     fig = plt.figure()
-    plt.plot(phases, profile, drawstyle='steps-mid')
+    plt.plot(phases, profile, drawstyle="steps-mid")
     fine_phases = np.linspace(0, 1, 1000)
     fine_phases_shifted = fine_phases - toa / period + additional_phase
     model = mod(fine_phases_shifted - np.floor(fine_phases_shifted))
@@ -705,17 +711,25 @@ def _plot_TOA_fit(profile, template, toa, mod=None, toaerr=None,
     if toaerr is not None:
         plt.axvline((toa - toaerr) / period)
         plt.axvline((toa + toaerr) / period)
-    plt.axvline(toa / period - 0.5 / len(profile), ls='--')
-    plt.axvline(toa / period + 0.5 / len(profile), ls='--')
+    plt.axvline(toa / period - 0.5 / len(profile), ls="--")
+    plt.axvline(toa / period + 0.5 / len(profile), ls="--")
     timestamp = int(time.time())
-    plt.savefig('{}.png'.format(timestamp))
+    plt.savefig("{}.png".format(timestamp))
     if not show:
         plt.close(fig)
 
 
-def get_TOA(prof, period, tstart, template=None, additional_phase=0,
-            quick=False, debug=False, use_bootstrap=False,
-            **fftfit_kwargs):
+def get_TOA(
+    prof,
+    period,
+    tstart,
+    template=None,
+    additional_phase=0,
+    quick=False,
+    debug=False,
+    use_bootstrap=False,
+    **fftfit_kwargs,
+):
     """Calculate the Time-Of-Arrival of a pulse.
 
     Parameters
@@ -744,9 +758,9 @@ def get_TOA(prof, period, tstart, template=None, additional_phase=0,
     if template is None:
         template = np.cos(2 * np.pi * ph)
 
-    mean_amp, std_amp, phase_res, phase_res_err = \
-        fftfit(prof, template=template, quick=quick,
-               use_bootstrap=use_bootstrap, **fftfit_kwargs)
+    mean_amp, std_amp, phase_res, phase_res_err = fftfit(
+        prof, template=template, quick=quick, use_bootstrap=use_bootstrap, **fftfit_kwargs
+    )
     phase_res = phase_res + additional_phase
     phase_res = phase_res - np.floor(phase_res)
 
@@ -754,9 +768,14 @@ def get_TOA(prof, period, tstart, template=None, additional_phase=0,
     toaerr = phase_res_err * period
 
     if debug:
-        _plot_TOA_fit(prof, template, toa - tstart, toaerr=toaerr,
-                      additional_phase=additional_phase,
-                      period=period)
+        _plot_TOA_fit(
+            prof,
+            template,
+            toa - tstart,
+            toaerr=toaerr,
+            additional_phase=additional_phase,
+            period=period,
+        )
 
     return toa, toaerr
 
@@ -764,19 +783,19 @@ def get_TOA(prof, period, tstart, template=None, additional_phase=0,
 def _load_and_prepare_TOAs(mjds, ephem="DE405"):
     toalist = [None] * len(mjds)
     for i, m in enumerate(mjds):
-        toalist[i] = toa.TOA(m, obs='Barycenter', scale='tdb')
+        toalist[i] = toa.TOA(m, obs="Barycenter", scale="tdb")
 
     toalist = toa.TOAs(toalist=toalist)
-    if 'tdb' not in toalist.table.colnames:
+    if "tdb" not in toalist.table.colnames:
         toalist.compute_TDBs(ephem=ephem)
-    if 'ssb_obs_pos' not in toalist.table.colnames:
+    if "ssb_obs_pos" not in toalist.table.colnames:
         toalist.compute_posvels(ephem, False)
     return toalist
 
 
-def get_orbital_correction_from_ephemeris_file(mjdstart, mjdstop, parfile,
-                                               ntimes=1000, ephem="DE405",
-                                               return_pint_model=False):
+def get_orbital_correction_from_ephemeris_file(
+    mjdstart, mjdstop, parfile, ntimes=1000, ephem="DE405", return_pint_model=False
+):
     """Get a correction for orbital motion from pulsar parameter file.
 
     Parameters
@@ -801,21 +820,26 @@ def get_orbital_correction_from_ephemeris_file(mjdstart, mjdstop, parfile,
     """
     from scipy.interpolate import interp1d
     from astropy import units
-    simon("Assuming events are already referred to the solar system "
-          "barycenter (timescale is TDB)")
+
+    simon(
+        "Assuming events are already referred to the solar system " "barycenter (timescale is TDB)"
+    )
     if not HAS_PINT:
-        raise ImportError("You need the optional dependency PINT to use this "
-                          "functionality: github.com/nanograv/pint")
+        raise ImportError(
+            "You need the optional dependency PINT to use this "
+            "functionality: github.com/nanograv/pint"
+        )
 
     mjds = np.linspace(mjdstart, mjdstop, ntimes)
     toalist = _load_and_prepare_TOAs(mjds, ephem=ephem)
     m = get_model(parfile)
     delays = m.delay(toalist)
 
-    correction_mjd_rough = \
-        interp1d(mjds,
-                 (toalist.table['tdbld'] * units.d - delays).to(units.d).value,
-                  fill_value="extrapolate")
+    correction_mjd_rough = interp1d(
+        mjds,
+        (toalist.table["tdbld"] * units.d - delays).to(units.d).value,
+        fill_value="extrapolate",
+    )
 
     def correction_mjd(mjds):
         """Get the orbital correction.
@@ -833,8 +857,9 @@ def get_orbital_correction_from_ephemeris_file(mjdstart, mjdstop, parfile,
         # Maybe this will be fixed if scipy/scipy#9602 is accepted
         bad = (mjds < xvals[0]) | (np.any(mjds > xvals[-1]))
         if np.any(bad):
-            warnings.warn("Some points are outside the interpolation range:"
-                          " {}".format(mjds[bad]))
+            warnings.warn(
+                "Some points are outside the interpolation range:" " {}".format(mjds[bad])
+            )
         return correction_mjd_rough(mjds)
 
     def correction_sec(times, mjdref):

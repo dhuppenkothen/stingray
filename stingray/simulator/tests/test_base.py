@@ -5,7 +5,6 @@ import numpy as np
 
 
 class TestSimulator(object):
-
     @classmethod
     def setup_class(self):
         self.time = [0.5, 1.5, 2.5, 3.5]
@@ -18,8 +17,9 @@ class TestSimulator(object):
         """
         lc = Lightcurve(self.time, self.counts_flat, gti=self.gti)
         times = simulate_times(lc)
-        lc_sim = Lightcurve.make_lightcurve(times, gti=lc.gti, dt=lc.dt,
-                                            tstart=lc.tstart, tseg=lc.tseg)
+        lc_sim = Lightcurve.make_lightcurve(
+            times, gti=lc.gti, dt=lc.dt, tstart=lc.tstart, tseg=lc.tseg
+        )
         print((lc - lc_sim).counts)
         assert np.all(np.abs((lc - lc_sim).counts) < 3 * np.sqrt(lc.counts))
 
@@ -29,6 +29,7 @@ class TestSimulator(object):
         """
         lc = Lightcurve(self.time, self.counts_flat, gti=self.gti)
         times = simulate_times(lc, use_spline=True)
-        lc_sim = Lightcurve.make_lightcurve(times, gti=lc.gti, dt=lc.dt,
-                                            tstart=lc.tstart, tseg=lc.tseg)
+        lc_sim = Lightcurve.make_lightcurve(
+            times, gti=lc.gti, dt=lc.dt, tstart=lc.tstart, tseg=lc.tseg
+        )
         assert np.all((lc - lc_sim).counts < 3 * np.sqrt(lc.counts))

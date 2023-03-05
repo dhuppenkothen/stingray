@@ -1,4 +1,3 @@
-
 import numpy as np
 from astropy.modeling import models
 
@@ -9,8 +8,9 @@ from stingray import Powerspectrum
 __all__ = ["fit_powerspectrum", "fit_crossspectrum", "fit_lorentzians"]
 
 
-def fit_powerspectrum(ps, model, starting_pars=None, max_post=False,
-                      priors=None, fitmethod="L-BFGS-B"):
+def fit_powerspectrum(
+    ps, model, starting_pars=None, max_post=False, priors=None, fitmethod="L-BFGS-B"
+):
     """
     Fit a number of Lorentzians to a power spectrum, possibly including white
     noise. Each Lorentzian has three parameters (amplitude, centroid position,
@@ -115,13 +115,11 @@ def fit_powerspectrum(ps, model, starting_pars=None, max_post=False,
     >>> p_opt = res.p_opt
 
     """
-    if not (isinstance(starting_pars, np.ndarray) or isinstance(starting_pars,
-                                                                list)):
+    if not (isinstance(starting_pars, np.ndarray) or isinstance(starting_pars, list)):
         starting_pars = model.parameters
 
     if priors:
-        lpost = PSDPosterior(ps.freq, ps.power, model, priors=priors,
-                             m=ps.m)
+        lpost = PSDPosterior(ps.freq, ps.power, model, priors=priors, m=ps.m)
     else:
         lpost = PSDLogLikelihood(ps.freq, ps.power, model, m=ps.m)
 
@@ -131,8 +129,9 @@ def fit_powerspectrum(ps, model, starting_pars=None, max_post=False,
     return parest, res
 
 
-def fit_crossspectrum(cs, model, starting_pars=None, max_post=False,
-                      priors=None, fitmethod="L-BFGS-B"):
+def fit_crossspectrum(
+    cs, model, starting_pars=None, max_post=False, priors=None, fitmethod="L-BFGS-B"
+):
     """
     Fit a number of Lorentzians to a cross spectrum, possibly including white
     noise. Each Lorentzian has three parameters (amplitude, centroid position,
@@ -183,15 +182,12 @@ def fit_crossspectrum(cs, model, starting_pars=None, max_post=False,
         The OptimizationResults object storing useful results and quantities
         relating to the fit
     """
-    if not (isinstance(starting_pars, np.ndarray) or isinstance(starting_pars,
-                                                                list)):
+    if not (isinstance(starting_pars, np.ndarray) or isinstance(starting_pars, list)):
         starting_pars = model.parameters
     if priors:
-        lgauss = GaussianPosterior(cs.freq, np.abs(cs.power), cs.power_err,
-                                   model, priors)
+        lgauss = GaussianPosterior(cs.freq, np.abs(cs.power), cs.power_err, model, priors)
     else:
-        lgauss = GaussianLogLikelihood(cs.freq, np.abs(cs.power), model=model,
-                                       yerr=cs.power_err)
+        lgauss = GaussianLogLikelihood(cs.freq, np.abs(cs.power), model=model, yerr=cs.power_err)
 
     parest = PSDParEst(cs, fitmethod=fitmethod, max_post=max_post)
     res = parest.fit(lgauss, starting_pars, neg=True)
@@ -199,9 +195,9 @@ def fit_crossspectrum(cs, model, starting_pars=None, max_post=False,
     return parest, res
 
 
-def fit_lorentzians(ps, nlor, starting_pars, fit_whitenoise=True,
-                    max_post=False, priors=None,
-                    fitmethod="L-BFGS-B"):
+def fit_lorentzians(
+    ps, nlor, starting_pars, fit_whitenoise=True, max_post=False, priors=None, fitmethod="L-BFGS-B"
+):
     """
     Fit a number of Lorentzians to a power spectrum, possibly including white
     noise. Each Lorentzian has three parameters (amplitude, centroid position,
@@ -317,5 +313,6 @@ def fit_lorentzians(ps, nlor, starting_pars, fit_whitenoise=True,
     if fit_whitenoise:
         model += models.Const1D()
 
-    return fit_powerspectrum(ps, model, starting_pars, max_post=max_post,
-                             priors=priors, fitmethod=fitmethod)
+    return fit_powerspectrum(
+        ps, model, starting_pars, max_post=max_post, priors=priors, fitmethod=fitmethod
+    )

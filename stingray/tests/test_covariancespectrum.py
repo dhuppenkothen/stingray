@@ -1,4 +1,3 @@
-
 import numpy as np
 
 import pytest
@@ -7,16 +6,41 @@ import warnings
 from stingray import AveragedCovariancespectrum, Covariancespectrum, Lightcurve
 from stingray.events import EventList
 
+
 class TestCovariancespectrumwithEvents(object):
-
     def setup_class(self):
-        event_list = np.array([[1, 2], [1, 4], [1, 8], [3, 6], [3, 1], [4, 2],
-                               [4, 4], [4, 6], [4, 7], [4, 5], [4, 9], [5, 1],
-                               [5, 6], [5, 7], [5, 9], [5, 3], [5, 8], [6, 1],
-                               [6, 3], [7, 3], [7, 4], [7, 5], [7, 7], [8, 8],
-                               [9, 2], [9, 5], [9, 9]])
+        event_list = np.array(
+            [
+                [1, 2],
+                [1, 4],
+                [1, 8],
+                [3, 6],
+                [3, 1],
+                [4, 2],
+                [4, 4],
+                [4, 6],
+                [4, 7],
+                [4, 5],
+                [4, 9],
+                [5, 1],
+                [5, 6],
+                [5, 7],
+                [5, 9],
+                [5, 3],
+                [5, 8],
+                [6, 1],
+                [6, 3],
+                [7, 3],
+                [7, 4],
+                [7, 5],
+                [7, 7],
+                [8, 8],
+                [9, 2],
+                [9, 5],
+                [9, 9],
+            ]
+        )
         self.event_list = event_list
-
 
     def test_class_fails_if_events_is_set_but_dt_is_not(self):
         with pytest.raises(ValueError):
@@ -37,10 +61,10 @@ class TestCovariancespectrumwithEvents(object):
         band_high = np.zeros_like(energies)
         ediff = np.diff(energies)
 
-        band_low[:-1] = energies[:-1] - 0.5*ediff
-        band_high[:-1] = energies[:-1] + 0.5*ediff
-        band_low[-1] = energies[-1] - 0.5*ediff[-1]
-        band_high[-1] = energies[-1] + 0.5*ediff[-1]
+        band_low[:-1] = energies[:-1] - 0.5 * ediff
+        band_high[:-1] = energies[:-1] + 0.5 * ediff
+        band_low[-1] = energies[-1] - 0.5 * ediff[-1]
+        band_high[-1] = energies[-1] + 0.5 * ediff[-1]
 
         band_interest = np.vstack([band_low, band_high]).T
 
@@ -55,15 +79,15 @@ class TestCovariancespectrumwithEvents(object):
             c = Covariancespectrum(self.event_list, dt=1, ref_band_interest=(0))
 
     def test_covar_with_both_bands(self):
-        c = Covariancespectrum(self.event_list, dt=1,
-                               band_interest=[(2, 6), (8, 9)],
-                               ref_band_interest=(1, 10))
+        c = Covariancespectrum(
+            self.event_list, dt=1, band_interest=[(2, 6), (8, 9)], ref_band_interest=(1, 10)
+        )
         assert len(c.covar) == 2
 
     def test_with_separate_reference_band(self):
-        c = Covariancespectrum(self.event_list, dt=1,
-                               band_interest=[(2, 6)],
-                               ref_band_interest=((7, 10)))
+        c = Covariancespectrum(
+            self.event_list, dt=1, band_interest=[(2, 6)], ref_band_interest=((7, 10))
+        )
 
     def test_with_unsorted_event_list(self):
         event_list = np.array([[2, 1], [2, 3], [1, 2], [5, 2], [4, 1]])
@@ -78,10 +102,10 @@ class TestCovariancespectrumwithEvents(object):
         c = Covariancespectrum(self.event_list, dt=1, std=2.55)
 
     def test_with_eventlist_object(self):
-        e = EventList(time = self.event_list[:,0],
-                      energy = self.event_list[:,1])
+        e = EventList(time=self.event_list[:, 0], energy=self.event_list[:, 1])
 
         c = Covariancespectrum(e, dt=1)
+
 
 class TestCovariancewithLightcurves(object):
     def setup_class(self):
@@ -109,10 +133,7 @@ class TestCovariancewithLightcurves(object):
 
         self.lcs = [lc1, lc2, lc3, lc4, lc5, lc6, lc7, lc8, lc9]
 
-        self.ref_band_interest = Lightcurve(time,
-                                            np.array([2, 3, 1,
-                                                      4, 4, 0,
-                                                      1, 3, 2]))
+        self.ref_band_interest = Lightcurve(time, np.array([2, 3, 1, 4, 4, 0, 1, 3, 2]))
 
     def test_class_initializes_with_lightcurves(self):
         c = Covariancespectrum(self.lcs)
@@ -123,15 +144,12 @@ class TestCovariancewithLightcurves(object):
         assert c.lcs == self.lcs
 
     def test_single_lc_as_ref_band_interest(self):
-        c = Covariancespectrum(self.lcs,
-                               ref_band_interest=self.ref_band_interest)
+        c = Covariancespectrum(self.lcs, ref_band_interest=self.ref_band_interest)
 
     def test_lc_with_no_band_interest(self):
-        c = Covariancespectrum(self.lcs,
-                               ref_band_interest=None)
+        c = Covariancespectrum(self.lcs, ref_band_interest=None)
 
-        band_interest = np.vstack([np.arange(len(self.lcs)),
-                        np.arange(1, len(self.lcs) + 1, 1)]).T
+        band_interest = np.vstack([np.arange(len(self.lcs)), np.arange(1, len(self.lcs) + 1, 1)]).T
 
         assert np.allclose(c.band_interest, band_interest)
 
@@ -153,19 +171,45 @@ class TestCovariancewithLightcurves(object):
 
 
 class TestAveragedCovariancespectrum(object):
-
     def setup_class(self):
-        event_list = np.array([[1, 2], [1, 4], [1, 8], [3, 6], [3, 1], [4, 2],
-                               [4, 4], [4, 6], [4, 7], [4, 5], [4, 9], [5, 1],
-                               [5, 6], [5, 7], [5, 9], [5, 3], [5, 8], [6, 1],
-                               [6, 3], [7, 3], [7, 4], [7, 5], [7, 7], [8, 8],
-                               [9, 2], [9, 5], [9, 9], [10, 1], [10, 2]])
+        event_list = np.array(
+            [
+                [1, 2],
+                [1, 4],
+                [1, 8],
+                [3, 6],
+                [3, 1],
+                [4, 2],
+                [4, 4],
+                [4, 6],
+                [4, 7],
+                [4, 5],
+                [4, 9],
+                [5, 1],
+                [5, 6],
+                [5, 7],
+                [5, 9],
+                [5, 3],
+                [5, 8],
+                [6, 1],
+                [6, 3],
+                [7, 3],
+                [7, 4],
+                [7, 5],
+                [7, 7],
+                [8, 8],
+                [9, 2],
+                [9, 5],
+                [9, 9],
+                [10, 1],
+                [10, 2],
+            ]
+        )
         self.event_list = event_list
 
     def test_with_full_segment(self):
         c = Covariancespectrum(self.event_list, 1)
-        avg_c = AveragedCovariancespectrum(self.event_list, segment_size=10,
-                                           dt=1)
+        avg_c = AveragedCovariancespectrum(self.event_list, segment_size=10, dt=1)
         assert np.allclose(avg_c.unnorm_covar, c.unnorm_covar)
 
     def test_with_two_segments(self):
