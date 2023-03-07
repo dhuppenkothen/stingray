@@ -1,23 +1,51 @@
-To make EventList.read work on Fermi/GBM data, you will need to follow these steps:
+Hello! It looks like you want to modify the EventList.read method in the stingray.EventList class to work with Fermi/GBM data. Here are some steps you can follow to accomplish this:
 
-Install the HEASOFT software package: HEASOFT is a collection of software tools developed by NASA for analyzing astrophysical data. It includes the FTOOLS package, which contains the EventList.read function that can be used to read in Fermi/GBM data. HEASOFT can be downloaded from the NASA website at https://heasarc.gsfc.nasa.gov/lheasoft/download.html.
+Import astropy.io.fits to read in the FITS file format of Fermi/GBM data.
 
-Download the Fermi/GBM data: The data can be downloaded from the Fermi Science Support Center (FSSC) website at https://heasarc.gsfc.nasa.gov/db-perl/W3Browse/w3table.pl?tablehead=name%3Dfermigbmcat&Action=More+Options. You will need to select the time range and the energy range for the data you want to download.
+Use 
+```
+astropy.io.fits.open() 
+```
+to open the FITS file.
 
-Convert the data into the FITS format: The Fermi/GBM data is provided in the GBM format, which is not compatible with EventList.read. You will need to convert the data into the FITS format using the Fermi Science Tools (FST). FST is included in the HEASOFT software package.
+Use the 
+```
+astropy.io.fits.getdata()
+```
+function to retrieve the data from the correct table in the FITS file.
 
-Use EventList.read to read in the data: Once the data has been converted into the FITS format, you can use EventList.read to read in the data. Here is an example code snippet:
+Parse the metadata correctly, such as the start time, stop time, and time resolution, from the FITS header. You can use
+```
+astropy.io.fits.Header
+```
+to access the header information.
 
+Use the retrieved data and parsed metadata to create an instance of the stingray.EventList class.
+
+
+Return the 
+```
+stingray.EventList instance.
+```
+
+Here's some sample code to give you an idea of what the implementation could look like:
 
 ```
 from astropy.io import fits
-from astropy.table import Table
+from stingray import EventList
 
-filename = 'gbm_data.fits'
-hdulist = fits.open(filename)
-tbdata = Table(hdulist[1].data)
-events = tbdata['TIME']
+def read(self, filename):
+    with fits.open(filename) as hdul:
+        data = hdul[1].data
+        header = hdul[1].header
+        # Parse the metadata, such as start time, stop time, and time resolution
+        start_time = header['TSTART']
+        stop_time = header['TSTOP']
+        dt = header['TIMEDEL']
+        # Retrieve the time column from the FITS table
+        time = data['time']
+    # Create an instance of the EventList class with the retrieved data and parsed metadata
+    ev = EventList(time, mjdref=start_time, dt=dt, tseg=(stop_time - start_time))
+    return ev
 ```
 
-
-In this example, 'gbm_data.fits' is the name of the FITS file containing the Fermi/GBM data. The data is read into a Table object using the fits.open function, and the events are extracted from the table using the 'TIME' column.
