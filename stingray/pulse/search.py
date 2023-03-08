@@ -5,7 +5,10 @@ from ..utils import jit, HAS_NUMBA
 from ..utils import contiguous_regions
 from astropy.stats import poisson_conf_interval
 import matplotlib.pyplot as plt
-
+from stingray import EventList
+from stingray.stats import z2_n_detection_level
+from stingray.pulse.modeling import fit_sinc
+from stingray.pulse.modeling import fit_gaussian
 
 __all__ = [
     "epoch_folding_search",
@@ -14,6 +17,7 @@ __all__ = [
     "plot_profile",
     "plot_phaseogram",
     "phaseogram",
+    "Pulsar_Periodogram",
 ]
 
 
@@ -549,3 +553,106 @@ def phaseogram(
         additional_info = {}
 
     return phas, binx, biny, additional_info
+
+
+class Pulsar_Periodogram:
+    """
+    Creates a Periodogram for a given event
+
+    Parameters
+    ----------
+    events : EventList
+        The input Event list to make the periodogram
+    fmin   : float
+        The minimum frequency which is evaluated
+    fmax   : float
+        The maximum frequency which is evaluated
+    oversample : int
+        Factor for improved resolution
+    nharm  : int
+        Number of harmonics
+    nbin : int
+        The number of bins/ degree of freedom
+
+    Attributes
+    ----------
+    obs_length: float
+        Total time of the observation
+
+    frequencies: np.array
+        Array of the frequencies to be checked
+
+    zstat: np.array
+        Z statistics of the respective frequencies
+
+    z_detlev: float
+        The level above which a frequency will be
+        considered as a candidate pulse
+
+    cand_freq_z: np.array
+        Candidate frequencies of the periodogram
+    """
+
+    def __init__(self, events: EventList, fmax, fmin, oversample=1, nharm=1, nbin=32):
+        self.events = events
+        self.fmax = fmax
+        self.fmin = fmin
+        self.oversample = oversample
+        self.nharm = nharm
+        self.nbin = nbin
+        self.obs_length = events.time.max() - events.time.min()
+        self.df = 1 / (self.oversample * self.obs_length)
+        self.frequencies = np.arange(fmin, fmax, self.df)
+        self.zstat = z_n_search(events.time, self.frequencies, nbin=nbin, nharm=self.nharm)[1]
+        self.z_detlev = z2_n_detection_level(
+            n=self.nharm, epsilon=0.005, ntrial=len(self.frequencies)
+        )
+        self.cand_freqs_z = search_best_peaks(self.frequencies, self.zstat, self.z_detlev)[0]
+
+    def plot_Z_periodogram(self, threshold=False, fitsinc=False, fitgauss=False):
+        """
+        Plots the periodogram with other functionalities
+
+        Parameters
+        ----------
+        threshold: bool
+            Plots the threshold for Zn search and the
+            candidate frequencies
+
+        fitsinc: bool
+            Fits and Plots a sinc squared function
+
+        fitgauss: book
+            Fits and Plots a normal function
+
+        """
+        plt.figure()
+        plt.plot(self.frequencies, (self.zstat - self.nharm), label="$Z^2$ statistics", alpha=0.7)
+        if threshold:
+            plt.axhline(self.z_detlev - self.nharm, label="$Z^2_n$ det. lev.")
+            for c in self.cand_freqs_z[0:3]:
+                plt.axvline(c, ls="--", label="$Z^2_n$ Candidate")
+        if fitsinc:
+            fs = fit_sinc(
+                self.frequencies,
+                self.zstat - self.nharm,
+                amp=max(self.zstat - self.nharm),
+                mean=self.cand_freqs_z[0],
+                obs_length=self.obs_length,
+            )
+            plt.plot(self.frequencies, fs(self.frequencies), label="Best sinc_sq fit")
+
+        if fitgauss:
+            fg = fit_gaussian(
+                self.frequencies,
+                self.zstat - self.nharm,
+                amplitude=max(self.zstat - self.nharm),
+                mean=self.cand_freqs_z[0],
+                stddev=1 / (np.pi * self.obs_length),
+            )
+            plt.plot(self.frequencies, fg(self.frequencies), label="Best gaussian fit")
+
+        plt.xlim([self.frequencies[0], self.frequencies[-1]])
+        plt.xlabel("Frequency (Hz)")
+        plt.ylabel("$Z_n^2$ statistics")
+        plt.legend()
