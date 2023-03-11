@@ -1079,6 +1079,47 @@ class TestLightcurve(object):
             lc.plot(title="Test Lightcurve")
         assert plt.fignum_exists(1)
 
+    def test_plot_axes(self):
+        plt.subplot(211)
+        lc = Lightcurve(self.times, self.counts)
+
+        plot2 = lc.plot(ax=plt.subplot(212), labels=("times", "counts"), title="lightcurve")
+        assert plt.fignum_exists(1)
+        plt.close(1)
+
+    def test_plot_labels_and_fname_for_axes(self):
+        lc = Lightcurve(self.times, self.counts)
+        outfname = "blabla.png"
+        if os.path.exists(outfname):
+            os.unlink(outfname)
+
+        plt.subplot(211)
+        plot2 = lc.plot(
+            ax=plt.subplot(212),
+            labels=("times", "counts"),
+            title="lightcurve",
+            filename=outfname,
+            save=True,
+        )
+        assert os.path.exists(outfname)
+        os.unlink(outfname)
+
+    def test_plot_labels_and_fname_for_axes_default(self):
+        lc = Lightcurve(self.times, self.counts)
+        outfname = "out.png"
+        if os.path.exists(outfname):
+            os.unlink(outfname)
+
+        plt.subplot(211)
+        plot2 = lc.plot(
+            ax=plt.subplot(212),
+            labels=("times", "counts"),
+            title="lightcurve",
+            save=True,
+        )
+        assert os.path.exists(outfname)
+        os.unlink(outfname)
+
     def test_read_from_lcurve_1(self):
         fname = "lcurveA.fits"
         with pytest.warns(UserWarning):

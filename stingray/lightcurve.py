@@ -1692,6 +1692,7 @@ class Lightcurve(StingrayTimeseries):
         marker="-",
         save=False,
         filename=None,
+        ax=None,
     ):
         """
         Plot the light curve using ``matplotlib``.
@@ -1726,18 +1727,22 @@ class Lightcurve(StingrayTimeseries):
 
         filename : str
             File name of the image to save. Depends on the boolean ``save``.
+        ax : ``Matplotlib.Axes`` object
+            An axis object to fill with the lightcurve plot
         """
+        if ax is None:
+            fig = plt.figure()
+            ax = fig.add_subplot(1, 1, 1)
 
-        fig = plt.figure()
         if witherrors:
-            fig = plt.errorbar(self.time, self.counts, yerr=self.counts_err, fmt=marker)
+            ax.errorbar(self.time, self.counts, yerr=self.counts_err, fmt=marker)
         else:
-            fig = plt.plot(self.time, self.counts, marker)
+            ax.plot(self.time, self.counts, marker)
 
         if labels is not None:
             try:
-                plt.xlabel(labels[0])
-                plt.ylabel(labels[1])
+                ax.set_xlabel(labels[0])
+                ax.set_ylabel(labels[1])
             except TypeError:
                 utils.simon("``labels`` must be either a list or tuple with " "x and y labels.")
                 raise
@@ -1747,18 +1752,19 @@ class Lightcurve(StingrayTimeseries):
                 # x-axis will be labelled.
 
         if axis is not None:
-            plt.axis(axis)
+            ax.set_xlim(axis[0:2])
+            ax.set_ylim(axis[2:4])
 
         if title is not None:
-            plt.title(title)
+            ax.set_title(title)
 
         if save:
             if filename is None:
-                plt.savefig("out.png")
+                plt.gcf().savefig("out.png")
             else:
-                plt.savefig(filename)
-        else:
-            plt.show(block=False)
+                plt.gcf().savefig(filename)
+
+        return ax
 
     @classmethod
     def read(cls, filename, fmt=None, format_=None, err_dist="gauss", skip_checks=False):
