@@ -22,12 +22,23 @@ try:
     can_sample = True
 except ImportError:
     can_sample = False
+from typing import TYPE_CHECKING, Union, List, Optional
 
+if TYPE_CHECKING:
+    from numpy import typing as npt
+
+    ListOrArray = Union(npt.ArrayLike[float], List[float])
 
 __all__ = ["bexvar"]
 
 
-def _lscg_gen(src_counts, bkg_counts, bkg_area, rate_conversion, density_gp):
+def _lscg_gen(
+    src_counts: ListOrArray,
+    bkg_counts: ListOrArray,
+    bkg_area: ListOrArray,
+    rate_conversion: ListOrArray,
+    density_gp: int
+) -> npt.NDArray:
     """
     Generates a grid of log(source count rates), ``log_src_crs_grid`` applicable
     to this particular light curve, with appropriately designated limits, for
@@ -85,9 +96,11 @@ def _lscg_gen(src_counts, bkg_counts, bkg_area, rate_conversion, density_gp):
     return log_src_crs_grid
 
 
-def _estimate_source_cr_marginalised(
-    log_src_crs_grid, src_counts, bkg_counts, bkg_area, rate_conversion
-):
+def _estimate_source_cr_marginalised(log_src_crs_grid: npt.NDArray,
+                                     src_counts: float,
+                                     bkg_counts: float,
+                                     bkg_area: float,
+                                     rate_conversion: float) -> npt.ArrayLike[float]:
     """
     Compute the PDF at positions in log(source count rates) grid ``log_src_crs_grid``
     for observing ``src_counts`` counts in the source region of size ``src_area``,
@@ -137,7 +150,7 @@ def _estimate_source_cr_marginalised(
     return weights
 
 
-def _calculate_bexvar(log_src_crs_grid, pdfs):
+def _calculate_bexvar(log_src_crs_grid: npt.ArrayLike[float], pdfs: npt.NDArray) -> npt.ArrayLike[float]:
     """
     Assumes that the source count rate is log-normal distributed.
     Returns posterior samples of Bayesian excess varience(bexvar)
@@ -167,7 +180,7 @@ def _calculate_bexvar(log_src_crs_grid, pdfs):
         params[1] = 10 ** (cube[1] * 4 - 2)
         return params
 
-    def loglike(params):
+    def loglike(params) -> float:
         log_mean = params[0]
         log_sigma = params[1]
         # compute probability for each element of log-countrate grid, according to log_mean, log_sigma
@@ -189,7 +202,12 @@ def _calculate_bexvar(log_src_crs_grid, pdfs):
     return log_sigma
 
 
-def bexvar(time, time_del, src_counts, bg_counts=None, bg_ratio=None, frac_exp=None):
+def bexvar(time: Optional[ListOrArray],
+           time_del: ListOrArray,
+           src_counts: ListOrArray,
+           bg_counts: Optional[ListOrArray] = None,
+           bg_ratio: Optional[ListOrArray] = None,
+           frac_exp=None) -> npt.ArrayLike[float]:
     """
     Given a light curve data, computes posterier distribution samples of
     Bayesian excess variance (bexvar), by estimating mean and variance of the
