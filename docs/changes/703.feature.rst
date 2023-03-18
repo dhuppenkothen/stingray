@@ -1,0 +1,1 @@
+Object Oriented plotting methods added to various plotting interfaces in stingray

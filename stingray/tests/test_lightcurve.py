@@ -1072,6 +1072,13 @@ class TestLightcurve(object):
             lc.plot(axis=[0, 1, 0, 100])
         assert plt.fignum_exists(1)
 
+    def test_plot_errorbar(self):
+        lc = Lightcurve(self.times, self.counts)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=UserWarning)
+            lc.plot(witherrors=True)
+        assert plt.fignum_exists(1)
+
     def test_plot_title(self):
         lc = Lightcurve(self.times, self.counts)
         with warnings.catch_warnings():
