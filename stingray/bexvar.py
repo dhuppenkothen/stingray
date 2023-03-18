@@ -22,7 +22,7 @@ try:
     can_sample = True
 except ImportError:
     can_sample = False
-from typing import TYPE_CHECKING, Union, List, Optional
+from typing import TYPE_CHECKING, Union, List, Optional, Any
 
 if TYPE_CHECKING:
     from numpy import typing as npt
@@ -32,13 +32,11 @@ if TYPE_CHECKING:
 __all__ = ["bexvar"]
 
 
-def _lscg_gen(
-    src_counts: ListOrArray,
-    bkg_counts: ListOrArray,
-    bkg_area: ListOrArray,
-    rate_conversion: ListOrArray,
-    density_gp: int
-) -> npt.NDArray:
+def _lscg_gen(src_counts: ListOrArray,
+              bkg_counts: ListOrArray,
+              bkg_area: ListOrArray,
+              rate_conversion: ListOrArray,
+              density_gp: int) -> npt.NDArray:
     """
     Generates a grid of log(source count rates), ``log_src_crs_grid`` applicable
     to this particular light curve, with appropriately designated limits, for
@@ -128,7 +126,7 @@ def _estimate_source_cr_marginalised(log_src_crs_grid: npt.NDArray,
     u = np.linspace(0, 1, N)[1:-1]
     bkg_cr = scipy.special.gammaincinv(bkg_counts + 1, u) / bkg_area
 
-    def prob(log_src_cr):
+    def prob(log_src_cr : npt.ArrayLike[float]) -> float:
         src_cr = 10**log_src_cr * rate_conversion
         like = scipy.stats.poisson.pmf(src_counts, src_cr + bkg_cr).mean()
         return like
@@ -174,13 +172,13 @@ def _calculate_bexvar(log_src_crs_grid: npt.ArrayLike[float], pdfs: npt.NDArray)
     if not can_sample:
         raise ImportError("ultranest not installed! Can't sample!")
 
-    def transform(cube):
+    def transform(cube) -> Optional[Any]:
         params = cube.copy()
         params[0] = cube[0] * (log_src_crs_grid[-1] - log_src_crs_grid[0]) + log_src_crs_grid[0]
         params[1] = 10 ** (cube[1] * 4 - 2)
         return params
 
-    def loglike(params) -> float:
+    def loglike(params : npt.NDArray) -> float:
         log_mean = params[0]
         log_sigma = params[1]
         # compute probability for each element of log-countrate grid, according to log_mean, log_sigma
