@@ -26,16 +26,15 @@ from typing import TYPE_CHECKING, Union, List, Optional, Any
 
 if TYPE_CHECKING:
     from numpy import typing as npt
-
-    ListOrArray = Union(npt.ArrayLike[float], List[float])
+    ListOrArrayFloat = Union(npt.ArrayLike[float], List[float])
 
 __all__ = ["bexvar"]
 
 
-def _lscg_gen(src_counts: ListOrArray,
-              bkg_counts: ListOrArray,
-              bkg_area: ListOrArray,
-              rate_conversion: ListOrArray,
+def _lscg_gen(src_counts: ListOrArrayFloat,
+              bkg_counts: ListOrArrayFloat,
+              bkg_area: ListOrArrayFloat,
+              rate_conversion: ListOrArrayFloat,
               density_gp: int) -> npt.NDArray:
     """
     Generates a grid of log(source count rates), ``log_src_crs_grid`` applicable
@@ -126,7 +125,7 @@ def _estimate_source_cr_marginalised(log_src_crs_grid: npt.NDArray,
     u = np.linspace(0, 1, N)[1:-1]
     bkg_cr = scipy.special.gammaincinv(bkg_counts + 1, u) / bkg_area
 
-    def prob(log_src_cr : npt.ArrayLike[float]) -> float:
+    def prob(log_src_cr: npt.ArrayLike[float]) -> float:
         src_cr = 10**log_src_cr * rate_conversion
         like = scipy.stats.poisson.pmf(src_counts, src_cr + bkg_cr).mean()
         return like
@@ -178,7 +177,7 @@ def _calculate_bexvar(log_src_crs_grid: npt.ArrayLike[float], pdfs: npt.NDArray)
         params[1] = 10 ** (cube[1] * 4 - 2)
         return params
 
-    def loglike(params : npt.NDArray) -> float:
+    def loglike(params: npt.NDArray) -> float:
         log_mean = params[0]
         log_sigma = params[1]
         # compute probability for each element of log-countrate grid, according to log_mean, log_sigma
@@ -200,12 +199,13 @@ def _calculate_bexvar(log_src_crs_grid: npt.ArrayLike[float], pdfs: npt.NDArray)
     return log_sigma
 
 
-def bexvar(time: Optional[ListOrArray],
-           time_del: ListOrArray,
-           src_counts: ListOrArray,
-           bg_counts: Optional[ListOrArray] = None,
-           bg_ratio: Optional[ListOrArray] = None,
-           frac_exp=None) -> npt.ArrayLike[float]:
+def bexvar(time: Optional[ListOrArrayFloat],
+           time_del: ListOrArrayFloat,
+           src_counts: ListOrArrayFloat,
+           bg_counts: Optional[ListOrArrayFloat] = None,
+           bg_ratio: Optional[ListOrArrayFloat] = None,
+           frac_exp: Optional[ListOrArrayFloat] = None
+           ) -> npt.ArrayLike[float]:
     """
     Given a light curve data, computes posterier distribution samples of
     Bayesian excess variance (bexvar), by estimating mean and variance of the
