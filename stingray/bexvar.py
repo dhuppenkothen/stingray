@@ -26,16 +26,19 @@ from typing import TYPE_CHECKING, Union, List, Optional, Any
 
 if TYPE_CHECKING:
     from numpy import typing as npt
+
     ListOrArrayFloat = Union(npt.ArrayLike[float], List[float])
 
 __all__ = ["bexvar"]
 
 
-def _lscg_gen(src_counts: ListOrArrayFloat,
-              bkg_counts: ListOrArrayFloat,
-              bkg_area: ListOrArrayFloat,
-              rate_conversion: ListOrArrayFloat,
-              density_gp: int) -> npt.NDArray:
+def _lscg_gen(
+    src_counts: ListOrArrayFloat,
+    bkg_counts: ListOrArrayFloat,
+    bkg_area: ListOrArrayFloat,
+    rate_conversion: ListOrArrayFloat,
+    density_gp: int,
+) -> npt.NDArray:
     """
     Generates a grid of log(source count rates), ``log_src_crs_grid`` applicable
     to this particular light curve, with appropriately designated limits, for
@@ -93,11 +96,13 @@ def _lscg_gen(src_counts: ListOrArrayFloat,
     return log_src_crs_grid
 
 
-def _estimate_source_cr_marginalised(log_src_crs_grid: npt.NDArray,
-                                     src_counts: float,
-                                     bkg_counts: float,
-                                     bkg_area: float,
-                                     rate_conversion: float) -> npt.ArrayLike[float]:
+def _estimate_source_cr_marginalised(
+    log_src_crs_grid: npt.NDArray,
+    src_counts: float,
+    bkg_counts: float,
+    bkg_area: float,
+    rate_conversion: float,
+) -> npt.ArrayLike[float]:
     """
     Compute the PDF at positions in log(source count rates) grid ``log_src_crs_grid``
     for observing ``src_counts`` counts in the source region of size ``src_area``,
@@ -147,7 +152,9 @@ def _estimate_source_cr_marginalised(log_src_crs_grid: npt.NDArray,
     return weights
 
 
-def _calculate_bexvar(log_src_crs_grid: npt.ArrayLike[float], pdfs: npt.NDArray) -> npt.ArrayLike[float]:
+def _calculate_bexvar(
+    log_src_crs_grid: npt.ArrayLike[float], pdfs: npt.NDArray
+) -> npt.ArrayLike[float]:
     """
     Assumes that the source count rate is log-normal distributed.
     Returns posterior samples of Bayesian excess varience(bexvar)
@@ -173,7 +180,9 @@ def _calculate_bexvar(log_src_crs_grid: npt.ArrayLike[float], pdfs: npt.NDArray)
 
     def transform(cube) -> Optional[Any]:
         params = cube.copy()
-        params[0] = cube[0] * (log_src_crs_grid[-1] - log_src_crs_grid[0]) + log_src_crs_grid[0]
+        params[0] = (
+            cube[0] * (log_src_crs_grid[-1] - log_src_crs_grid[0]) + log_src_crs_grid[0]
+        )
         params[1] = 10 ** (cube[1] * 4 - 2)
         return params
 
@@ -199,13 +208,14 @@ def _calculate_bexvar(log_src_crs_grid: npt.ArrayLike[float], pdfs: npt.NDArray)
     return log_sigma
 
 
-def bexvar(time: Optional[ListOrArrayFloat],
-           time_del: ListOrArrayFloat,
-           src_counts: ListOrArrayFloat,
-           bg_counts: Optional[ListOrArrayFloat] = None,
-           bg_ratio: Optional[ListOrArrayFloat] = None,
-           frac_exp: Optional[ListOrArrayFloat] = None
-           ) -> npt.ArrayLike[float]:
+def bexvar(
+    time: Optional[ListOrArrayFloat],
+    time_del: ListOrArrayFloat,
+    src_counts: ListOrArrayFloat,
+    bg_counts: Optional[ListOrArrayFloat] = None,
+    bg_ratio: Optional[ListOrArrayFloat] = None,
+    frac_exp: Optional[ListOrArrayFloat] = None,
+) -> npt.ArrayLike[float]:
     """
     Given a light curve data, computes posterier distribution samples of
     Bayesian excess variance (bexvar), by estimating mean and variance of the
@@ -250,7 +260,9 @@ def bexvar(time: Optional[ListOrArrayFloat],
     """
 
     if not np.all(
-        np.array([True if (val >= 0 and val % 1.0 == 0) else False for val in src_counts])
+        np.array(
+            [True if (val >= 0 and val % 1.0 == 0) else False for val in src_counts]
+        )
     ):
         warnings.warn("src_counts are not all positive integers", UserWarning)
     if bg_counts is None:
@@ -279,7 +291,9 @@ def bexvar(time: Optional[ListOrArrayFloat],
     for xi, ci, bci, bgareai, rate_conversion in zip(
         time, src_counts, bg_counts, bg_area, rate_conversion
     ):
-        pdf = _estimate_source_cr_marginalised(log_src_crs_grid, ci, bci, bgareai, rate_conversion)
+        pdf = _estimate_source_cr_marginalised(
+            log_src_crs_grid, ci, bci, bgareai, rate_conversion
+        )
         src_posteriors.append(pdf)
 
     src_posteriors = np.array(src_posteriors)
