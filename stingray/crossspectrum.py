@@ -25,6 +25,11 @@ from .fourier import get_flux_iterable_from_segments
 
 from scipy.special import factorial
 
+from typing import Union, Sequence, Tuple, Optional, Self, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from numpy import typing as npt
+    from astropy.table import Table
 
 __all__ = [
     "Crossspectrum",
@@ -37,7 +42,9 @@ __all__ = [
 ]
 
 
-def get_flux_generator(data, segment_size, dt=None):
+def get_flux_generator(
+    data: Union[Lightcurve, EventList], segment_size: float, dt: Optional[float] = None
+) -> Generator[Tuple(npt.ArrayLike[float], npt.ArrayLike[float])]:
     """Get a flux generator from different segments of a data object
 
     It is just a wrapper around
@@ -116,7 +123,9 @@ def get_flux_generator(data, segment_size, dt=None):
             err = data.counts_err
     elif isinstance(data, EventList):
         if dt is None:
-            raise ValueError("If data is an EventList, you need to specify the bin time dt")
+            raise ValueError(
+                "If data is an EventList, you need to specify the bin time dt"
+            )
         N = int(np.rint(segment_size / dt))
 
     flux_iterable = get_flux_iterable_from_segments(
@@ -125,7 +134,7 @@ def get_flux_generator(data, segment_size, dt=None):
     return flux_iterable
 
 
-def coherence(lc1, lc2):
+def coherence(lc1: Lightcurve, lc2: Lightcurve) -> npt.NDArray:
     """
     Estimate coherence function of two light curves.
     For details on the definition of the coherence, see Vaughan and Nowak,
@@ -165,7 +174,7 @@ def coherence(lc1, lc2):
     return cs.coherence()
 
 
-def time_lag(lc1, lc2):
+def time_lag(lc1: Lightcurve, lc2: Lightcurve) -> Tuple[npt.NDArray, npt.NDArray]:
     """
     Estimate the time lag of two light curves.
     Calculate time lag and uncertainty.
@@ -210,8 +219,14 @@ def time_lag(lc1, lc2):
 
 
 def normalize_crossspectrum(
-    unnorm_power, tseg, nbins, nphots1, nphots2, norm="none", power_type="real"
-):
+    unnorm_power: npt.NDArray,
+    tseg: int,
+    nbins: int,
+    nphots1: int,
+    nphots2: int,
+    norm: Optional[str] = "none",
+    power_type: Optional[str] = "real",
+) -> npt.NDArray:
     """
     Normalize the real part of the cross spectrum to Leahy, absolute rms^2,
     fractional rms^2 normalization, or not at all.
@@ -267,8 +282,14 @@ def normalize_crossspectrum(
 
 
 def normalize_crossspectrum_gauss(
-    unnorm_power, mean_flux, var, dt, N, norm="none", power_type="real"
-):
+    unnorm_power: npt.NDArray,
+    mean_flux: float,
+    var: float,
+    dt: float,
+    N: int,
+    norm: Optional[str] = "none",
+    power_type: Optional[str] = "real",
+) -> npt.NDArray:
     """
     Normalize the real part of the cross spectrum to Leahy, absolute rms^2,
     fractional rms^2 normalization, or not at all.
@@ -349,7 +370,7 @@ def normalize_crossspectrum_gauss(
     )
 
 
-def _averaged_cospectra_cdf(xcoord, n):
+def _averaged_cospectra_cdf(xcoord: Union[float, Iterable], n: int) -> float:
     """
     Function calculating the cumulative distribution function for
     averaged cospectra, Equation 19 of Huppenkothen & Bachetti (2018).
@@ -397,7 +418,7 @@ def _averaged_cospectra_cdf(xcoord, n):
     return cdf
 
 
-def cospectra_pvalue(power, nspec):
+def cospectra_pvalue(power: float, nspec: int) -> float:
     """
     This function computes the single-trial p-value that the power was
     observed under the null hypothesis that there is no signal in
@@ -572,17 +593,17 @@ class Crossspectrum(StingrayObject):
 
     def __init__(
         self,
-        data1=None,
-        data2=None,
-        norm="frac",
-        gti=None,
-        lc1=None,
-        lc2=None,
-        power_type="real",
-        dt=None,
-        fullspec=False,
-        skip_checks=False,
-        legacy=False,
+        data1: Optional[Union[Lightcurve, EventList]] = None,
+        data2: Optional[Union[Lightcurve, EventList]] = None,
+        norm: Optional[str] = "frac",
+        gti: Optional[npt.NDArray] = None,
+        lc1: Optional[Union[Lightcurve, Iterable[Lightcurve]]] = None,
+        lc2: Optional[Union[Lightcurve, Iterable[Lightcurve]]] = None,
+        power_type: Optional[str] = "real",
+        dt: Optional[float] = None,
+        fullspec: Optional[float] = False,
+        skip_checks: Optional[bool] = False,
+        legacy: Optional[bool] = False,
     ):
         self._type = None
         # for backwards compatibility
@@ -615,7 +636,13 @@ class Crossspectrum(StingrayObject):
 
         if not legacy and data1 is not None and data2 is not None:
             return self._initialize_from_any_input(
-                data1, data2, dt=dt, norm=norm, power_type=power_type, fullspec=fullspec, gti=gti
+                data1,
+                data2,
+                dt=dt,
+                norm=norm,
+                power_type=power_type,
+                fullspec=fullspec,
+                gti=gti,
             )
 
         if not isinstance(data1, EventList):
@@ -644,17 +671,17 @@ class Crossspectrum(StingrayObject):
 
     def initial_checks(
         self,
-        data1=None,
-        data2=None,
-        norm="frac",
-        gti=None,
-        lc1=None,
-        lc2=None,
-        segment_size=None,
-        power_type="real",
-        dt=None,
-        fullspec=False,
-    ):
+        data1: Optional[Union[Lightcurve, EventList]] = None,
+        data2: Optional[Union[Lightcurve, EventList]] = None,
+        norm: Optional[str] = "frac",
+        gti: Optional[npt.NDArray] = None,
+        lc1: Optional[Lightcurve] = None,
+        lc2: Optional[Lightcurve] = None,
+        segment_size: Optional[float] = None,
+        power_type: Optional[str] = "real",
+        dt: Optional[float] = None,
+        fullspec: Optional[bool] = False,
+    ) -> bool:
         """Run initial checks on the input.
 
         Returns True if checks are passed, False if they are not.
@@ -718,12 +745,15 @@ class Crossspectrum(StingrayObject):
 
         if lc1 is not None or lc2 is not None:
             warnings.warn(
-                "The lcN keywords are now deprecated. Use dataN instead", DeprecationWarning
+                "The lcN keywords are now deprecated. Use dataN instead",
+                DeprecationWarning,
             )
 
         if data1 is None or data2 is None:
             if data1 is not None or data2 is not None:
-                raise ValueError("You can't do a cross spectrum with just one light curve!")
+                raise ValueError(
+                    "You can't do a cross spectrum with just one light curve!"
+                )
             else:
                 return False
 
@@ -761,7 +791,9 @@ class Crossspectrum(StingrayObject):
                     "might or might not be an issue. Keep an eye on it."
                 )
         elif isinstance(data1, (list, tuple)):
-            if not isinstance(data1[0], Lightcurve) or not isinstance(data2[0], Lightcurve):
+            if not isinstance(data1[0], Lightcurve) or not isinstance(
+                data2[0], Lightcurve
+            ):
                 raise TypeError("Inputs lists have to contain light curve objects")
 
             if data1[0].err_dist.lower() != data2[0].err_dist.lower():
@@ -776,7 +808,7 @@ class Crossspectrum(StingrayObject):
 
         return True
 
-    def _make_auxil_pds(self, lc1, lc2):
+    def _make_auxil_pds(self, lc1: Lightcurve, lc2: Lightcurve):
         """
         Helper method to create the power spectrum of both light curves
         independently.
@@ -790,7 +822,9 @@ class Crossspectrum(StingrayObject):
             self.pds1 = Crossspectrum(lc1, lc1, norm=self.norm)
             self.pds2 = Crossspectrum(lc2, lc2, norm=self.norm)
 
-    def _make_crossspectrum(self, lc1, lc2, fullspec=False):
+    def _make_crossspectrum(
+        self, lc1: Lightcurve, lc2: Lightcurve, fullspec: Optional[bool] = False
+    ):
         """
         Auxiliary method computing the normalized cross spectrum from two
         light curves. This includes checking for the presence of and
@@ -826,7 +860,9 @@ class Crossspectrum(StingrayObject):
         check_gtis(self.gti)
 
         if self.gti.shape[0] != 1:
-            raise TypeError("Non-averaged Cross Spectra need a single Good Time Interval")
+            raise TypeError(
+                "Non-averaged Cross Spectra need a single Good Time Interval"
+            )
 
         lc1 = lc1.split_by_gti()[0]
         lc2 = lc2.split_by_gti()[0]
@@ -852,7 +888,9 @@ class Crossspectrum(StingrayObject):
             self.err_dist = "gauss"
 
         if lc1.n != lc2.n:
-            raise StingrayError("Light curves do not have same number of time bins per segment.")
+            raise StingrayError(
+                "Light curves do not have same number of time bins per segment."
+            )
 
         # If dt differs slightly, its propagated error must not be more than
         # 1/100th of the bin
@@ -906,7 +944,9 @@ class Crossspectrum(StingrayObject):
         else:
             self.power_err = np.zeros(len(self.power))
 
-    def _fourier_cross(self, lc1, lc2, fullspec=False):
+    def _fourier_cross(
+        self, lc1: Lightcurve, lc2: Lightcurve, fullspec: Optional[bool] = False
+    ) -> Tuple[npt.NDArray, npt.NDArray]:
         """
         Fourier transform the two light curves, then compute the cross spectrum.
         Computed as CS = lc1 x lc2* (where lc2 is the one that gets
@@ -943,7 +983,12 @@ class Crossspectrum(StingrayObject):
         else:
             return freqs[freqs > 0], cross[freqs > 0]
 
-    def rebin(self, df=None, f=None, method="mean"):
+    def rebin(
+        self,
+        df: Optional[float] = None,
+        f: Optional[float] = None,
+        method: Optional[str] = "mean",
+    ) -> Self:
         """
         Rebin the cross spectrum to a new frequency resolution ``df``.
 
@@ -992,7 +1037,12 @@ class Crossspectrum(StingrayObject):
                 unnorm_power_err = self.unnorm_power_err
 
             _, binpower_unnorm, binpower_err_unnorm, _ = rebin_data(
-                self.freq, self.unnorm_power, df, dx=self.df, yerr=unnorm_power_err, method=method
+                self.freq,
+                self.unnorm_power,
+                df,
+                dx=self.df,
+                yerr=unnorm_power_err,
+                method=method,
             )
 
             if hasattr(self, "unnorm_power_err") and self.unnorm_power_err is not None:
@@ -1014,7 +1064,7 @@ class Crossspectrum(StingrayObject):
 
         return bin_cs
 
-    def to_norm(self, norm, inplace=False):
+    def to_norm(self, norm: str, inplace: Optional[bool] = False) -> Self:
         """Convert Cross spectrum to new normalization.
 
         Parameters
@@ -1104,7 +1154,7 @@ class Crossspectrum(StingrayObject):
 
         return new_spec
 
-    def _normalize_crossspectrum(self, unnorm_power):
+    def _normalize_crossspectrum(self, unnorm_power: npt.NDArray) -> npt.NDArray:
         """
         Normalize the real part of the cross spectrum to Leahy, absolute rms^2,
         fractional rms^2 normalization, or not at all.
@@ -1137,7 +1187,7 @@ class Crossspectrum(StingrayObject):
             power_type=self.power_type,
         )
 
-    def rebin_log(self, f=0.01):
+    def rebin_log(self, f: Optional[float] = 0.01) -> Self:
         """
         Logarithmic rebin of the periodogram.
         The new frequency depends on the previous frequency
@@ -1199,7 +1249,7 @@ class Crossspectrum(StingrayObject):
 
         return new_spec
 
-    def coherence(self):
+    def coherence(self) -> npt.NDArray:
         """Compute Coherence function of the cross spectrum.
 
         Coherence is defined in Vaughan and Nowak, 1996 [#]_.
@@ -1219,10 +1269,15 @@ class Crossspectrum(StingrayObject):
         # cross spectrum code to avoid circular imports
 
         return raw_coherence(
-            self.unnorm_power, self.pds1.unnorm_power, self.pds2.unnorm_power, 0, 0, self.n
+            self.unnorm_power,
+            self.pds1.unnorm_power,
+            self.pds2.unnorm_power,
+            0,
+            0,
+            self.n,
         )
 
-    def phase_lag(self):
+    def phase_lag(self) -> Union[npt.NDArray, float]:
         """Calculate the fourier phase lag of the cross spectrum.
 
         This is defined as the argument of the complex cross spectrum, and gives
@@ -1231,7 +1286,7 @@ class Crossspectrum(StingrayObject):
         """
         return np.angle(self.unnorm_power)
 
-    def time_lag(self):
+    def time_lag(self) -> Optional[Union[npt.NDArray, float]]:
         r"""Calculate the fourier time lag of the cross spectrum.
         The time lag is calculated by taking the phase lag :math:`\phi` and
 
@@ -1249,8 +1304,15 @@ class Crossspectrum(StingrayObject):
             raise AttributeError("Object has no attribute named 'time_lag' !")
 
     def plot(
-        self, labels=None, axis=None, title=None, marker="-", save=False, filename=None, ax=None
-    ):
+        self,
+        labels: Optional[Iterable] = None,
+        axis: Optional[Sequence] = None,
+        title: Optional[str] = None,
+        marker: Optional[str] = "-",
+        save: Optional[bool] = False,
+        filename: Optional[str] = None,
+        ax: Optional[plt.Axes] = None,
+    ) -> plt.Axes:
         """
         Plot the amplitude of the cross spectrum vs. the frequency using ``matplotlib``.
 
@@ -1287,9 +1349,21 @@ class Crossspectrum(StingrayObject):
             ax = fig.add_subplot(1, 1, 1)
 
         ax.plot(self.freq, np.abs(self.power), marker, color="b", label="Amplitude")
-        ax.plot(self.freq, np.abs(self.power.real), marker, color="r", alpha=0.5, label="Real Part")
         ax.plot(
-            self.freq, np.abs(self.power.imag), marker, color="g", alpha=0.5, label="Imaginary Part"
+            self.freq,
+            np.abs(self.power.real),
+            marker,
+            color="r",
+            alpha=0.5,
+            label="Real Part",
+        )
+        ax.plot(
+            self.freq,
+            np.abs(self.power.imag),
+            marker,
+            color="g",
+            alpha=0.5,
+            label="Imaginary Part",
         )
 
         if labels is not None:
@@ -1317,7 +1391,9 @@ class Crossspectrum(StingrayObject):
 
         return ax
 
-    def classical_significances(self, threshold=1, trial_correction=False):
+    def classical_significances(
+        self, threshold: Optional[float] = 1, trial_correction: Optional[bool] = False
+    ) -> npt.NDArray:
         """
         Compute the classical significances for the powers in the power
         spectrum, assuming an underlying noise distribution that follows a
@@ -1367,14 +1443,18 @@ class Crossspectrum(StingrayObject):
 
         """
         if not self.norm == "leahy":
-            raise ValueError("This method only works on Leahy-normalized power spectra!")
+            raise ValueError(
+                "This method only works on Leahy-normalized power spectra!"
+            )
 
         if np.size(self.m) == 1:
             # calculate p-values for all powers
             # leave out zeroth power since it just encodes the number of photons!
             pv = np.array([cospectra_pvalue(power, self.m) for power in self.power])
         else:
-            pv = np.array([cospectra_pvalue(power, m) for power, m in zip(self.power, self.m)])
+            pv = np.array(
+                [cospectra_pvalue(power, m) for power, m in zip(self.power, self.m)]
+            )
 
         # if trial correction is used, then correct the threshold for
         # the number of powers in the power spectrum
@@ -1391,17 +1471,17 @@ class Crossspectrum(StingrayObject):
 
     @staticmethod
     def from_time_array(
-        times1,
-        times2,
-        dt,
-        segment_size=None,
-        gti=None,
-        norm="none",
-        power_type="all",
-        silent=False,
-        fullspec=False,
-        use_common_mean=True,
-    ):
+        times1: npt.ArrayLike,
+        times2: npt.ArrayLike,
+        dt: float,
+        segment_size: Optional[float] = None,
+        gti: Optional[npt.NDArray] = None,
+        norm: Optional[str] = "none",
+        power_type: Optional[str] = "all",
+        silent: Optional[bool] = False,
+        fullspec: Optional[bool] = False,
+        use_common_mean: Optional[bool] = True,
+    ) -> Self:
         """Calculate AveragedCrossspectrum from two arrays of event times.
 
         Parameters
@@ -1459,17 +1539,17 @@ class Crossspectrum(StingrayObject):
 
     @staticmethod
     def from_events(
-        events1,
-        events2,
-        dt,
-        segment_size=None,
-        norm="none",
-        power_type="all",
-        silent=False,
-        fullspec=False,
-        use_common_mean=True,
-        gti=None,
-    ):
+        events1: EventList,
+        events2: EventList,
+        dt: float,
+        segment_size: Optional[float] = None,
+        norm: Optional[str] = "none",
+        power_type: Optional[str] = "all",
+        silent: Optional[bool] = False,
+        fullspec: Optional[bool] = False,
+        use_common_mean: Optional[bool] = True,
+        gti: npt.NDArray = None,
+    ) -> Self:
         """Calculate AveragedCrossspectrum from two event lists
 
         Parameters
@@ -1527,16 +1607,16 @@ class Crossspectrum(StingrayObject):
 
     @staticmethod
     def from_lightcurve(
-        lc1,
-        lc2,
-        segment_size=None,
-        norm="none",
-        power_type="all",
-        silent=False,
-        fullspec=False,
-        use_common_mean=True,
-        gti=None,
-    ):
+        lc1: Lightcurve,
+        lc2: Lightcurve,
+        segment_size: Optional[float] = None,
+        norm: Optional[str] = "none",
+        power_type: Optional[str] = "all",
+        silent: Optional[bool] = False,
+        fullspec: Optional[bool] = False,
+        use_common_mean: Optional[bool] = True,
+        gti: Optional[npt.NDArray] = None,
+    ) -> Self:
         """Calculate AveragedCrossspectrum from two light curves
 
         Parameters
@@ -1589,17 +1669,17 @@ class Crossspectrum(StingrayObject):
 
     @staticmethod
     def from_lc_iterable(
-        iter_lc1,
-        iter_lc2,
-        dt,
-        segment_size,
-        norm="none",
-        power_type="all",
-        silent=False,
-        fullspec=False,
-        use_common_mean=True,
-        gti=None,
-    ):
+        iter_lc1: Union[Lightcurve, npt.ArrayLike],
+        iter_lc2: Union[Lightcurve, npt.ArrayLike],
+        dt: float,
+        segment_size: float,
+        norm: Optional[str] = "none",
+        power_type: Optional[str] = "all",
+        silent: Optional[bool] = False,
+        fullspec: Optional[bool] = False,
+        use_common_mean: Optional[bool] = True,
+        gti: Optional[npt.NDArray] = None,
+    ) -> Self:
         """Calculate AveragedCrossspectrum from two light curves
 
         Parameters
@@ -1657,16 +1737,16 @@ class Crossspectrum(StingrayObject):
 
     def _initialize_from_any_input(
         self,
-        data1,
-        data2,
-        dt=None,
-        segment_size=None,
-        norm="frac",
-        power_type="all",
-        silent=False,
-        fullspec=False,
-        gti=None,
-        use_common_mean=True,
+        data1: Union[Lightcurve, EventList],
+        data2: Union[Lightcurve, EventList],
+        dt: Optional[float] = None,
+        segment_size: Optional[float] = None,
+        norm: Optional[str] = "frac",
+        power_type: Optional[str] = "all",
+        silent: Optional[bool] = False,
+        fullspec: Optional[bool] = False,
+        gti: Optional[npt.NDArray] = None,
+        use_common_mean: Optional[bool] = True,
     ):
         """Initialize the class, trying to understand the input types.
 
@@ -1873,22 +1953,22 @@ class AveragedCrossspectrum(Crossspectrum):
 
     def __init__(
         self,
-        data1=None,
-        data2=None,
-        segment_size=None,
-        norm="frac",
-        gti=None,
-        power_type="all",
-        silent=False,
-        lc1=None,
-        lc2=None,
-        dt=None,
-        fullspec=False,
-        large_data=False,
-        save_all=False,
-        use_common_mean=True,
-        legacy=False,
-        skip_checks=False,
+        data1: Optional[Union[Lightcurve, Iterable[Lightcurve], EventList]] = None,
+        data2: Optional[Union[Lightcurve, Iterable[Lightcurve], EventList]] = None,
+        segment_size: Optional[float] = None,
+        norm: Optional[str] = "frac",
+        gti: Optional[npt.NDArray] = None,
+        power_type: Optional[str] = "all",
+        silent: Optional[bool] = False,
+        lc1: Optional[Lightcurve] = None,
+        lc2: Optional[Lightcurve] = None,
+        dt: Optional[float] = None,
+        fullspec: Optional[bool] = False,
+        large_data: Optional[bool] = False,
+        save_all: Optional[bool] = False,
+        use_common_mean: Optional[bool] = True,
+        legacy: Optional[bool] = False,
+        skip_checks: Optional[bool] = False,
     ):
         self._type = None
         # for backwards compatibility
@@ -2030,7 +2110,12 @@ class AveragedCrossspectrum(Crossspectrum):
 
         return
 
-    def initial_checks(self, data1, segment_size=None, **kwargs):
+    def initial_checks(
+        self,
+        data1: Union[Lightcurve, Iterable[Lightcurve], EventList],
+        segment_size: Optional[float] = None,
+        **kwargs,
+    ) -> bool:
         """
 
         Examples
@@ -2052,10 +2137,16 @@ class AveragedCrossspectrum(Crossspectrum):
         ...
         ValueError: segment_size must be finite!
         """
-        good = Crossspectrum.initial_checks(self, data1, segment_size=segment_size, **kwargs)
+        good = Crossspectrum.initial_checks(
+            self, data1, segment_size=segment_size, **kwargs
+        )
         if not good:
             return False
-        if isinstance(self, AveragedCrossspectrum) and segment_size is None and data1 is not None:
+        if (
+            isinstance(self, AveragedCrossspectrum)
+            and segment_size is None
+            and data1 is not None
+        ):
             raise ValueError("segment_size must be specified")
 
         if (
@@ -2066,7 +2157,7 @@ class AveragedCrossspectrum(Crossspectrum):
             raise ValueError("segment_size must be finite!")
         return True
 
-    def _make_auxil_pds(self, lc1, lc2):
+    def _make_auxil_pds(self, lc1: Lightcurve, lc2: Lightcurve):
         """
         Helper method to create the power spectrum of both light curves
         independently.
@@ -2081,7 +2172,11 @@ class AveragedCrossspectrum(Crossspectrum):
         is_lc_iter = isinstance(lc1, Iterator)
         is_lc_list = isinstance(lc1, Iterable) and not is_lc_iter
         # A way to say that this is actually not a power spectrum
-        if self.type != "powerspectrum" and (lc1 is not lc2) and (is_event or is_lc or is_lc_list):
+        if (
+            self.type != "powerspectrum"
+            and (lc1 is not lc2)
+            and (is_event or is_lc or is_lc_list)
+        ):
             self.pds1 = AveragedCrossspectrum(
                 lc1,
                 lc1,
@@ -2108,7 +2203,13 @@ class AveragedCrossspectrum(Crossspectrum):
                 silent=not self.show_progress,
             )
 
-    def _make_segment_spectrum(self, lc1, lc2, segment_size, silent=False):
+    def _make_segment_spectrum(
+        self,
+        lc1: Lightcurve,
+        lc2: Lightcurve,
+        segment_size: float,
+        silent: Optional[bool] = False,
+    ) -> Tuple[List[Self], npt.NDArray, npt.NDArray]:
         """
         Split the light curves into segments of size ``segment_size``, and calculate a cross spectrum for
         each.
@@ -2186,7 +2287,9 @@ class AveragedCrossspectrum(Crossspectrum):
             counts_2 = copy.deepcopy(lc2.counts[start_ind:end_ind])
             counts_2_err = copy.deepcopy(lc2.counts_err[start_ind:end_ind])
             if np.sum(counts_1) == 0 or np.sum(counts_2) == 0:
-                warnings.warn("No counts in interval {}--{}s".format(time_1[0], time_1[-1]))
+                warnings.warn(
+                    "No counts in interval {}--{}s".format(time_1[0], time_1[-1])
+                )
                 continue
 
             gti1 = np.array([[time_1[0] - lc1.dt / 2, time_1[-1] + lc1.dt / 2]])
@@ -2225,7 +2328,9 @@ class AveragedCrossspectrum(Crossspectrum):
 
         return cs_all, nphots1_all, nphots2_all
 
-    def _make_crossspectrum(self, lc1, lc2, fullspec=False):
+    def _make_crossspectrum(
+        self, lc1: Lightcurve, lc2: Lightcurve, fullspec: Optional[bool] = False
+    ):
         """
         Auxiliary method computing the normalized cross spectrum from two light curves.
         This includes checking for the presence of and applying Good Time Intervals, computing the
@@ -2255,7 +2360,9 @@ class AveragedCrossspectrum(Crossspectrum):
                 )
 
             elif self.type == "powerspectrum":
-                cs_all, nphots1_all = self._make_segment_spectrum(lc1, self.segment_size)
+                cs_all, nphots1_all = self._make_segment_spectrum(
+                    lc1, self.segment_size
+                )
 
             else:
                 raise ValueError("Type of spectrum not recognized!")
@@ -2320,7 +2427,7 @@ class AveragedCrossspectrum(Crossspectrum):
 
             self.nphots2 = nphots2
 
-    def coherence(self):
+    def coherence(self) -> Tuple(npt.NDArray, npt.ndarray):
         """Averaged Coherence function.
 
 
@@ -2370,7 +2477,7 @@ class AveragedCrossspectrum(Crossspectrum):
 
         return (coh, uncertainty)
 
-    def phase_lag(self):
+    def phase_lag(self) -> Tuple(npt.NDArray, npt.ndarray):
         """Return the fourier phase lag of the cross spectrum."""
         lag = np.angle(self.unnorm_power)
         coh, uncert = self.coherence()
@@ -2382,7 +2489,7 @@ class AveragedCrossspectrum(Crossspectrum):
         lag_err = np.sqrt(dum / self.m)
         return lag, lag_err
 
-    def time_lag(self):
+    def time_lag(self) -> Tuple(npt.NDArray, npt.ndarray):
         """Calculate time lag and uncertainty.
 
         Equation from Bendat & Piersol, 2011 [bendat-2011]__.
@@ -2404,17 +2511,17 @@ class AveragedCrossspectrum(Crossspectrum):
 
 
 def crossspectrum_from_time_array(
-    times1,
-    times2,
-    dt,
-    segment_size=None,
-    gti=None,
-    norm="none",
-    power_type="all",
-    silent=False,
-    fullspec=False,
-    use_common_mean=True,
-):
+    times1: npt.ArrayLike,
+    times2: npt.ArrayLike,
+    dt: float,
+    segment_size: Optional[float] = None,
+    gti: Optional[npt.NDArray] = None,
+    norm: Optional[str] = "none",
+    power_type: Optional[str] = "all",
+    silent: Optional[bool] = False,
+    fullspec: Optional[bool] = False,
+    use_common_mean: Optional[bool] = True,
+) -> Self:
     """Calculate AveragedCrossspectrum from two arrays of event times.
 
     Parameters
@@ -2474,21 +2581,23 @@ def crossspectrum_from_time_array(
         return_auxil=True,
     )
 
-    return _create_crossspectrum_from_result_table(results, force_averaged=force_averaged)
+    return _create_crossspectrum_from_result_table(
+        results, force_averaged=force_averaged
+    )
 
 
 def crossspectrum_from_events(
-    events1,
-    events2,
-    dt,
-    segment_size=None,
-    norm="none",
-    power_type="all",
-    silent=False,
-    fullspec=False,
-    use_common_mean=True,
-    gti=None,
-):
+    events1: EventList,
+    events2: EventList,
+    dt: float,
+    segment_size: Optional[float] = None,
+    norm: Optional[str] = "none",
+    power_type: Optional[str] = "all",
+    silent: Optional[bool] = False,
+    fullspec: Optional[bool] = False,
+    use_common_mean: Optional[bool] = True,
+    gti: Optional[npt.NDArray] = None,
+) -> Self:
     """Calculate AveragedCrossspectrum from two event lists
 
     Parameters
@@ -2550,16 +2659,16 @@ def crossspectrum_from_events(
 
 
 def crossspectrum_from_lightcurve(
-    lc1,
-    lc2,
-    segment_size=None,
-    norm="none",
-    power_type="all",
-    silent=False,
-    fullspec=False,
-    use_common_mean=True,
-    gti=None,
-):
+    lc1: Lightcurve,
+    lc2: Lightcurve,
+    segment_size: Optional[float] = None,
+    norm: Optional[str] = "none",
+    power_type: Optional[str] = "all",
+    silent: Optional[bool] = False,
+    fullspec: Optional[bool] = False,
+    use_common_mean: Optional[bool] = True,
+    gti: Optional[npt.NDArray] = None,
+) -> Self:
     """Calculate AveragedCrossspectrum from two light curves
 
     Parameters
@@ -2628,21 +2737,23 @@ def crossspectrum_from_lightcurve(
         return_auxil=True,
     )
 
-    return _create_crossspectrum_from_result_table(results, force_averaged=force_averaged)
+    return _create_crossspectrum_from_result_table(
+        results, force_averaged=force_averaged
+    )
 
 
 def crossspectrum_from_lc_iterable(
-    iter_lc1,
-    iter_lc2,
-    dt,
-    segment_size,
-    norm="none",
-    power_type="all",
-    silent=False,
-    fullspec=False,
-    use_common_mean=True,
-    gti=None,
-):
+    iter_lc1: Iterable[Lightcurve],
+    iter_lc2: Iterable[Lightcurve],
+    dt: float,
+    segment_size: float,
+    norm: Optional[str] = "none",
+    power_type: Optional[str] = "all",
+    silent: Optional[bool] = False,
+    fullspec: Optional[bool] = False,
+    use_common_mean: Optional[bool] = True,
+    gti: Optional[npt.NDArray] = None,
+) -> Self:
     """Calculate AveragedCrossspectrum from two light curves
 
     Parameters
@@ -2724,10 +2835,14 @@ def crossspectrum_from_lc_iterable(
         power_type=power_type,
         return_auxil=True,
     )
-    return _create_crossspectrum_from_result_table(results, force_averaged=force_averaged)
+    return _create_crossspectrum_from_result_table(
+        results, force_averaged=force_averaged
+    )
 
 
-def _create_crossspectrum_from_result_table(table, force_averaged=False):
+def _create_crossspectrum_from_result_table(
+    table: Table, force_averaged: Optional[bool] = False
+) -> Self:
     """Copy the columns and metadata from the results of
     ``stingray.fourier.avg_cs_from_XX`` functions into
     `AveragedCrossspectrum` or `Crossspectrum` objects.
