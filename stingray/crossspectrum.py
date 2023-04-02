@@ -596,7 +596,7 @@ class Crossspectrum(StingrayObject):
         data1: Optional[Union[Lightcurve, EventList]] = None,
         data2: Optional[Union[Lightcurve, EventList]] = None,
         norm: Optional[str] = "frac",
-        gti: Optional[npt.NDArray] = None,
+        gti: Optional[npt.ArrayLike[npt.ArrayLike[float]]] = None,
         lc1: Optional[Union[Lightcurve, Iterable[Lightcurve]]] = None,
         lc2: Optional[Union[Lightcurve, Iterable[Lightcurve]]] = None,
         power_type: Optional[str] = "real",
@@ -674,7 +674,7 @@ class Crossspectrum(StingrayObject):
         data1: Optional[Union[Lightcurve, EventList]] = None,
         data2: Optional[Union[Lightcurve, EventList]] = None,
         norm: Optional[str] = "frac",
-        gti: Optional[npt.NDArray] = None,
+        gti: Optional[npt.ArrayLike[npt.ArrayLike[float]]] = None,
         lc1: Optional[Lightcurve] = None,
         lc2: Optional[Lightcurve] = None,
         segment_size: Optional[float] = None,
@@ -1475,7 +1475,7 @@ class Crossspectrum(StingrayObject):
         times2: npt.ArrayLike,
         dt: float,
         segment_size: Optional[float] = None,
-        gti: Optional[npt.NDArray] = None,
+        gti: Optional[npt.ArrayLike[npt.ArrayLike[float]]] = None,
         norm: Optional[str] = "none",
         power_type: Optional[str] = "all",
         silent: Optional[bool] = False,
@@ -1615,7 +1615,7 @@ class Crossspectrum(StingrayObject):
         silent: Optional[bool] = False,
         fullspec: Optional[bool] = False,
         use_common_mean: Optional[bool] = True,
-        gti: Optional[npt.NDArray] = None,
+        gti: Optional[npt.ArrayLike[npt.ArrayLike[float]]] = None,
     ) -> Self:
         """Calculate AveragedCrossspectrum from two light curves
 
@@ -1678,7 +1678,7 @@ class Crossspectrum(StingrayObject):
         silent: Optional[bool] = False,
         fullspec: Optional[bool] = False,
         use_common_mean: Optional[bool] = True,
-        gti: Optional[npt.NDArray] = None,
+        gti: Optional[npt.ArrayLike[npt.ArrayLike[float]]] = None,
     ) -> Self:
         """Calculate AveragedCrossspectrum from two light curves
 
@@ -1745,7 +1745,7 @@ class Crossspectrum(StingrayObject):
         power_type: Optional[str] = "all",
         silent: Optional[bool] = False,
         fullspec: Optional[bool] = False,
-        gti: Optional[npt.NDArray] = None,
+        gti: Optional[npt.ArrayLike[npt.ArrayLike[float]]] = None,
         use_common_mean: Optional[bool] = True,
     ):
         """Initialize the class, trying to understand the input types.
@@ -1957,7 +1957,7 @@ class AveragedCrossspectrum(Crossspectrum):
         data2: Optional[Union[Lightcurve, Iterable[Lightcurve], EventList]] = None,
         segment_size: Optional[float] = None,
         norm: Optional[str] = "frac",
-        gti: Optional[npt.NDArray] = None,
+        gti: Optional[npt.ArrayLike[npt.ArrayLike[float]]] = None,
         power_type: Optional[str] = "all",
         silent: Optional[bool] = False,
         lc1: Optional[Lightcurve] = None,
@@ -2515,7 +2515,7 @@ def crossspectrum_from_time_array(
     times2: npt.ArrayLike,
     dt: float,
     segment_size: Optional[float] = None,
-    gti: Optional[npt.NDArray] = None,
+    gti: Optional[npt.ArrayLike[npt.ArrayLike[float]]] = None,
     norm: Optional[str] = "none",
     power_type: Optional[str] = "all",
     silent: Optional[bool] = False,
@@ -2596,7 +2596,7 @@ def crossspectrum_from_events(
     silent: Optional[bool] = False,
     fullspec: Optional[bool] = False,
     use_common_mean: Optional[bool] = True,
-    gti: Optional[npt.NDArray] = None,
+    gti: Optional[npt.ArrayLike[npt.ArrayLike[float]]] = None,
 ) -> Self:
     """Calculate AveragedCrossspectrum from two event lists
 
@@ -2667,7 +2667,7 @@ def crossspectrum_from_lightcurve(
     silent: Optional[bool] = False,
     fullspec: Optional[bool] = False,
     use_common_mean: Optional[bool] = True,
-    gti: Optional[npt.NDArray] = None,
+    gti: Optional[npt.ArrayLike[npt.ArrayLike[float]]] = None,
 ) -> Self:
     """Calculate AveragedCrossspectrum from two light curves
 
@@ -2752,7 +2752,7 @@ def crossspectrum_from_lc_iterable(
     silent: Optional[bool] = False,
     fullspec: Optional[bool] = False,
     use_common_mean: Optional[bool] = True,
-    gti: Optional[npt.NDArray] = None,
+    gti: Optional[npt.ArrayLike[npt.ArrayLike[float]]] = None,
 ) -> Self:
     """Calculate AveragedCrossspectrum from two light curves
 
