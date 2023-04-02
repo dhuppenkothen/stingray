@@ -601,7 +601,7 @@ class Crossspectrum(StingrayObject):
         lc2: Optional[Union[Lightcurve, Iterable[Lightcurve]]] = None,
         power_type: Optional[str] = "real",
         dt: Optional[float] = None,
-        fullspec: Optional[float] = False,
+        fullspec: Optional[bool] = False,
         skip_checks: Optional[bool] = False,
         legacy: Optional[bool] = False,
     ):
