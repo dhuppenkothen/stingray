@@ -9,8 +9,15 @@ from stingray import Lightcurve, Crossspectrum
 from stingray.utils import standard_error, find_nearest, fft, ifft
 from stingray.filters import Optimal1D, Window1D
 
+from typing import Union, Tuple, Dict, Optional, Any, TYPE_CHECKING
 
-def load_lc_fits(file, counts_type=True):
+if TYPE_CHECKING:
+    from numpy import typing as npt
+
+
+def load_lc_fits(
+    file: str, counts_type: Optional[bool] = True
+) -> Tuple(npt.NDArray, npt.NDArray, Dict[str, Any]):
     """
     Function to load FITS file having reference band and channel of interest
     bands.
@@ -50,7 +57,9 @@ def load_lc_fits(file, counts_type=True):
     return ref, ci, meta
 
 
-def get_new_df(spectrum, n_bins):
+def get_new_df(
+    spectrum: Union[Powerspectrum, Crossspectrum], n_bins: int
+) -> float:
     """
     Return the new df used to re-bin the spectrum.
 
@@ -73,7 +82,7 @@ def get_new_df(spectrum, n_bins):
     return new_df
 
 
-def ccf(cs_power, ps_rms, n_bins):
+def ccf(cs_power: npt.NDArray, ps_rms: npt.NDArray, n_bins: int) -> npt.NDArray:
     """
     Return the normalised cross-correlation function of the cross spectrum. It
     is normalised using the average RMS of power spectrum.
@@ -101,7 +110,9 @@ def ccf(cs_power, ps_rms, n_bins):
 
 
 def ccf_error(
-    ref_counts, ci_counts_0, cs_res_model, rebin_log_factor, meta, ps_rms, filter_type="optimal"
+    ref_counts: npt.NDArray, ci_counts_0: npt.NDArray, cs_res_model: Any,
+    rebin_log_factor: float, meta: Dict[str, Any], ps_rms: npt.NDArray,
+    filter_type: Optional[str] = "optimal"
 ):
     n_seg = meta["N_SEG"]
     n_seconds = meta["NSECONDS"]
@@ -155,7 +166,9 @@ def ccf_error(
     return error, avg_seg_ccf
 
 
-def get_parameters(counts, dt, model):
+def get_parameters(
+    counts: npt.NDArray, dt: float, model: Any
+) -> Tuple[float, float, float, float]:
     """
     Function to calculate mean count rate, phase offset and phase difference
     between the harmonics.
@@ -218,7 +231,10 @@ def get_parameters(counts, dt, model):
     return mu, cap_phi_1, cap_phi_2, small_psi
 
 
-def waveform(x, mu, avg_sigma_1, avg_sigma_2, cap_phi_1, cap_phi_2):
+def waveform(
+    x: npt.NDArray, mu: float, avg_sigma_1: float,
+    avg_sigma_2: float, cap_phi_1: float, cap_phi_2: float
+) -> npt.NDArray:
     """
     Return the QPO waveform (periodic function of QPO phase).
 
@@ -256,7 +272,7 @@ def waveform(x, mu, avg_sigma_1, avg_sigma_2, cap_phi_1, cap_phi_2):
     return y
 
 
-def psi_distance(avg_psi, psi):
+def psi_distance(avg_psi: float, psi: npt.NDArray) -> npt.NDArray:
     """
     Return the distance between array of phase differences of the segments
     and the mean phase difference.
@@ -279,7 +295,7 @@ def psi_distance(avg_psi, psi):
     return dm
 
 
-def x_2_function(x, *args):
+def x_2_function(x: float, *args) -> float:
     """
     Function to minimise to find the average phase difference of the segments.
     """
@@ -288,7 +304,7 @@ def x_2_function(x, *args):
     return X_2
 
 
-def get_mean_phase_difference(cs, model):
+def get_mean_phase_difference(cs: Crossspectrum, model: Any) -> Tuple[float, float]:
     """
     Return the mean phase difference between the first and second harmonics.
 
@@ -331,7 +347,7 @@ def get_mean_phase_difference(cs, model):
     return avg_psi, stddev
 
 
-def get_phase_lag(cs, model):
+def get_phase_lag(cs: Crossspectrum, model: Any) -> Tuple[float, float, float]:
     """
     Return the phase offset of the waveform.
 
@@ -378,7 +394,9 @@ def get_phase_lag(cs, model):
     return cap_phi_1, cap_phi_2, avg_psi
 
 
-def compute_rms(spectrum, model, criteria="all"):
+def compute_rms(
+    spectrum: Union[Powerspectrum, Crossspectrum], model: Any, criteria: Optional[str]="all"
+) -> float:
     """
     Return the average RMS based of the fitting model used and frequency
     selection criteria.
