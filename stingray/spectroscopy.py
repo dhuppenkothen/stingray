@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 def load_lc_fits(
     file: str, counts_type: Optional[bool] = True
-) -> Tuple(npt.NDArray, npt.NDArray, Dict[str, Any]):
+) -> Tuple(npt.ArrayLike[float], npt.ArrayLike[float], Dict[str, Any]):
     """
     Function to load FITS file having reference band and channel of interest
     bands.
@@ -82,7 +82,9 @@ def get_new_df(
     return new_df
 
 
-def ccf(cs_power: npt.NDArray, ps_rms: npt.NDArray, n_bins: int) -> npt.NDArray:
+def ccf(
+    cs_power: npt.ArrayLike[float], ps_rms: npt.ArrayLike[float], n_bins: int
+) -> npt.ArrayLike[float]:
     """
     Return the normalised cross-correlation function of the cross spectrum. It
     is normalised using the average RMS of power spectrum.
@@ -110,10 +112,12 @@ def ccf(cs_power: npt.NDArray, ps_rms: npt.NDArray, n_bins: int) -> npt.NDArray:
 
 
 def ccf_error(
-    ref_counts: npt.NDArray, ci_counts_0: npt.NDArray, cs_res_model: Any,
-    rebin_log_factor: float, meta: Dict[str, Any], ps_rms: npt.NDArray,
+    ref_counts: npt.ArrayLike[float], ci_counts_0: npt.ArrayLike[float], cs_res_model: Any,
+    rebin_log_factor: float, meta: Dict[str, Any], ps_rms: npt.ArrayLike[float],
     filter_type: Optional[str] = "optimal"
-):
+) -> Tuple[npt.ArrayLike[float], npt.ArrayLike[float]]:
+    # Need documentation here
+
     n_seg = meta["N_SEG"]
     n_seconds = meta["NSECONDS"]
     dt = meta["DT"]
@@ -167,7 +171,7 @@ def ccf_error(
 
 
 def get_parameters(
-    counts: npt.NDArray, dt: float, model: Any
+    counts: npt.ArrayLike, dt: float, model: Any
 ) -> Tuple[float, float, float, float]:
     """
     Function to calculate mean count rate, phase offset and phase difference
@@ -232,9 +236,9 @@ def get_parameters(
 
 
 def waveform(
-    x: npt.NDArray, mu: float, avg_sigma_1: float,
+    x: npt.ArrayLike, mu: float, avg_sigma_1: float,
     avg_sigma_2: float, cap_phi_1: float, cap_phi_2: float
-) -> npt.NDArray:
+) -> npt.ArrayLike:
     """
     Return the QPO waveform (periodic function of QPO phase).
 
@@ -272,7 +276,7 @@ def waveform(
     return y
 
 
-def psi_distance(avg_psi: float, psi: npt.NDArray) -> npt.NDArray:
+def psi_distance(avg_psi: float, psi: npt.ArrayLike) -> npt.ArrayLike:
     """
     Return the distance between array of phase differences of the segments
     and the mean phase difference.
