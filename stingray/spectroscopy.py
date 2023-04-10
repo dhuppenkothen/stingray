@@ -14,6 +14,7 @@ from typing import Union, Tuple, Dict, Optional, Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from numpy import typing as npt
 
+AstropyModel = astropy.modeling.core.Model
 
 def load_lc_fits(
     file: str, counts_type: Optional[bool] = True
@@ -112,7 +113,7 @@ def ccf(
 
 
 def ccf_error(
-    ref_counts: npt.ArrayLike[float], ci_counts_0: npt.ArrayLike[float], cs_res_model: Any,
+    ref_counts: npt.ArrayLike[float], ci_counts_0: npt.ArrayLike[float], cs_res_model: AstropyModel,
     rebin_log_factor: float, meta: Dict[str, Any], ps_rms: npt.ArrayLike[float],
     filter_type: Optional[str] = "optimal"
 ) -> Tuple[npt.ArrayLike[float], npt.ArrayLike[float]]:
@@ -171,7 +172,7 @@ def ccf_error(
 
 
 def get_parameters(
-    counts: npt.ArrayLike, dt: float, model: Any
+    counts: Union[npt.ArrayLike[int], npt.ArrayLike[float]], dt: float, model: AstropyModel
 ) -> Tuple[float, float, float, float]:
     """
     Function to calculate mean count rate, phase offset and phase difference
@@ -276,7 +277,7 @@ def waveform(
     return y
 
 
-def psi_distance(avg_psi: float, psi: npt.ArrayLike) -> npt.ArrayLike:
+def psi_distance(avg_psi: float, psi: npt.ArrayLike[List[float]]) -> npt.ArrayLike:
     """
     Return the distance between array of phase differences of the segments
     and the mean phase difference.
@@ -308,7 +309,7 @@ def x_2_function(x: float, *args) -> float:
     return X_2
 
 
-def get_mean_phase_difference(cs: Crossspectrum, model: Any) -> Tuple[float, float]:
+def get_mean_phase_difference(cs: Crossspectrum, model: AstropyModel) -> Tuple[float, float]:
     """
     Return the mean phase difference between the first and second harmonics.
 
@@ -351,7 +352,7 @@ def get_mean_phase_difference(cs: Crossspectrum, model: Any) -> Tuple[float, flo
     return avg_psi, stddev
 
 
-def get_phase_lag(cs: Crossspectrum, model: Any) -> Tuple[float, float, float]:
+def get_phase_lag(cs: Crossspectrum, model: AstropyModel) -> Tuple[float, float, float]:
     """
     Return the phase offset of the waveform.
 
@@ -399,7 +400,7 @@ def get_phase_lag(cs: Crossspectrum, model: Any) -> Tuple[float, float, float]:
 
 
 def compute_rms(
-    spectrum: Union[Powerspectrum, Crossspectrum], model: Any, criteria: Optional[str]="all"
+    spectrum: Union[Powerspectrum, Crossspectrum], model: AstropyModel, criteria: Optional[str]="all"
 ) -> float:
     """
     Return the average RMS based of the fitting model used and frequency
