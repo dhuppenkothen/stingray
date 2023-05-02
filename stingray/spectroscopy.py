@@ -11,11 +11,7 @@ from stingray.utils import standard_error, find_nearest, fft, ifft
 from stingray.filters import Optimal1D, Window1D
 
 from typing import Union, Tuple, Dict, Optional, Any, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from numpy import typing as npt
-
-#AstropyModel = astropy.modeling.core.Model
+from numpy import typing as npt
 
 
 def load_lc_fits(
