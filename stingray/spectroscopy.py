@@ -5,6 +5,7 @@ from scipy.optimize import brent
 
 from astropy.table import Table
 from astropy.modeling.models import Lorentz1D
+from astropy.modeling.core import Model as AstropyModel
 from stingray import Lightcurve, Crossspectrum
 from stingray.utils import standard_error, find_nearest, fft, ifft
 from stingray.filters import Optimal1D, Window1D
@@ -14,7 +15,8 @@ from typing import Union, Tuple, Dict, Optional, Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from numpy import typing as npt
 
-AstropyModel = astropy.modeling.core.Model
+#AstropyModel = astropy.modeling.core.Model
+
 
 def load_lc_fits(
     file: str, counts_type: Optional[bool] = True
@@ -58,9 +60,7 @@ def load_lc_fits(
     return ref, ci, meta
 
 
-def get_new_df(
-    spectrum: Union[Powerspectrum, Crossspectrum], n_bins: int
-) -> float:
+def get_new_df(spectrum: Union[Powerspectrum, Crossspectrum], n_bins: int) -> float:
     """
     Return the new df used to re-bin the spectrum.
 
@@ -113,9 +113,13 @@ def ccf(
 
 
 def ccf_error(
-    ref_counts: npt.ArrayLike[float], ci_counts_0: npt.ArrayLike[float], cs_res_model: AstropyModel,
-    rebin_log_factor: float, meta: Dict[str, Any], ps_rms: npt.ArrayLike[float],
-    filter_type: Optional[str] = "optimal"
+    ref_counts: npt.ArrayLike[float],
+    ci_counts_0: npt.ArrayLike[float],
+    cs_res_model: AstropyModel,
+    rebin_log_factor: float,
+    meta: Dict[str, Any],
+    ps_rms: npt.ArrayLike[float],
+    filter_type: Optional[str] = "optimal",
 ) -> Tuple[npt.ArrayLike[float], npt.ArrayLike[float]]:
     # Need documentation here
 
@@ -133,7 +137,9 @@ def ccf_error(
     for i in range(n_seg):  # for each segment
         # Creating cross spectrum
         seg_ci_lc = Lightcurve(seg_times, seg_ci_counts[i], dt=dt)  # CoI light curve
-        seg_ref_lc = Lightcurve(seg_times, seg_ref_counts[i], dt=dt)  # reference band light curve
+        seg_ref_lc = Lightcurve(
+            seg_times, seg_ref_counts[i], dt=dt
+        )  # reference band light curve
         seg_cs = Crossspectrum(
             lc2=seg_ci_lc, lc1=seg_ref_lc, norm="leahy", power_type="absolute"
         )  # cross spectrum
@@ -172,7 +178,9 @@ def ccf_error(
 
 
 def get_parameters(
-    counts: Union[npt.ArrayLike[int], npt.ArrayLike[float]], dt: float, model: AstropyModel
+    counts: Union[npt.ArrayLike[int], npt.ArrayLike[float]],
+    dt: float,
+    model: AstropyModel,
 ) -> Tuple[float, float, float, float]:
     """
     Function to calculate mean count rate, phase offset and phase difference
@@ -237,8 +245,12 @@ def get_parameters(
 
 
 def waveform(
-    x: npt.ArrayLike, mu: float, avg_sigma_1: float,
-    avg_sigma_2: float, cap_phi_1: float, cap_phi_2: float
+    x: npt.ArrayLike,
+    mu: float,
+    avg_sigma_1: float,
+    avg_sigma_2: float,
+    cap_phi_1: float,
+    cap_phi_2: float,
 ) -> npt.ArrayLike:
     """
     Return the QPO waveform (periodic function of QPO phase).
@@ -272,7 +284,10 @@ def waveform(
     y = mu * (
         1
         + np.sqrt(2)
-        * (avg_sigma_1 * np.cos(x - cap_phi_1) + avg_sigma_2 * np.cos(2 * x - cap_phi_2))
+        * (
+            avg_sigma_1 * np.cos(x - cap_phi_1)
+            + avg_sigma_2 * np.cos(2 * x - cap_phi_2)
+        )
     )
     return y
 
@@ -296,7 +311,9 @@ def psi_distance(avg_psi: float, psi: npt.ArrayLike[List[float]]) -> npt.ArrayLi
 
     """
     delta = np.abs(psi - avg_psi)
-    dm = np.array([delta_i if avg_psi < np.pi / 2 else np.pi - delta for delta_i in delta])
+    dm = np.array(
+        [delta_i if avg_psi < np.pi / 2 else np.pi - delta for delta_i in delta]
+    )
     return dm
 
 
@@ -309,7 +326,9 @@ def x_2_function(x: float, *args) -> float:
     return X_2
 
 
-def get_mean_phase_difference(cs: Crossspectrum, model: AstropyModel) -> Tuple[float, float]:
+def get_mean_phase_difference(
+    cs: Crossspectrum, model: AstropyModel
+) -> Tuple[float, float]:
     """
     Return the mean phase difference between the first and second harmonics.
 
@@ -400,7 +419,9 @@ def get_phase_lag(cs: Crossspectrum, model: AstropyModel) -> Tuple[float, float,
 
 
 def compute_rms(
-    spectrum: Union[Powerspectrum, Crossspectrum], model: AstropyModel, criteria: Optional[str]="all"
+    spectrum: Union[Powerspectrum, Crossspectrum],
+    model: AstropyModel,
+    criteria: Optional[str] = "all",
 ) -> float:
     """
     Return the average RMS based of the fitting model used and frequency
