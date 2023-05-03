@@ -1,2 +1,2 @@
-- Added type hints to bexvar.py
-- Black formatted bexvar.py
+- Added type hints to ``bexvar.py``
+- Black formatted ``bexvar.py``
