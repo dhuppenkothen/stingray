@@ -125,12 +125,3 @@ If that doesn't work on your system, you can invoke ``sphinx-build`` itself from
 The documentation should be located in ``stingray/docs/_build``. Try opening ``./docs/_build/index.rst`` from
 the stingray source directory.
 
-Updating and Maintaining the Changelog
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Stingray uses `towncrier <https://pypi.org/project/towncrier/>`_ which is used to generate the ``CHANGELOG.rst`` file at the root of the package. 
-
-As described in ``docs/changes/README.rst``, the changelog fragment files should be added to each pull request. The changelog will be read by users, so this description should be aimed at stingray users instead of describing internal changes which are only relevant to the developers.
-The idea is that the changelog lists all new features, API changes, bugfixes, and so on that have been added to stingray between versions so that a user can easily follow the changes without having to go through the entire git log.
-
-The towncrier tool will automatically reflow your text. You can install towncrier and then run ``towncrier --draft`` if you want to get a preview of how your change will look in the final release notes.

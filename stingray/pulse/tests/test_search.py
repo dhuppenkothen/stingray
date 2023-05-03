@@ -3,6 +3,7 @@ import pytest
 import matplotlib.pyplot as plt
 
 from stingray.pulse import epoch_folding_search, z_n_search
+from stingray.pulse import phase_dispersion_search
 from stingray.pulse import phaseogram, plot_phaseogram
 from stingray.pulse.search import _profile_fast
 from stingray.pulse import plot_profile
@@ -29,6 +30,8 @@ class TestAll(object):
         lc = Lightcurve(cls.times, cls.counts, gti=cls.gti, err_dist="gauss")
         events = EventList()
         events.simulate_times(lc)
+        counts = np.random.poisson(lc.counts)
+        cls.lc = Lightcurve(lc.time, counts)
         cls.event_times = events.time
 
     def test_prepare(self):
@@ -143,6 +146,15 @@ class TestAll(object):
         maxstatbin = freq[np.argmax(stat)]
         assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1 / self.tseg)
 
+    def test_phase_dispersion_search(self):
+        """Test pulse phase calculation, frequency only."""
+        frequencies = np.arange(9.8, 9.99, 0.1 / self.tseg)
+        freq, stat = phase_dispersion_search(self.lc.time, self.lc.counts, frequencies, nbin=43)
+
+        minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
+        minstatbin = freq[np.argmin(stat)]
+        assert np.allclose(minstatbin, frequencies[minbin], atol=0.1 / self.tseg)
+
     def test_epoch_folding_search_fdot(self):
         """Test pulse phase calculation, frequency only."""
         frequencies = np.arange(9.8, 9.99, 0.1 / self.tseg)
@@ -154,6 +166,20 @@ class TestAll(object):
         assert np.allclose(maxstatbin, frequencies[minbin], atol=0.1 / self.tseg)
         maxfdot = fdot.flatten()[np.argmax(stat)]
         assert np.allclose(maxfdot, 0.0, atol=0.1 / self.tseg)
+
+    def test_phase_dispersion_search_fdot(self):
+        """Test pulse phase calculation, frequency only."""
+        frequencies = np.arange(9.8, 9.99, 0.1 / self.tseg)
+        fdots = [-0.1, 0, 0.1]
+        freq, fdot, stat = phase_dispersion_search(
+            self.lc.time, self.lc.counts, frequencies, nbin=43, fdots=fdots
+        )
+
+        minbin = np.argmin(np.abs(frequencies - self.pulse_frequency))
+        minstatbin = freq.flatten()[np.argmin(stat)]
+        assert np.allclose(minstatbin, frequencies[minbin], atol=0.1 / self.tseg)
+        minfdot = fdot.flatten()[np.argmin(stat)]
+        assert np.allclose(minfdot, 0.0, atol=0.1 / self.tseg)
 
     def test_epoch_folding_search_fdot_longdouble(self):
         """Test pulse phase calculation, frequency only."""
