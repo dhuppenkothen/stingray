@@ -1392,17 +1392,39 @@ class TestLightcurveRebin(object):
         lc_new = self.lc.change_mjdref(57000)
         assert lc_new.mjdref == 57000
 
-    def testapply_gtis(self):
+    @pytest.mark.parametrize("inplace", [True, False])
+    def test_apply_gtis(self, inplace):
         time = np.arange(150)
         count = np.zeros_like(time) + 3
         lc = Lightcurve(time, count, gti=[[-0.5, 150.5]])
         lc.gti = [[-0.5, 2.5], [12.5, 14.5]]
-        lc.apply_gtis()
-        assert lc.n == 5
-        assert np.allclose(lc.time, np.array([0, 1, 2, 13, 14]))
-        lc.gti = [[-0.5, 10.5]]
-        lc.apply_gtis()
-        assert np.allclose(lc.time, np.array([0, 1, 2]))
+        lc_new = lc.apply_gtis(inplace=inplace)
+        if inplace == True:
+            assert lc_new is lc
+        assert lc_new.n == 5
+        for attr in lc_new.array_attrs():
+            assert len(getattr(lc_new, attr)) == 5
+        assert np.allclose(lc_new.time, np.array([0, 1, 2, 13, 14]))
+
+        lc_new.gti = [[-0.5, 10.5]]
+        lc_new2 = lc_new.apply_gtis(inplace=inplace)
+        assert np.allclose(lc_new2.time, np.array([0, 1, 2]))
+
+    @pytest.mark.parametrize("inplace", [True, False])
+    def test_apply_gtis_lc_rate(self, inplace):
+        dt = 1
+        time = np.arange(1, 10, dt)
+        countrate = np.zeros_like(time) + 5
+        # create the lightcurve from countrare
+        lc_rate = Lightcurve(time, counts=countrate, input_counts=False, gti=[[-0.5, 10.5]])
+        lc_rate.gti = [[-0.5, 2.5]]
+        lc_rate_new = lc_rate.apply_gtis(inplace=inplace)
+        if inplace == True:
+            assert lc_rate_new is lc_rate
+        assert lc_rate_new.n == 2
+        for attr in lc_rate_new.array_attrs():
+            assert len(getattr(lc_rate_new, attr)) == 2
+        assert np.allclose(lc_rate_new.time, np.array([1, 2]))
 
     def test_eq_operator(self):
         time = [1, 2, 3]

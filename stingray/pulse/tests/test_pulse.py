@@ -1,6 +1,7 @@
 import numpy as np
 from stingray.pulse import fold_events, get_TOA, phase_exposure
-from stingray.pulse import profile_stat, z_n, pulse_phase
+from stingray.pulse import ef_profile_stat, z_n, pulse_phase
+from stingray.pulse import pdm_profile_stat
 from stingray.pulse import z_n, z_n_events, z_n_binned_events, z_n_gauss, htest
 from stingray.pulse import z_n_events_all, z_n_binned_events_all, z_n_gauss_all
 from stingray.pulse import get_orbital_correction_from_ephemeris_file
@@ -79,7 +80,14 @@ class TestAll(object):
     def test_stat(self):
         """Test pulse phase calculation, frequency only."""
         prof = np.array([2, 2, 2, 2])
-        np.testing.assert_array_almost_equal(profile_stat(prof), 0)
+        np.testing.assert_array_almost_equal(ef_profile_stat(prof), 0)
+
+    def test_pdm_stat(self):
+        """Test pulse phase calculation, frequency only."""
+        prof = np.array([1, 1, 1, 1, 1])
+        sample_var = 2.0
+        nsample = 10
+        np.testing.assert_array_almost_equal(pdm_profile_stat(prof, sample_var, nsample), 0.5)
 
     def test_zn(self):
         """Test pulse phase calculation, frequency only."""
@@ -191,6 +199,33 @@ class TestAll(object):
         expected_err = 2**0.5 * np.ones(nbin)
         expected_err[-1] = 2  # Because of the change of exposure
         np.testing.assert_array_almost_equal(pe, expected_err)
+
+    def test_pulse_profile_pdm(self):
+        nbin = 16
+        dt = 1 / (2 * nbin)
+        times = np.arange(0, 2 - dt, dt)
+        counts = np.random.normal(3, 0.5, size=len(times))
+        gti = np.array([[-0.5 * dt, 2 - dt]])
+        bins, profile, prof_err = fold_events(times, 1, nbin=nbin, weights=counts, mode="pdm")
+        assert np.all(prof_err == 0)
+
+    def test_mode_incorrect(self):
+        nbin = 16
+        dt = 1 / nbin
+        times = np.arange(0, 2 - dt, dt)
+        counts = np.random.normal(3, 0.5, size=len(times))
+        gti = np.array([[-0.5 * dt, 2 - dt]])
+
+        wrong_mode = "blarg"
+        with pytest.raises(ValueError) as excinfo:
+            fold_events(times, 1, nbin=nbin, weights=counts, mode=wrong_mode)
+
+    def test_pdm_fails_without_weights(self):
+        nbin = 16
+        dt = 1 / nbin
+        times = np.arange(0, 2 - dt, dt)
+        with pytest.raises(ValueError) as excinfo:
+            fold_events(times, 1, nbin=nbin, mode="pdm")
 
     def test_zn_2(self):
         with pytest.warns(DeprecationWarning) as record:

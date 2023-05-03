@@ -1,0 +1,2 @@
+The method apply_gtis of the class Lightcurve is applied to all the attributes of the class Lightcurve.
+This works for both inplace=True and inplace=False
