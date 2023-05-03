@@ -28,7 +28,7 @@ from typing import TYPE_CHECKING, Union, List, Optional, Any
 if TYPE_CHECKING:
     import numpy.typing as npt
 
-    ListOrArrayFloat = Union[npt.ArrayLike, List[float]]
+    ListOrArrayFloat = Union[npt.ArrayLike[float], List[float]]
 
 __all__ = ["bexvar"]
 
@@ -39,7 +39,7 @@ def _lscg_gen(
     bkg_area: ListOrArrayFloat,
     rate_conversion: ListOrArrayFloat,
     density_gp: int,
-) -> npt.ArrayLike:
+) -> npt.ArrayLike[float]:
     """
     Generates a grid of log(source count rates), ``log_src_crs_grid`` applicable
     to this particular light curve, with appropriately designated limits, for
@@ -103,7 +103,7 @@ def _estimate_source_cr_marginalised(
     bkg_counts: float,
     bkg_area: float,
     rate_conversion: float,
-) -> npt.ArrayLike:
+) -> npt.ArrayLike[float]:
     """
     Compute the PDF at positions in log(source count rates) grid ``log_src_crs_grid``
     for observing ``src_counts`` counts in the source region of size ``src_area``,
@@ -131,7 +131,7 @@ def _estimate_source_cr_marginalised(
     u = np.linspace(0, 1, N)[1:-1]
     bkg_cr = scipy.special.gammaincinv(bkg_counts + 1, u) / bkg_area
 
-    def prob(log_src_cr: npt.ArrayLike) -> float:
+    def prob(log_src_cr: npt.ArrayLike[float]) -> float:
         src_cr = 10**log_src_cr * rate_conversion
         like = scipy.stats.poisson.pmf(src_counts, src_cr + bkg_cr).mean()
         return like
@@ -154,8 +154,8 @@ def _estimate_source_cr_marginalised(
 
 
 def _calculate_bexvar(
-    log_src_crs_grid: npt.ArrayLike, pdfs: npt.NDArray
-) -> npt.ArrayLike:
+    log_src_crs_grid: npt.ArrayLike[float], pdfs: npt.NDArray
+) -> npt.ArrayLike[float]:
     """
     Assumes that the source count rate is log-normal distributed.
     Returns posterior samples of Bayesian excess varience(bexvar)
@@ -216,7 +216,7 @@ def bexvar(
     bg_counts: Optional[ListOrArrayFloat] = None,
     bg_ratio: Optional[ListOrArrayFloat] = None,
     frac_exp: Optional[ListOrArrayFloat] = None,
-) -> npt.ArrayLike:
+) -> npt.ArrayLike[float]:
     """
     Given a light curve data, computes posterier distribution samples of
     Bayesian excess variance (bexvar), by estimating mean and variance of the
