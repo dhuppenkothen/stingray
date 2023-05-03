@@ -1,0 +1,1 @@
+Added stingray's logo in the documentation's favicon and top bar.

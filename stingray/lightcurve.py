@@ -1897,18 +1897,35 @@ class Lightcurve(StingrayTimeseries):
         self._mask = self._n = None
         if inplace:
             new_ev = self
+            # If they don't exist, they get set
+            self.counts, self.counts_err
+            # eliminate possible conflicts
+            self._countrate = self._countrate_err = None
+            # Set time, counts and errors
+            self._time = self._time[mask]
+            self._counts = self._counts[mask]
+            if self._counts_err is not None:
+                self._counts_err = self._counts_err[mask]
         else:
             new_ev = Lightcurve(
                 time=self.time[mask], counts=self.counts[mask], skip_checks=True, gti=self.gti
             )
+            if self._counts_err is not None:
+                new_ev.counts_err = self.counts_err[mask]
             for attr in self.meta_attrs():
                 try:
                     setattr(new_ev, attr, copy.deepcopy(getattr(self, attr)))
                 except AttributeError:
                     continue
-
         for attr in array_attrs:
-            if hasattr(self, "_" + attr) or attr in ["time", "counts"]:
+            if hasattr(self, "_" + attr) or attr in [
+                "time",
+                "counts",
+                "counts_err",
+                "_time",
+                "_counts",
+                "_counts_err",
+            ]:
                 continue
             if hasattr(self, attr) and getattr(self, attr) is not None:
                 setattr(new_ev, attr, copy.deepcopy(np.asarray(getattr(self, attr))[mask]))

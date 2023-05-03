@@ -6,6 +6,7 @@ import functools
 from collections.abc import Iterable
 import warnings
 from scipy.optimize import minimize, basinhopping
+import scipy.stats
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -18,7 +19,8 @@ __all__ = [
     "pulse_phase",
     "phase_exposure",
     "fold_events",
-    "profile_stat",
+    "ef_profile_stat",
+    "pdm_profile_stat",
     "z_n",
     "fftfit",
     "get_TOA",
@@ -215,9 +217,18 @@ def phase_exposure(start_time, stop_time, period, nbin=16, gti=None):
 def fold_events(times, *frequency_derivatives, **opts):
     """Epoch folding with exposure correction.
 
+    By default, the keyword `times` accepts a list of
+    unbinned photon arrival times. If the input data is
+    a (binned) light curve, then `times` will contain the
+    time stamps of the observation, and `weights` should
+    be set to the corresponding fluxes or counts.
+
     Parameters
     ----------
     times : array of floats
+        Photon arrival times, or, if `weights` is set,
+        time stamps of a light curve.
+
     f, fdot, fddot... : float
         The frequency and any number of derivatives.
 
@@ -225,26 +236,39 @@ def fold_events(times, *frequency_derivatives, **opts):
     ----------------
     nbin : int, optional, default 16
         The number of bins in the pulse profile
+
     weights : float or array of floats, optional
         The weights of the data. It can either be specified as a single value
         for all points, or an array with the same length as ``time``
+
     gti : [[gti0_0, gti0_1], [gti1_0, gti1_1], ...], optional
         Good time intervals
+
     ref_time : float, optional, default 0
         Reference time for the timing solution
+
     expocorr : bool, default False
         Correct each bin for exposure (use when the period of the pulsar is
         comparable to that of GTIs)
 
+    mode : str, ["ef", "pdm"], default "ef"
+        Whether to calculate the epoch folding or phase dispersion
+        minimization folded profile. For "ef", it calculates the (weighted)
+        sum of the data points in each phase bin, for "pdm", the variance
+        in each phase bin
+
     Returns
     -------
     phase_bins : array of floats
-    The phases corresponding to the pulse profile
+        The phases corresponding to the pulse profile
+
     profile : array of floats
-    The pulse profile
+        The pulse profile
+
     profile_err : array of floats
-    The uncertainties on the pulse profile
+        The uncertainties on the pulse profile
     """
+    mode = _default_value_if_no_key(opts, "mode", "ef")
     nbin = _default_value_if_no_key(opts, "nbin", 16)
     weights = _default_value_if_no_key(opts, "weights", 1)
     # If no key is passed, *or gti is None*, defaults to the
@@ -274,22 +298,51 @@ def fold_events(times, *frequency_derivatives, **opts):
     start_phase, stop_phase = pulse_phase(
         np.array([start_time, stop_time]), *frequency_derivatives, to_1=False
     )
-    raw_profile, bins = np.histogram(phases, bins=np.linspace(0, 1, nbin + 1), weights=weights)
 
-    if expocorr:
-        expo_norm = phase_exposure(start_phase, stop_phase, 1, nbin, gti=gti_phases)
-        simon("For exposure != 1, the uncertainty might be incorrect")
+    if mode == "ef":
+        raw_profile, bins = np.histogram(phases, bins=np.linspace(0, 1, nbin + 1), weights=weights)
+        # TODO: this is wrong. Need to extend this to non-1 weights
+        raw_profile_err = np.sqrt(raw_profile)
+
+        if expocorr:
+            expo_norm = phase_exposure(start_phase, stop_phase, 1, nbin, gti=gti_phases)
+            simon("For exposure != 1, the uncertainty might be incorrect")
+
+        else:
+            expo_norm = 1
+
+        raw_profile = raw_profile / expo_norm
+        raw_profile_err = raw_profile_err / expo_norm
+
+    elif mode == "pdm":
+        if np.allclose(weights, 1.0):
+            raise ValueError(
+                "Can only calculate PDM for binned light curves!"
+                + "`weights` attribute must be set to fluxes!"
+            )
+
+        raw_profile, bins, bin_idx = scipy.stats.binned_statistic(
+            phases, weights, statistic=np.var, bins=np.linspace(0, 1, nbin + 1)
+        )
+
+        # I need the variance uncorrected for the number of data points in each
+        # bin, so I need to find that first, and then multiply
+        _, bincounts = np.unique(bin_idx, return_counts=True)
+        raw_profile = raw_profile * bincounts
+
+        # dummy array for the error, which we don't have for the variance
+        raw_profile_err = np.zeros_like(raw_profile)
+
     else:
-        expo_norm = 1
+        raise ValueError(
+            "mode can only be `ef` for Epoch Folding or "
+            + "`pdm` for Phase Dispersion Minimization!"
+        )
 
-    # TODO: this is wrong. Need to extend this to non-1 weights
-
-    raw_profile_err = np.sqrt(raw_profile)
-
-    return bins[:-1] + np.diff(bins) / 2, raw_profile / expo_norm, raw_profile_err / expo_norm
+    return bins[:-1] + np.diff(bins) / 2, raw_profile, raw_profile_err
 
 
-def profile_stat(profile, err=None):
+def ef_profile_stat(profile, err=None):
     """Calculate the epoch folding statistics \'a la Leahy et al. (1983).
 
     Parameters
@@ -311,6 +364,33 @@ def profile_stat(profile, err=None):
     if err is None:
         err = np.sqrt(mean)
     return np.sum((profile - mean) ** 2 / err**2)
+
+
+def pdm_profile_stat(profile, sample_var, nsample):
+    """Calculate the phase dispersion minimization
+    statistic following Stellingwerf (1978)
+
+    Parameters
+    ----------
+    profile : array
+        The PDM pulse profile (variance as a function
+        of phase)
+
+    sample_var : float
+        The total population variance of the sample
+
+    nsample : int
+        The number of time bins in the initial time
+        series.
+
+    Returns
+    -------
+    stat : float
+        The epoch folding statistics
+    """
+    s2 = np.sum(profile) / (nsample - len(profile))
+    stat = s2 / sample_var
+    return stat
 
 
 @functools.lru_cache(maxsize=128)

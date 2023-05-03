@@ -1,0 +1,1 @@
+Improved contributing workflow by appending ``black`` codestyle configuration to ``pyproject.toml`` and ignoring PEP-8 non-compliant ``E203``, ``W503`` in ``flake8``.

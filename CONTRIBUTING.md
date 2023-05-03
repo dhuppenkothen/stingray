@@ -59,10 +59,12 @@ you’ve done, and why you did it:
     1. One commit per logical change.
     2. Run tests to make sure that changes don't break existing code.
     3. Code should have appropriate docstring.
-    4. Update appropriate documentation if necessary and test it on sphinx.
-    5. Write a test for code changes.
-    6. If modifications require more than one commit, break changes into smaller commits.
-    7. Push the code on your remote(forked) repository.
+    4. Format code appropriately, use `black` as described below.
+    5. Update appropriate documentation if necessary and test it on sphinx.
+    6. Write tests that cover all code changes.
+    7. If modifications require more than one commit, break changes into smaller commits.
+    8. Write a changelog entry in `towncrier` format (see below)
+    9. Push the code on your remote(forked) repository.
 4. All code changes should be submitted via PRs (i.e. fork, branch, work on stuff, just submit pull request).
 Code Reviews are super-useful: another contributor can review the code, which means both the contributor and reviewer will be up to date with how everything fits together, and can get better by reading each other's code! :)
 5. Take feedback and make changes/revise the PR as asked.
@@ -94,11 +96,12 @@ Code Reviews are super-useful: another contributor can review the code, which me
 
     `flake8 astropy --count --select=E101,W191,W291,W292,W293,W391,E111,E112,E113,E30,E502,E722,E901,E902,E999,F822,F823`
 
-- **Code Formatters:** We follow Astropy, enforcing this style guide using the black code formatter, see [The Black Code Style](https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html) for details. Please run 
-    
-    `black -l 100 stingray`
-    
+- **Code Formatters:** We follow Astropy, enforcing this style guide using the black code formatter, see [The Black Code Style](https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html) for details. Please run
+
+    `black stingray`
+
     before each commit
+
 - **Imports:**
     - Absolute imports are to be used in general. The exception to this is relative imports of the form `from . import modulename`, this convention makes it clearer what code is from the current sub-module as opposed to from another. It is best to use when referring to files within the same sub-module.
     - The import `numpy as np`, `import scipy as sp`, `import matplotlib as mpl`, and `import matplotlib.pyplot as plt` naming conventions should be used wherever relevant. `from packagename import *` should never be used, except as a tool to flatten the namespace of a module.
@@ -132,6 +135,15 @@ Code Reviews are super-useful: another contributor can review the code, which me
 - **Building Documentation:**
     - Use sphinx to build the documentation.
     - All extra documentation should go into a /docs sub-directory under the main stingray directory.
+
+### Updating and Maintaining the Changelog
+
+Stingray uses [`towncrier`](https://pypi.org/project/towncrier/) which is used to generate the `CHANGELOG.rst` file at the root of the package.
+
+As described in `docs/changes/README.rst`, the changelog fragment files should be added to each pull request. The changelog will be read by users, so this description should be aimed at stingray users instead of describing internal changes which are only relevant to the developers.
+The idea is that the changelog lists all new features, API changes, bugfixes, and so on that have been added to stingray between versions so that a user can easily follow the changes without having to go through the entire git log.
+
+The towncrier tool will automatically reflow your text. You can install towncrier and then run `towncrier --draft` if you want to get a preview of how your change will look in the final release notes.
 
 ## Testing Guidelines
 
