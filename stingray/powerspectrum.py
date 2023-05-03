@@ -26,7 +26,7 @@ from .fourier import rms_calculation, poisson_level
 from typing import Union, Sequence, Tuple, Optional, Self, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from numpy import typing as npt
+    import numpy.typing as npt
     from astropy.table import Table
 
 try:
@@ -382,9 +382,7 @@ class Powerspectrum(Crossspectrum):
 
         """
         if not self.norm == "leahy":
-            raise ValueError(
-                "This method only works on " "Leahy-normalized power spectra!"
-            )
+            raise ValueError("This method only works on " "Leahy-normalized power spectra!")
 
         if trial_correction:
             ntrial = self.power.shape[0]
@@ -1011,9 +1009,7 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
             good = lengths >= segment_size
             data.gti = data.gti[good]
 
-        Powerspectrum.__init__(
-            self, data, norm, gti=gti, dt=dt, skip_checks=True, legacy=legacy
-        )
+        Powerspectrum.__init__(self, data, norm, gti=gti, dt=dt, skip_checks=True, legacy=legacy)
 
         return
 
@@ -1178,13 +1174,10 @@ class DynamicalPowerspectrum(AveragedPowerspectrum):
             lc = lc.to_lc(dt)
 
         if segment_size < 2 * lc.dt:
-            raise ValueError(
-                "Length of the segment is too short to form a " "light curve!"
-            )
+            raise ValueError("Length of the segment is too short to form a " "light curve!")
         elif segment_size > lc.tseg:
             raise ValueError(
-                "Length of the segment is too long to create "
-                "any segments of the light curve!"
+                "Length of the segment is too long to create " "any segments of the light curve!"
             )
         AveragedPowerspectrum.__init__(
             self, data=lc, segment_size=segment_size, norm=norm, gti=gti, dt=dt
@@ -1203,9 +1196,7 @@ class DynamicalPowerspectrum(AveragedPowerspectrum):
             The :class:`Lightcurve` object from which to generate the dynamical
             power spectrum.
         """
-        ps_all, _ = AveragedPowerspectrum._make_segment_spectrum(
-            self, lc, self.segment_size
-        )
+        ps_all, _ = AveragedPowerspectrum._make_segment_spectrum(self, lc, self.segment_size)
         self.dyn_ps = np.array([ps.power for ps in ps_all]).T
 
         self.freq = ps_all[0].freq
@@ -1331,9 +1322,7 @@ class DynamicalPowerspectrum(AveragedPowerspectrum):
             New rebinned Dynamical Power Spectrum.
         """
         if dt_new < self.dt:
-            raise ValueError(
-                "New time resolution must be larger than " "old time resolution!"
-            )
+            raise ValueError("New time resolution must be larger than " "old time resolution!")
 
         new_dynspec_object = copy.deepcopy(self)
 

@@ -28,7 +28,7 @@ from scipy.special import factorial
 from typing import Union, Sequence, Tuple, Optional, Self, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from numpy import typing as npt
+    import numpy.typing as npt
     from astropy.table import Table
 
 __all__ = [
@@ -123,9 +123,7 @@ def get_flux_generator(
             err = data.counts_err
     elif isinstance(data, EventList):
         if dt is None:
-            raise ValueError(
-                "If data is an EventList, you need to specify the bin time dt"
-            )
+            raise ValueError("If data is an EventList, you need to specify the bin time dt")
         N = int(np.rint(segment_size / dt))
 
     flux_iterable = get_flux_iterable_from_segments(
@@ -174,7 +172,7 @@ def coherence(lc1: Lightcurve, lc2: Lightcurve) -> npt.NDArray:
     return cs.coherence()
 
 
-def time_lag(lc1: Lightcurve, lc2: Lightcurve) -> Tuple[npt.NDArray, npt.NDArray]:
+def time_lag(lc1: Lightcurve, lc2: Lightcurve) -> Optional[Tuple[npt.NDArray, npt.NDArray]]:
     """
     Estimate the time lag of two light curves.
     Calculate time lag and uncertainty.
@@ -751,9 +749,7 @@ class Crossspectrum(StingrayObject):
 
         if data1 is None or data2 is None:
             if data1 is not None or data2 is not None:
-                raise ValueError(
-                    "You can't do a cross spectrum with just one light curve!"
-                )
+                raise ValueError("You can't do a cross spectrum with just one light curve!")
             else:
                 return False
 
@@ -791,9 +787,7 @@ class Crossspectrum(StingrayObject):
                     "might or might not be an issue. Keep an eye on it."
                 )
         elif isinstance(data1, (list, tuple)):
-            if not isinstance(data1[0], Lightcurve) or not isinstance(
-                data2[0], Lightcurve
-            ):
+            if not isinstance(data1[0], Lightcurve) or not isinstance(data2[0], Lightcurve):
                 raise TypeError("Inputs lists have to contain light curve objects")
 
             if data1[0].err_dist.lower() != data2[0].err_dist.lower():
@@ -860,9 +854,7 @@ class Crossspectrum(StingrayObject):
         check_gtis(self.gti)
 
         if self.gti.shape[0] != 1:
-            raise TypeError(
-                "Non-averaged Cross Spectra need a single Good Time Interval"
-            )
+            raise TypeError("Non-averaged Cross Spectra need a single Good Time Interval")
 
         lc1 = lc1.split_by_gti()[0]
         lc2 = lc2.split_by_gti()[0]
@@ -888,9 +880,7 @@ class Crossspectrum(StingrayObject):
             self.err_dist = "gauss"
 
         if lc1.n != lc2.n:
-            raise StingrayError(
-                "Light curves do not have same number of time bins per segment."
-            )
+            raise StingrayError("Light curves do not have same number of time bins per segment.")
 
         # If dt differs slightly, its propagated error must not be more than
         # 1/100th of the bin
@@ -1443,18 +1433,14 @@ class Crossspectrum(StingrayObject):
 
         """
         if not self.norm == "leahy":
-            raise ValueError(
-                "This method only works on Leahy-normalized power spectra!"
-            )
+            raise ValueError("This method only works on Leahy-normalized power spectra!")
 
         if np.size(self.m) == 1:
             # calculate p-values for all powers
             # leave out zeroth power since it just encodes the number of photons!
             pv = np.array([cospectra_pvalue(power, self.m) for power in self.power])
         else:
-            pv = np.array(
-                [cospectra_pvalue(power, m) for power, m in zip(self.power, self.m)]
-            )
+            pv = np.array([cospectra_pvalue(power, m) for power, m in zip(self.power, self.m)])
 
         # if trial correction is used, then correct the threshold for
         # the number of powers in the power spectrum
@@ -2137,16 +2123,10 @@ class AveragedCrossspectrum(Crossspectrum):
         ...
         ValueError: segment_size must be finite!
         """
-        good = Crossspectrum.initial_checks(
-            self, data1, segment_size=segment_size, **kwargs
-        )
+        good = Crossspectrum.initial_checks(self, data1, segment_size=segment_size, **kwargs)
         if not good:
             return False
-        if (
-            isinstance(self, AveragedCrossspectrum)
-            and segment_size is None
-            and data1 is not None
-        ):
+        if isinstance(self, AveragedCrossspectrum) and segment_size is None and data1 is not None:
             raise ValueError("segment_size must be specified")
 
         if (
@@ -2172,11 +2152,7 @@ class AveragedCrossspectrum(Crossspectrum):
         is_lc_iter = isinstance(lc1, Iterator)
         is_lc_list = isinstance(lc1, Iterable) and not is_lc_iter
         # A way to say that this is actually not a power spectrum
-        if (
-            self.type != "powerspectrum"
-            and (lc1 is not lc2)
-            and (is_event or is_lc or is_lc_list)
-        ):
+        if self.type != "powerspectrum" and (lc1 is not lc2) and (is_event or is_lc or is_lc_list):
             self.pds1 = AveragedCrossspectrum(
                 lc1,
                 lc1,
@@ -2287,9 +2263,7 @@ class AveragedCrossspectrum(Crossspectrum):
             counts_2 = copy.deepcopy(lc2.counts[start_ind:end_ind])
             counts_2_err = copy.deepcopy(lc2.counts_err[start_ind:end_ind])
             if np.sum(counts_1) == 0 or np.sum(counts_2) == 0:
-                warnings.warn(
-                    "No counts in interval {}--{}s".format(time_1[0], time_1[-1])
-                )
+                warnings.warn("No counts in interval {}--{}s".format(time_1[0], time_1[-1]))
                 continue
 
             gti1 = np.array([[time_1[0] - lc1.dt / 2, time_1[-1] + lc1.dt / 2]])
@@ -2360,9 +2334,7 @@ class AveragedCrossspectrum(Crossspectrum):
                 )
 
             elif self.type == "powerspectrum":
-                cs_all, nphots1_all = self._make_segment_spectrum(
-                    lc1, self.segment_size
-                )
+                cs_all, nphots1_all = self._make_segment_spectrum(lc1, self.segment_size)
 
             else:
                 raise ValueError("Type of spectrum not recognized!")
@@ -2581,9 +2553,7 @@ def crossspectrum_from_time_array(
         return_auxil=True,
     )
 
-    return _create_crossspectrum_from_result_table(
-        results, force_averaged=force_averaged
-    )
+    return _create_crossspectrum_from_result_table(results, force_averaged=force_averaged)
 
 
 def crossspectrum_from_events(
@@ -2737,9 +2707,7 @@ def crossspectrum_from_lightcurve(
         return_auxil=True,
     )
 
-    return _create_crossspectrum_from_result_table(
-        results, force_averaged=force_averaged
-    )
+    return _create_crossspectrum_from_result_table(results, force_averaged=force_averaged)
 
 
 def crossspectrum_from_lc_iterable(
@@ -2835,9 +2803,7 @@ def crossspectrum_from_lc_iterable(
         power_type=power_type,
         return_auxil=True,
     )
-    return _create_crossspectrum_from_result_table(
-        results, force_averaged=force_averaged
-    )
+    return _create_crossspectrum_from_result_table(results, force_averaged=force_averaged)
 
 
 def _create_crossspectrum_from_result_table(

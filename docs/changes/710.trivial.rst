@@ -1,0 +1,3 @@
+- Added type hints to ``powerspectrum.py`` and ``crossspectrum.py``
+- Black formatted ``powerspectrum.py`` and ``crossspectrum.py``
+- 
