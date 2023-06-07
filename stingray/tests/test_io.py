@@ -67,10 +67,16 @@ class TestIO(object):
         assert "XMM" in info
         assert "NICER" in info
 
-    def test_event_file_read(self):
+    def test_event_file_read_and_automatic_sort(self):
         """Test event file reading."""
-        fname = os.path.join(datadir, "monol_testA.evt")
-        load_events_and_gtis(fname, additional_columns=["PI"])
+        fname = os.path.join(datadir, "monol_testA_calib.evt")
+        evdata = load_events_and_gtis(fname)
+        fname_unsrt = os.path.join(datadir, "monol_testA_calib_unsrt.evt")
+        with pytest.warns(UserWarning, match="not sorted. Sorting them for you"):
+            evdata_unsrt = load_events_and_gtis(fname_unsrt)
+
+        for attr in "ev_list", "energy_list", "pi_list":
+            assert np.allclose(getattr(evdata, attr), getattr(evdata_unsrt, attr))
 
     def test_event_file_read_additional_warns_uncal(self):
         """Test event file reading."""
@@ -100,7 +106,8 @@ class TestIO(object):
     def test_event_file_read_no_mission(self):
         """Test event file reading."""
         fname = os.path.join(datadir, "nomission.evt")
-        load_events_and_gtis(fname)
+        with pytest.warns(UserWarning, match="Sorting them"):
+            load_events_and_gtis(fname)
 
     def test_event_file_read_no_additional(self):
         """Test event file reading."""

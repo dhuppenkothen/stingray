@@ -1,1 +1,0 @@
-Reordered information about contributions with new ``black`` and ``towncrier`` procedures

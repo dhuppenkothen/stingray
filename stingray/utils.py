@@ -40,43 +40,33 @@ except ImportError:
 
 # If numba is installed, import jit. Otherwise, define an empty decorator with
 # the same name.
-HAS_NUMBA = False
 try:
     from numba import jit
 
     HAS_NUMBA = True
     from numba import njit, prange, vectorize, float32, float64, int32, int64
+    from numba.core.errors import NumbaValueError
 except ImportError:
     warnings.warn("Numba not installed. Faking it")
+    HAS_NUMBA = False
+    NumbaValueError = Exception
 
-    class jit(object):
-        def __init__(self, *args, **kwargs):
-            pass
+    def njit(f=None, *args, **kwargs):
+        def decorator(func, *a, **kw):
+            return func
 
-        def __call__(self, func):
-            def wrapped_f(*args, **kwargs):
-                return func(*args, **kwargs)
+        if callable(f):
+            return f
+        else:
+            return decorator
 
-            return wrapped_f
+    jit = njit
 
-    class njit(object):
-        def __init__(self, *args, **kwargs):
-            pass
+    def vectorize(*args, **kwargs):
+        def decorator(func, *a, **kw):
+            return np.vectorize(func)
 
-        def __call__(self, func):
-            def wrapped_f(*args, **kwargs):
-                return func(*args, **kwargs)
-
-            return wrapped_f
-
-    class vectorize(object):
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def __call__(self, func):
-            wrapped_f = np.vectorize(func)
-
-            return wrapped_f
+        return decorator
 
     def generic(x, y=None):
         return None
@@ -146,7 +136,112 @@ __all__ = [
     "nearest_power_of_two",
     "find_nearest",
     "genDataPath",
+    "check_isallfinite",
 ]
+
+
+@njit
+def _check_isallfinite_numba(array):
+    """Check if all elements of an array are finite.
+
+    This is faster than ``np.isfinite`` for large arrays, because it
+    exits at the first occurrence of a non-finite value.
+
+    Examples
+    --------
+    >>> _check_isallfinite_numba(np.array([1., 2., 3.]))
+    True
+    >>> _check_isallfinite_numba(np.array([1., np.inf, 3.]))
+    False
+    """
+    for a in array:
+        if not np.isfinite(a):
+            return False
+    return True
+
+
+def check_isallfinite(array):
+    """Check if all elements of an array are finite.
+
+    Calls ``_check_isallfinite_numba`` if numba is installed, otherwise
+    it uses ``np.isfinite``.
+
+    Examples
+    --------
+    >>> check_isallfinite([1, 2, 3])
+    True
+    >>> check_isallfinite([1, np.inf, 3])
+    False
+    >>> check_isallfinite([1, np.nan, 3])
+    False
+    """
+    if HAS_NUMBA:
+        # Numba is very picky about the type of the input array. If an exception
+        # occurs in the numba-compiled function, use the default Numpy implementation.
+        try:
+            return _check_isallfinite_numba(np.asarray(array))
+        except Exception:
+            pass
+    return np.all(np.isfinite(array))
+
+
+def is_sorted(array):
+    """Check if an array is sorted.
+
+    Checks if an array has extended precision before calling the
+    ``is_sorted`` numba-compiled function.
+
+    Parameters
+    ----------
+    array : iterable
+        The array to be checked
+
+    Returns
+    -------
+    is_sorted : bool
+        True if the array is sorted, False otherwise
+    """
+
+    array = np.asarray(array)
+    # If the array is empty or has only one element, it is sorted
+    if array.size <= 1:
+        return True
+
+    # If Numba is not installed, use numpy's implementation
+    if not HAS_NUMBA:
+        return np.all(np.diff(array) >= 0)
+    # Test if value is compatible with Numba's type system
+    try:
+        _is_sorted_numba(array[:2])
+    except NumbaValueError:
+        array = array.astype(float)
+
+    return _is_sorted_numba(array)
+
+
+@njit()
+def _is_sorted_numba(array):
+    """Check if an array is sorted.
+
+    .. note::
+        The array cannot have extended precision.
+        This function should always be wrapped into a function that
+        checks the type of the array and converts it to float if needed.
+
+    Parameters
+    ----------
+    array : iterable
+        The array to be checked
+
+    Returns
+    -------
+    is_sorted : bool
+        True if the array is sorted, False otherwise
+    """
+    for i in prange(len(array) - 1):
+        if array[i] > array[i + 1]:
+            return False
+    return True
 
 
 def _root_squared_mean(array):
@@ -726,7 +821,14 @@ def _als(y, lam, p, niter=10):
     from scipy import sparse
 
     L = len(y)
-    D = sparse.csc_matrix(np.diff(np.eye(L), 2))
+
+    indptr = np.arange(0, L - 1, dtype=np.int32) * 3
+    indices = np.vstack(
+        (np.arange(0, L - 2).T, np.arange(0, L - 2).T + 1, np.arange(0, L - 2).T + 2)
+    ).T.flatten()
+    data = np.tile([1, -2, 1], L - 2)
+    D = sparse.csc_matrix((data, indices, indptr), shape=(L, L - 2))
+
     w = np.ones(L)
     for _ in range(niter):
         W = sparse.spdiags(w, 0, L, L)

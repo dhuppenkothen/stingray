@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 import stingray.utils as utils
 
-from .utils import assign_value_if_none, is_string, order_list_of_arrays
+from .utils import assign_value_if_none, is_string, order_list_of_arrays, is_sorted
 from .gti import get_gti_from_all_extensions, load_gtis
 
 # Python 3
@@ -666,12 +666,14 @@ def load_events_and_gtis(
     additional_data = _get_additional_data(datatable, additional_columns)
     hdulist.close()
     # Sort event list
-    order = np.argsort(ev_list)
-    ev_list = ev_list[order]
-    if detector_id is not None:
-        detector_id = detector_id[order]
+    if not is_sorted(ev_list):
+        warnings.warn("Warning: input data are not sorted. Sorting them for you.")
+        order = np.argsort(ev_list)
+        ev_list = ev_list[order]
+        if detector_id is not None:
+            detector_id = detector_id[order]
 
-    additional_data = order_list_of_arrays(additional_data, order)
+        additional_data = order_list_of_arrays(additional_data, order)
 
     pi = additional_data[pi_col].astype(np.float32)
     cal_pi = pi

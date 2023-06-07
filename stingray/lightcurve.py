@@ -34,6 +34,8 @@ from stingray.utils import (
     poisson_symmetrical_errors,
     simon,
     interpret_times,
+    is_sorted,
+    check_isallfinite,
 )
 from stingray.io import lcurve_from_fits
 from stingray import bexvar
@@ -241,7 +243,7 @@ class Lightcurve(StingrayTimeseries):
             err = np.asarray(err)
 
         if not skip_checks:
-            time, counts, err = self.initial_optional_checks(time, counts, err)
+            time, counts, err = self.initial_optional_checks(time, counts, err, gti=gti)
 
         if time.size != counts.size:
             raise StingrayError("time and counts array are not " "of the same length!")
@@ -262,11 +264,6 @@ class Lightcurve(StingrayTimeseries):
                 "errors. "
                 "Sorry for the inconvenience."
             )
-
-        if err is not None:
-            err = np.asarray(err)
-            if not skip_checks and not np.all(np.isfinite(err)):
-                raise ValueError("There are inf or NaN values in " "your err array")
 
         self.mjdref = mjdref
         self._time = time
@@ -508,7 +505,7 @@ class Lightcurve(StingrayTimeseries):
             self._bin_hi = self.time + 0.5 * self.dt
         return self._bin_hi
 
-    def initial_optional_checks(self, time, counts, err):
+    def initial_optional_checks(self, time, counts, err, gti=None):
         logging.info(
             "Checking if light curve is well behaved. This "
             "can take time, so if you are sure it is already "
@@ -516,15 +513,36 @@ class Lightcurve(StingrayTimeseries):
             "creation."
         )
 
-        if not np.all(np.isfinite(time)):
-            raise ValueError("There are inf or NaN values in " "your time array!")
+        mask = None
+        if gti is not None:
+            mask = create_gti_mask(time, gti, dt=0)
+        # Check if there are non-finite values in the light curve
+        # This will result in a warning if GTIs are defined and non-finite points
+        # are outside the GTIs, otherwise an error.
+        # To do this, we use this ``nonfinite_flag`` variable and a ``nonfinite`` list.
+        # This list will contain all arrays with non-finite points inside GTIs.
+        # If the nonfinite_flag is True but the nonfinite list is empty, then there are no non-finite
+        # points in the GTIs.
+        nonfinite_flag = False
+        nonfinite = []
 
-        if not np.all(np.isfinite(counts)):
-            raise ValueError("There are inf or NaN values in " "your counts array!")
+        for arr, name in zip([time, counts, err], ["time", "counts", "err"]):
+            if arr is None:
+                continue
+            if not check_isallfinite(arr):
+                nonfinite_flag = True
+                if mask is None or (not check_isallfinite(arr[mask])):
+                    nonfinite.append(name)
+
+        if len(nonfinite) > 0:
+            label = ", ".join(nonfinite)
+            raise ValueError(f"Nonfinite values inside GTIs in {label}")
+
+        if nonfinite_flag:
+            warnings.warn("There are non-finite points in the data, but they are outside GTIs. ")
 
         logging.info("Checking if light curve is sorted.")
-        dt_array = np.diff(time)
-        unsorted = np.any(dt_array < 0)
+        unsorted = not is_sorted(time)
 
         if unsorted:
             logging.warning("The light curve is unsorted.")
@@ -1761,7 +1779,9 @@ class Lightcurve(StingrayTimeseries):
             plt.show(block=False)
 
     @classmethod
-    def read(cls, filename, fmt=None, format_=None, err_dist="gauss", skip_checks=False):
+    def read(
+        cls, filename, fmt=None, format_=None, err_dist="gauss", skip_checks=False, **fits_kwargs
+    ):
         """
         Read a :class:`Lightcurve` object from file.
 
@@ -1799,20 +1819,17 @@ class Lightcurve(StingrayTimeseries):
             error bars, if any.
         skip_checks : bool
             See :class:`Lightcurve` documentation
+        **fits_kwargs : additional keyword arguments
+            Any other arguments to be passed to `lcurve_from_fits` (only relevant
+            for hea/ogip formats)
 
         Returns
         -------
         lc : :class:`Lightcurve` object
         """
-        if fmt is None and format_ is not None:
-            warnings.warn(
-                "The format_ keyword for read and write is deprecated. " "Use fmt instead",
-                DeprecationWarning,
-            )
-            fmt = format_
 
         if fmt is not None and fmt.lower() in ("hea", "ogip"):
-            data = lcurve_from_fits(filename)
+            data = lcurve_from_fits(filename, **fits_kwargs)
             data.update({"err_dist": err_dist, "skip_checks": skip_checks})
             return Lightcurve(**data)
 

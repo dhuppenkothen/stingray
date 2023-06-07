@@ -79,10 +79,10 @@ class TestSimulator(object):
 
     def test_io_with_unsupported_type(self):
         with pytest.raises(KeyError):
-            self.transfer.write("transfer", format_="unsupported")
-        self.transfer.write("transfer", format_="pickle")
+            self.transfer.write("transfer", fmt="unsupported")
+        self.transfer.write("transfer", fmt="pickle")
         with pytest.raises(KeyError):
-            self.transfer.read("transfer", format_="unsupported")
+            self.transfer.read("transfer", fmt="unsupported")
         os.remove("transfer")
 
     def test_simple_ir(self):

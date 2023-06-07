@@ -298,15 +298,6 @@ class TestEvents(object):
         assert np.allclose(ev_new.gti, np.array([[5, 6]]))
 
     @pytest.mark.skipif("not (_HAS_YAML)")
-    def test_io_warns(self):
-        ev = EventList(self.time)
-        with pytest.warns(DeprecationWarning):
-            ev.write("ascii_ev.ecsv", format_="pickle")
-
-        with pytest.warns(DeprecationWarning):
-            ev = ev.read("ascii_ev.ecsv", format_="pickle")
-
-    @pytest.mark.skipif("not (_HAS_YAML)")
     def test_io_with_ascii(self):
         ev = EventList(self.time)
         ev.write("ascii_ev.ecsv", fmt="ascii")
@@ -321,6 +312,15 @@ class TestEvents(object):
         ev = ev.read("ev.pickle", fmt="pickle")
         assert np.allclose(ev.time, self.time)
         os.remove("ev.pickle")
+
+    @pytest.mark.skipif("not _H5PY_INSTALLED")
+    def test_io_with_hdf5_auto(self):
+        ev = EventList(time=self.time, mjdref=54000)
+        ev.write("ev.hdf5")
+
+        ev = ev.read("ev.hdf5")
+        assert np.allclose(ev.time, self.time)
+        os.remove("ev.hdf5")
 
     @pytest.mark.skipif("not _H5PY_INSTALLED")
     def test_io_with_hdf5(self):

@@ -592,7 +592,7 @@ class Simulator(object):
         return AveragedPowerspectrum(lc, seg_size).power
 
     @staticmethod
-    def read(filename, fmt="pickle", format_=None):
+    def read(filename, fmt="pickle"):
         """
         Reads transfer function from a 'pickle' file.
 
@@ -606,9 +606,6 @@ class Simulator(object):
         data : class instance
             `TransferFunction` object
         """
-        if format_ is not None:
-            fmt = format_
-
         if fmt == "pickle":
             with open(filename, "rb") as fobj:
                 return pickle.load(fobj)
@@ -616,7 +613,7 @@ class Simulator(object):
         else:
             raise KeyError("Format not understood.")
 
-    def write(self, filename, fmt="pickle", format_=None):
+    def write(self, filename, fmt="pickle"):
         """
         Writes a transfer function to 'pickle' file.
 
@@ -625,8 +622,6 @@ class Simulator(object):
         fmt : str
             the format of the file to be saved - accepts 'pickle'
         """
-        if format_ is not None:
-            fmt = format_
         if fmt == "pickle":
             with open(filename, "wb") as fobj:
                 pickle.dump(self, fobj)

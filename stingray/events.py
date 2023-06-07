@@ -517,7 +517,7 @@ class EventList(StingrayTimeseries):
         return ev_new
 
     @classmethod
-    def read(cls, filename, fmt=None, format_=None, **kwargs):
+    def read(cls, filename, fmt=None, **kwargs):
         r"""Read a :class:`EventList` object from file.
 
         Currently supported formats are
@@ -556,14 +556,8 @@ class EventList(StingrayTimeseries):
         ev: :class:`EventList` object
             The :class:`EventList` object reconstructed from file
         """
-        if fmt is None and format_ is not None:
-            warnings.warn(
-                "The format_ keyword for read and write is deprecated. " "Use fmt instead",
-                DeprecationWarning,
-            )
-            fmt = format_
 
-        if fmt.lower() in ("hea", "ogip"):
+        if fmt is not None and fmt.lower() in ("hea", "ogip"):
             evtdata = load_events_and_gtis(filename, **kwargs)
 
             evt = EventList(

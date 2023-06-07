@@ -391,3 +391,39 @@ def test_compute_bin():
     assert utils.compute_bin(1, bin_edges) == 0
     assert utils.compute_bin(5, bin_edges) == 1
     assert utils.compute_bin(10, bin_edges) == 1
+
+
+@pytest.mark.parametrize("kind", [list, np.float32, np.float64, np.longdouble])
+def test_is_sorted(kind):
+    input_array = kind([1, 2, 3, 4, 5])
+    input_array_unsrt = kind([1, 2, 3, 5, 4])
+
+    assert utils.is_sorted(input_array)
+    assert not utils.is_sorted(input_array_unsrt)
+
+
+def test_is_sorted_no_array():
+    input_array = 1.0
+
+    assert utils.is_sorted(input_array)
+
+
+@utils.njit()
+def bla_1():
+    return
+
+
+@utils.njit
+def bla_2():
+    return
+
+
+@utils.vectorize(["float64(float64)"])
+def bla_3(j):
+    return j
+
+
+def test_numba_compiled_or_mocked():
+    bla_1()
+    bla_2()
+    bla_3(1.0)
