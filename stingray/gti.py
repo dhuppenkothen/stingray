@@ -8,7 +8,7 @@ import copy
 from astropy.io import fits
 from .utils import contiguous_regions, jit, HAS_NUMBA
 from .utils import assign_value_if_none, apply_function_if_none
-from .utils import check_iterables_close
+from .utils import check_iterables_close, is_sorted
 from stingray.exceptions import StingrayError
 
 
@@ -1536,6 +1536,8 @@ def generate_indices_of_segment_boundaries_unbinned(times, gti, segment_size):
     times = np.asarray(times)
 
     start, stop = time_intervals_from_gtis(gti, segment_size)
+
+    assert is_sorted(times), "Array is not sorted"
 
     startidx = np.asarray(np.searchsorted(times, start))
     stopidx = np.asarray(np.searchsorted(times, stop))

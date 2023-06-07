@@ -1,3 +1,44 @@
+v1.1.2 (2023-05-25)
+-------------------
+
+New Features
+^^^^^^^^^^^^
+
+- Phase Dispersion Minimization as a method to search for periodic signals
+  in data is now implemented in the ``stingray.pulse`` submodule. To use it,
+  you can use the ``phase_dispersion_search`` function in
+  ``stingray.pulse.search``. The accompanying statistical tests are located
+  in the ``stingray.stats`` module, under ``phase_dispersion_probability``,
+  ``phase_dispersion_logprobability`` and ``phase_dispersion_detection_level``. (`#716 <https://github.com/StingraySoftware/stingray/pull/716>`__)
+- Add is_sorted function, to test if an array is sorted. (`#723 <https://github.com/StingraySoftware/stingray/pull/723>`__)
+- Check if invalid data are inside GTIs, and warn or raise exception accordingly (`#730 <https://github.com/StingraySoftware/stingray/pull/730>`__)
+
+
+Bug Fixes
+^^^^^^^^^
+
+- The method apply_gtis of the class Lightcurve is applied to all the attributes of the class Lightcurve.
+  This works for both inplace=True and inplace=False (`#712 <https://github.com/StingraySoftware/stingray/pull/712>`__)
+- Avoid allocation of an unneeded square matrix to improve memory management in ``_als`` (fix Issue 724) (`#725 <https://github.com/StingraySoftware/stingray/pull/725>`__)
+- Fix Issue #726 -- Loading events without fmt keyword crashes (`#727 <https://github.com/StingraySoftware/stingray/pull/727>`__)
+
+
+Documentation
+^^^^^^^^^^^^^
+
+- Reordered information about contributions with new ``black`` and ``towncrier`` procedures (`#721 <https://github.com/StingraySoftware/stingray/pull/721>`__)
+
+
+Internal Changes
+^^^^^^^^^^^^^^^^
+
+- Using `towncrier <https://github.com/hawkowl/towncrier>`__ to generate the changelogs. (`#697 <https://github.com/StingraySoftware/stingray/pull/697>`__)
+- Added stingray's logo in the documentation's favicon and top bar. (`#707 <https://github.com/StingraySoftware/stingray/pull/707>`__)
+- Improved contributing workflow by appending ``black`` codestyle configuration to ``pyproject.toml`` and ignoring PEP-8 non-compliant ``E203``, ``W503`` in ``flake8``. (`#715 <https://github.com/StingraySoftware/stingray/pull/715>`__)
+- Added a scrollbar to sidebarwrapper (`#718 <https://github.com/StingraySoftware/stingray/pull/718>`__)
+- Simplify numba mocking code, and possibly improve code coverage estimate (`#731 <https://github.com/StingraySoftware/stingray/pull/731>`__)
+
+
 v1.1.1 (2022-10-10)
 -------------------
 Bug fixes

@@ -155,18 +155,6 @@ class TestStingrayObject:
 
         _check_equal(so, new_so)
 
-    @pytest.mark.skipif("not _HAS_H5PY")
-    def test_hdf_roundtrip_give_old__format(self):
-        so = copy.deepcopy(self.sting_obj)
-        so.guefus = np.random.randint(0, 4, 3)
-        with pytest.warns(DeprecationWarning):
-            so.write("dummy.hdf5", format_="hdf5")
-        with pytest.warns(DeprecationWarning):
-            new_so = DummyStingrayObj.read("dummy.hdf5", format_="hdf5")
-        os.unlink("dummy.hdf5")
-
-        _check_equal(so, new_so)
-
     def test_file_roundtrip_fits(self):
         so = copy.deepcopy(self.sting_obj)
         so.guefus = np.random.randint(0, 4, 3)

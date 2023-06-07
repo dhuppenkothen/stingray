@@ -275,7 +275,7 @@ class StingrayObject(object):
         return cls
 
     @classmethod
-    def read(cls: Type[Tso], filename: str, fmt: str = None, format_=None) -> Tso:
+    def read(cls: Type[Tso], filename: str, fmt: str = None) -> Tso:
         r"""Generic reader for :class`StingrayObject`
 
         Currently supported formats are
@@ -314,12 +314,6 @@ class StingrayObject(object):
         obj: :class:`StingrayObject` object
             The object reconstructed from file
         """
-        if fmt is None and format_ is not None:
-            warnings.warn(
-                "The format_ keyword for read and write is deprecated. Use fmt instead",
-                DeprecationWarning,
-            )
-            fmt = format_
 
         if fmt is None:
             pass
@@ -360,7 +354,7 @@ class StingrayObject(object):
 
         return cls.from_astropy_table(ts)
 
-    def write(self, filename: str, fmt: str = None, format_=None) -> None:
+    def write(self, filename: str, fmt: str = None) -> None:
         """Generic writer for :class`StingrayObject`
 
         Currently supported formats are
@@ -386,12 +380,7 @@ class StingrayObject(object):
             The file format to store the data in.
             Available options are ``pickle``, ``hdf5``, ``ascii``, ``fits``
         """
-        if fmt is None and format_ is not None:
-            warnings.warn(
-                "The format_ keyword for read and write is deprecated. Use fmt instead",
-                DeprecationWarning,
-            )
-            fmt = format_
+
         if fmt is None:
             pass
         elif fmt.lower() == "pickle":

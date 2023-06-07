@@ -1,3 +1,53 @@
+Dependencies
+============
+A **minimal installation** of Stingray requires the following dependencies:
+
++ astropy>=4.0
++ numpy>=1.17.0
++ scipy>=1.1.0
++ matplotlib>=3.0,!=3.4.0
+
+In **typical** uses, requiring input/output, caching of results, and faster processing, we **recommend the following dependencies**:
+
++ numba (**highly** recommended)
++ tbb (needed by numba)
++ tqdm (for progress bars, always useful)
++ pyfftw (for the fastest FFT in the West)
++ h5py (for input/output)
++ pyyaml (for input/output)
++ emcee (for MCMC analysis, e.g. for PSD fitting)
++ corner (for the plotting of MCMC results)
++ statsmodels (for some statistical analysis)
+
+For **pulsar searches and timing**, we recommend installing
+
++ pint-pulsar
+
+Some of the dependencies are available in ``conda``, the others via ``pip``.
+To install all required and recommended dependencies in a recent installation, you should be good running the following command:
+
+    $ pip install astropy scipy matplotlib numpy h5py tqdm numba pint-pulsar emcee corner statsmodels pyfftw tbb
+
+For development work, you will need the following extra libraries:
+
++ pytest
++ pytest-astropy
++ tox
++ jinja2<=3.0.0
++ docutils
++ sphinx-astropy
++ nbsphinx>=0.8.3,!=0.8.8
++ pandoc
++ ipython
++ jupyter
++ notebook
++ towncrier<22.12.0
++ black
+
+Which can be installed with the following command:
+
+    $ pip install pytest pytest-astropy jinja2<=3.0.0 docutils sphinx-astropy nbsphinx pandoc ipython jupyter notebook towncrier<22.12.0 tox black
+
 Downloading and Installing Stingray
 ===================================
 
@@ -37,12 +87,7 @@ source (it *will* have bugs; you've been warned!), first clone
 
     $ git clone --recursive https://github.com/StingraySoftware/stingray.git
 
-Now ``cd`` into the newly created ``stingray`` directory and install the necessary
-dependencies: ::
-
-    $ cd stingray
-    $ pip install astropy scipy matplotlib numpy pytest pytest-astropy h5py tqdm
-
+Now ``cd`` into the newly created ``stingray`` directory.
 Finally, install ``stingray`` itself: ::
 
     $ pip install -e "."

@@ -345,16 +345,23 @@ class TestLightcurve(object):
         counts = [2, 2, np.nan, 2, 2]
         counts_err = [1, 2, 3, np.nan, 2]
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Nonfinite values inside GTIs in counts"):
             lc = Lightcurve(times, counts)
 
         with pytest.raises(ValueError):
-            lc = Lightcurve(times, [2] * 5, err=counts_err)
+            lc = Lightcurve(
+                times, [2] * 5, err=counts_err, match="Nonfinite values inside GTIs in counts_err"
+            )
+
+        with pytest.warns(
+            UserWarning, match="There are non-finite points in the data, but they are outside GTIs."
+        ):
+            lc = Lightcurve(times, counts, gti=[[0.5, 2.5]])
 
         times[2] = np.inf
 
-        with pytest.raises(ValueError):
-            lc = Lightcurve(times, [2] * 5)
+        with pytest.raises(ValueError, match="Nonfinite values inside GTIs in time, counts"):
+            lc = Lightcurve(times, counts)
 
     def test_n(self):
         lc = Lightcurve(self.times, self.counts)
@@ -1094,13 +1101,6 @@ class TestLightcurve(object):
 
         assert np.isclose(lc.countrate[0], ctrate)
         assert np.isclose(lc.mjdref, 55197.00076601852)
-
-    def test_io_warns(self):
-        lc = Lightcurve(self.times, self.counts)
-        with pytest.warns(DeprecationWarning):
-            lc.write("lc.pickle", format_="pickle")
-        with pytest.warns(DeprecationWarning):
-            lc.read("lc.pickle", format_="pickle")
 
     @pytest.mark.skipif("not _HAS_YAML")
     def test_io_with_ascii(self):

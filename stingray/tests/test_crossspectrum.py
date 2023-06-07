@@ -327,7 +327,7 @@ class TestAveragedCrossspectrumEvents(object):
 
             gti = np.array([[hdul[2].data["START"][0], hdul[2].data["STOP"][0]]])
 
-            times2 = np.random.uniform(gti[0, 0], gti[0, 1], 1000)
+            times2 = np.sort(np.random.uniform(gti[0, 0], gti[0, 1], 1000))
 
             _ = AveragedCrossspectrum.from_time_array(
                 times1,
