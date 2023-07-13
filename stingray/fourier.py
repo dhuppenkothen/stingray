@@ -1100,6 +1100,61 @@ def get_flux_iterable_from_segments(times, gti, segment_size, n_bin=None, fluxes
         yield cts
 
 
+def bispectrum_and_bicoherence_from_iterable(flux_iterable, dt):
+    """Calculate the bispectrum and the bicoherence.
+
+    Parameters
+    ----------
+    flux_iterable : `iterable` of `np.array`s or of tuples (`np.array`, `np.array`)
+        Iterable providing either equal-length series of count measurements, or
+        of tuples (fluxes, errors). They must all be of the same length.
+    dt : float
+        Time resolution of the light curves used to produce periodograms
+
+    Returns
+    -------
+    freqs : `np.array`
+        The frequency in each row or column
+    bispectrum: 2-d `np.array`
+        The unnormalized bispectrum
+    bicoherence: 2-d `np.array`
+        The bicoherence, calculated with the normalization from
+        Kim & Powers (1979), IEEE Trans. Plasma Sci., PS-7, 120
+    """
+
+    B = B1 = B2 = None
+    for flux in show_progress(flux_iterable):
+        if flux is None:
+            continue
+
+        if isinstance(flux, tuple):
+            flux, _ = flux
+
+        if B is None:
+            n_bin = flux.size
+            fgt0 = positive_fft_bins(n_bin)
+            Nft = fgt0.stop - fgt0.start
+            B = np.zeros((Nft, Nft), dtype=complex)
+            B1 = np.zeros((Nft, Nft))
+            B2 = np.zeros((Nft, Nft))
+            freqs = np.fft.fftfreq(n_bin, dt)[fgt0]
+
+        ft = fft(flux)[fgt0]
+
+        M = 0
+        for i in range(B.shape[0]):
+            b1 = ft * ft[i]
+            b2 = np.roll(ft, -i)
+            B[i, :] += b1 * b2.conj()
+            B1[i, :] += (b1 * b1.conj()).real
+            B2[i, :] += (b2 * b2.conj()).real
+            M += 1
+
+    BC = (B * B.conj()).real / (B1 * B2)
+
+    return freqs, B / M, BC
+
+
 def avg_pds_from_iterable(flux_iterable, dt, norm="frac", use_common_mean=True, silent=False):
     """
     Calculate the average periodogram from an iterable of light curves

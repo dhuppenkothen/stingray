@@ -8,6 +8,7 @@ from scipy.linalg import hankel
 from stingray import lightcurve
 import stingray.utils as utils
 from stingray.utils import fftshift, fft2, ifftshift, fft
+from stingray.fourier import get_flux_iterable_from_segments, bispectrum_and_bicoherence_from_iterable
 
 __all__ = ["Bispectrum"]
 
@@ -453,3 +454,100 @@ class Bispectrum(object):
             else:
                 plt.savefig(filename)
         return plt
+
+
+def bispectrum_and_bicoherence_from_time_array(times, gti, segment_size, dt):
+    """Calculate the bispectrum and the bicoherence from an array of times.
+
+    Parameters
+    ----------
+    times : float `np.array`
+        Array of times in the reference band
+    gti : [[gti00, gti01], [gti10, gti11], ...]
+        common good time intervals
+    segment_size : float
+        length of segments
+    dt : float
+        Time resolution of the light curves used to produce periodograms
+
+    Returns
+    -------
+    freqs : `np.array`
+        The frequency in each row or column
+    bispectrum: 2-d `np.array`
+        The unnormalized bispectrum
+    bicoherence: 2-d `np.array`
+        The bicoherence, calculated with the normalization from
+        Kim & Powers (1979), IEEE Trans. Plasma Sci., PS-7, 120
+    """
+
+    n_bin = np.rint(segment_size / dt).astype(int)
+    dt = segment_size / n_bin
+
+    flux_iterable = get_flux_iterable_from_segments(
+        times, gti, segment_size, n_bin
+    )
+
+    return bispectrum_and_bicoherence_from_iterable(flux_iterable, dt)
+
+
+def bispectrum_and_bicoherence_from_events(events, segment_size, dt):
+    """Calculate the bispectrum and the bicoherence from an input event list.
+
+    Parameters
+    ----------
+    events : `EventList`
+        The input event list
+    segment_size : float
+        length of segments
+    dt : float
+        Time resolution of the light curves used to produce periodograms
+
+    Returns
+    -------
+    freqs : `np.array`
+        The frequency in each row or column
+    bispectrum: 2-d `np.array`
+        The unnormalized bispectrum
+    bicoherence: 2-d `np.array`
+        The bicoherence, calculated with the normalization from
+        Kim & Powers (1979), IEEE Trans. Plasma Sci., PS-7, 120
+    """
+
+    times = events.time
+    gti = events.gti
+
+    return bispectrum_and_bicoherence_from_time_array(times, gti, segment_size, dt)
+
+
+def bispectrum_and_bicoherence_from_lightcurve(lightcurve, segment_size):
+    """Calculate the bispectrum and the bicoherence from an array of times.
+
+    Parameters
+    ----------
+    lightcurve : `Lightcurve`
+        Input light curve
+    segment_size : float
+        length of segments
+    dt : float
+        Time resolution of the light curves used to produce periodograms
+
+    Returns
+    -------
+    freqs : `np.array`
+        The frequency in each row or column
+    bispectrum: 2-d `np.array`
+        The unnormalized bispectrum
+    bicoherence: 2-d `np.array`
+        The bicoherence, calculated with the normalization from
+        Kim & Powers (1979), IEEE Trans. Plasma Sci., PS-7, 120
+    """
+    dt = lightcurve.dt
+    n_bin = np.rint(segment_size / dt).astype(int)
+
+    flux_iterable = get_flux_iterable_from_segments(
+        lightcurve.time, lightcurve.gti, segment_size,
+        n_bin, fluxes=lightcurve.counts
+    )
+
+    return bispectrum_and_bicoherence_from_iterable(flux_iterable, dt)
