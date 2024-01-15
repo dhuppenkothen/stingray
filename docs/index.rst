@@ -33,7 +33,7 @@ Current Capabilities
 * Good Time Interval operations
 * Filling gaps in light curves with statistically sound fake data
 
-1. Fourier methods
+2. Fourier methods
 ~~~~~~~~~~~~~~~~~~
 * power spectra and cross spectra in Leahy, rms normalization, absolute rms and no normalization
 * averaged power spectra and cross spectra
@@ -50,6 +50,7 @@ Current Capabilities
 
 3. Other time series methods
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+* Color-color and hardness-intensity diagrams
 * pulsar searches with Epoch Folding, :math:`Z^2_n` test
 * Gaussian Processes for QPO studies
 * cross correlation functions
