@@ -1,1 +1,0 @@
-Make StingrayTimeseries into a generalized light curve, with a less strict naming but implementing much of the underlying computing useful for Lightcurve as well.

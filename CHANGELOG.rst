@@ -1,3 +1,73 @@
+v1.1.2.dev707+g5c20ebf7 (2024-01-15)
+------------------------------------
+
+Breaking Changes
+^^^^^^^^^^^^^^^^
+
+- Eliminate deprecated ``format_`` keyword from read and write methods. (`#729 <https://github.com/StingraySoftware/stingray/pull/729>`__)
+- Remove legacy interface and obsolete large data machinery. (`#755 <https://github.com/StingraySoftware/stingray/pull/755>`__)
+
+
+New Features
+^^^^^^^^^^^^
+
+- - Implemented the Lomb Scargle Fourier Transform (fast and slow versions)
+  - Using which wrote the corresponding :class:`LombScargleCrossspectrum` and :class:`LombScarglePowerspectrum` (`#737 <https://github.com/StingraySoftware/stingray/pull/737>`__)
+- This is a JAX implementation of the GP tool by `Hubener et al <https://arxiv.org/pdf/2205.12716.pdf#:~:text=ABSTRACT%20Analyses%20of%20quasi%2Dperiodic,flares%20and%20fast%20radio%20bursts.>`_ 
+  for QPO detection and parameter analysis.
+
+  This feature makes use of tinygp library for Gaussian Processes implementation, and jaxns for nested sampling,
+  and is kept in the stingray.modeling.gpmodeling module.
+
+  Main features of the module are:
+
+  - get_prior: This function makes the prior function for a specified prior dictionary.
+  - get_likelihood: This function makes the log_likelihood function for the given Kernel, Mean model and lightcurve.
+  - GPResult class: The class which takes a Lightcurve, and performs Nested Sampling for a given prior and likelihood.
+
+  The additional Dependencies for the code
+  - jax
+  - tinygp
+  - jaxns
+  - etils
+  - tensorflow_probability
+  - typing_extensions (`#739 <https://github.com/StingraySoftware/stingray/pull/739>`__)
+- Extend join operation for events to arbitrary array attributes, not just pi and energy (`#742 <https://github.com/StingraySoftware/stingray/pull/742>`__)
+- Allow the creation of empty light curves. (`#745 <https://github.com/StingraySoftware/stingray/pull/745>`__)
+- Make StingrayTimeseries into a generalized light curve, with a less strict naming but implementing much of the underlying computing useful for Lightcurve as well. (`#754 <https://github.com/StingraySoftware/stingray/pull/754>`__)
+- Our fast implementation of histograms is now safer (failing safely to the equivalent numpy histogram functions), more consistent (ranges moved to range, for consistency with numpy), and accept complex weights as well! (`#764 <https://github.com/StingraySoftware/stingray/pull/764>`__)
+- Introduce power colors à la Heil et al. 2015 (`#780 <https://github.com/StingraySoftware/stingray/pull/780>`__)
+- Calculate colors and intensities on a segment-by-segment basis in event lists (`#781 <https://github.com/StingraySoftware/stingray/pull/781>`__)
+- Add function to randomize data in small bad time intervals (`#782 <https://github.com/StingraySoftware/stingray/pull/782>`__)
+
+
+Bug Fixes
+^^^^^^^^^
+
+- When rms is low, the calculation in compute_rms often gave `NaN`. We now check for this situation and give 0 with an uncertainty as a result. (`#736 <https://github.com/StingraySoftware/stingray/pull/736>`__)
+- Eliminates deprecated call to `enable_deprecations_as_warnings`, and contextually, changes the code to be much more robust in catching harmful warnings. (`#738 <https://github.com/StingraySoftware/stingray/pull/738>`__)
+- Changes Crossspectrum.plot() function to plot the actual real and imaginary parts instead of their absolute values. (`#747 <https://github.com/StingraySoftware/stingray/pull/747>`__)
+- Make commits marked as [docs only] skip all CI but the docs build (`#749 <https://github.com/StingraySoftware/stingray/pull/749>`__)
+- Update tstart and tseg when using Lightcurve.truncate() (`#753 <https://github.com/StingraySoftware/stingray/pull/753>`__)
+- Changed list comprehension to generator expression to reduce memory usage. (`#756 <https://github.com/StingraySoftware/stingray/pull/756>`__)
+- + Fix a bug with segment sizes not exact multiples of dt when dealing with light curves
+  + Fix a bug when light curve segments contain complex values (`#760 <https://github.com/StingraySoftware/stingray/pull/760>`__)
+- Crossspectrum had "real" as default value. This meant that, for example, lags could not be calculated. Now the default value is "all", as it should be. (`#762 <https://github.com/StingraySoftware/stingray/pull/762>`__)
+- Fix plotting of spectra, avoiding the plot of imaginary parts of real numbers (`#763 <https://github.com/StingraySoftware/stingray/pull/763>`__)
+- Various bugfixes in `gti.py`, and a new function to interpret the mix of multiple GTIs. (`#774 <https://github.com/StingraySoftware/stingray/pull/774>`__)
+- Fixed subcs duplication by adding a check in the for loop that copies the attributes from table's meta items. (`#776 <https://github.com/StingraySoftware/stingray/pull/776>`__)
+- Various bug fixes in DynamicalPowerspectrum, on event loading and time rebinning (`#779 <https://github.com/StingraySoftware/stingray/pull/779>`__)
+
+
+Internal Changes
+^^^^^^^^^^^^^^^^
+
+- Speedup creation of events in ``EventList.from_lc`` (`#757 <https://github.com/StingraySoftware/stingray/pull/757>`__)
+-  (`#758 <https://github.com/StingraySoftware/stingray/pull/758>`__)
+- Use Readthedocs for documentation building (`#769 <https://github.com/StingraySoftware/stingray/pull/769>`__)
+- More informative GTI messages (`#787 <https://github.com/StingraySoftware/stingray/pull/787>`__)
+
+
 v1.1.2 (2023-05-25)
 -------------------
 
