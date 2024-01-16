@@ -12,7 +12,7 @@ New Features
 ^^^^^^^^^^^^
 
 - Lomb Scargle Fourier Transform (fast and slow versions) (`#737 <https://github.com/StingraySoftware/stingray/pull/737>`__)
-- A JAX implementation of the GP tool by `Hubener et al <https://arxiv.org/pdf/2205.12716.pdf#:~:text=ABSTRACT%20Analyses%20of%20quasi%2Dperiodic,flares%20and%20fast%20radio%20bursts.>`_  for QPO detection and parameter analysis.
+- A JAX implementation of the Gaussian Process tool by `Hubener et al <https://arxiv.org/abs/2205.12716>`_  for QPO detection and parameter analysis. (`#739 <https://github.com/StingraySoftware/stingray/pull/739>`__)
 - Introduce power colors à la Heil et al. 2015 (`#780 <https://github.com/StingraySoftware/stingray/pull/780>`__)
 - Calculate colors and intensities on a segment-by-segment basis in event lists (`#781 <https://github.com/StingraySoftware/stingray/pull/781>`__)
 - Add function to randomize data in small bad time intervals (`#782 <https://github.com/StingraySoftware/stingray/pull/782>`__)
