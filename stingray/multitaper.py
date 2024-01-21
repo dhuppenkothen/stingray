@@ -380,7 +380,7 @@ class Multitaper(Powerspectrum):
         """Calculate the weighted PSD from the Fourier transformed data.
 
         Calculate the weighted PSD from the Fourier transformed data by
-        combining the frequences responses of these tapered data using the given
+        combining the frequencies responses of these tapered data using the given
         weights.
 
         Parameters
@@ -684,9 +684,16 @@ class Multitaper(Powerspectrum):
 
         return bin_mtp
 
-    def compute_rms(self, min_freq, max_freq, white_noise_offset):
+    def compute_rms(
+        self, min_freq, max_freq, poisson_noise_level=None, white_noise_offset=None, deadtime=0.0
+    ):
         return Powerspectrum.compute_rms(
-            self, min_freq, max_freq, white_noise_offset=white_noise_offset
+            self,
+            min_freq,
+            max_freq,
+            poisson_noise_level=poisson_noise_level,
+            white_noise_offset=white_noise_offset,
+            deadtime=deadtime,
         )
 
     def classical_significances(self, threshold, trial_correction):
@@ -727,7 +734,7 @@ class Multitaper(Powerspectrum):
 
         Notes
         -----
-        Does not currently support adapative weighting or jack-knife estimates.
+        Does not currently support adaptive weighting or jack-knife estimates.
         """
 
         lc.apply_gtis()  # Remove bins with missing data

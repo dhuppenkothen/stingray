@@ -32,7 +32,7 @@ def convolve_ols(a, b, memout=None):
     The code for the convolution, as implemented by Ahmed Fasih, is under
     stingray.pulse.overlapandsave
 
-    Mimicks scipy.signal.fftconvolve with mode='save'.
+    Mimics scipy.signal.fftconvolve with mode='save'.
 
     Examples
     --------
@@ -45,8 +45,7 @@ def convolve_ols(a, b, memout=None):
     >>> ref = fftconvolve(x, h, mode='same')
     >>> y = convolve(x, h) # +doctest:ellipsis
     ...
-    >>> np.allclose(ref, y)
-    True
+    >>> assert np.allclose(ref, y)
     """
 
     if isinstance(a, str):
@@ -136,7 +135,7 @@ def _convolve_with_response(
         The initial FT, normalized so that || FT ||^2 are Leahy powers.
     response_and_j : tuple
         Tuple containing the response matrix corresponding to a given
-        acceleration and its position in the list of reponses allocated
+        acceleration and its position in the list of responses allocated
         at the start of the procedure in ``accelsearch``.
     detlev : float
         The power level considered good for detection
@@ -487,11 +486,9 @@ def interbin_fft(freq, fft):
     >>> freq = [0, 0.5, 1, -1, -0.5]
     >>> fft = np.array([1, 0, 1, 1, 0], dtype=float)
     >>> f, F = interbin_fft(freq, fft)
-    >>> np.allclose(f, [0, 0.25, 0.5, 0.75, 1, -1, -0.75, -0.5, -0.25])
-    True
+    >>> assert np.allclose(f, [0, 0.25, 0.5, 0.75, 1, -1, -0.75, -0.5, -0.25])
     >>> pi_4 = np.pi / 4
-    >>> np.allclose(F, [1, -pi_4, 0, pi_4, 1, 1, -pi_4, 0, pi_4])
-    True
+    >>> assert np.allclose(F, [1, -pi_4, 0, pi_4, 1, 1, -pi_4, 0, pi_4])
     """
     import numpy as np
 

@@ -19,7 +19,7 @@ try:
     HAS_HDF5 = True
 except ImportError:
     HAS_HDF5 = False
-
+pytestmark = pytest.mark.slow
 # np.random.seed(2134791)
 
 
@@ -331,7 +331,7 @@ def test_fad_power_spectrum_non_compliant(ctrate):
     lc1 = generate_deadtime_lc(ev1, dt, tstart=0, tseg=length, deadtime=deadtime)
     lc2 = generate_deadtime_lc(ev2, dt, tstart=0, tseg=length, deadtime=deadtime)
 
-    with warnings.catch_warnings(record=True) as record:
+    with pytest.warns(UserWarning, match="results ARE NOT complying"):
         results = calculate_FAD_correction(
             lc1,
             lc2,
@@ -342,7 +342,6 @@ def test_fad_power_spectrum_non_compliant(ctrate):
             verbose=False,
             tolerance=0.0001,
         )
-        assert np.any(["results ARE NOT complying" in r.message.args[0] for r in record])
 
         is_compliant = results.meta["is_compliant"]
 
@@ -362,15 +361,15 @@ def test_fad_power_spectrum_non_compliant_raise(ctrate):
     lc1 = generate_deadtime_lc(ev1, dt, tstart=0, tseg=length, deadtime=deadtime)
     lc2 = generate_deadtime_lc(ev2, dt, tstart=0, tseg=length, deadtime=deadtime)
 
-    with pytest.raises(RuntimeError) as excinfo:
-        _ = calculate_FAD_correction(
-            lc1,
-            lc2,
-            segment_size,
-            plot=True,
-            smoothing_alg="gauss",
-            strict=True,
-            verbose=False,
-            tolerance=0.0001,
-        )
-    assert "Results are not compliant, and" in str(excinfo.value)
+    with pytest.raises(RuntimeError, match="Results are not compliant, and"):
+        with pytest.warns(UserWarning, match="results ARE NOT complying"):
+            _ = calculate_FAD_correction(
+                lc1,
+                lc2,
+                segment_size,
+                plot=True,
+                smoothing_alg="gauss",
+                strict=True,
+                verbose=False,
+                tolerance=0.0001,
+            )

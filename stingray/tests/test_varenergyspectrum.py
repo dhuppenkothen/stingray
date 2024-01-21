@@ -9,7 +9,7 @@ from stingray.varenergyspectrum import LagSpectrum, LagEnergySpectrum
 from stingray.varenergyspectrum import ExcessVarianceSpectrum
 from stingray.lightcurve import Lightcurve
 
-from astropy.tests.helper import pytest
+import pytest
 from astropy.table import Table
 
 _HAS_XARRAY = _HAS_PANDAS = _HAS_H5PY = True
@@ -166,6 +166,7 @@ class TestCountSpectrum(object):
         assert np.allclose(ctsspec.spectrum, 2)
 
 
+@pytest.mark.slow
 class TestRmsAndCovSpectrum(object):
     @classmethod
     def setup_class(cls):
@@ -173,7 +174,7 @@ class TestRmsAndCovSpectrum(object):
 
         cls.bin_time = 0.01
 
-        data = np.load(os.path.join(datadir, "sample_variable_lc.npy"))
+        data = Table.read(os.path.join(datadir, "sample_variable_series.fits"))["data"]
         # No need for huge count rates
         flux = data / 40
         times = np.arange(data.size) * cls.bin_time
@@ -352,6 +353,7 @@ class TestRmsAndCovSpectrum(object):
         assert np.all(np.isnan(rms.spectrum_error))
 
 
+@pytest.mark.slow
 class TestLagEnergySpectrum(object):
     @classmethod
     def setup_class(cls):
@@ -359,7 +361,7 @@ class TestLagEnergySpectrum(object):
 
         dt = 0.01
         cls.time_lag = 5.0
-        data = np.load(os.path.join(datadir, "sample_variable_lc.npy"))
+        data = Table.read(os.path.join(datadir, "sample_variable_series.fits"))["data"]
         flux = data
         times = np.arange(data.size) * dt
         maxfreq = 0.15 / cls.time_lag
@@ -484,10 +486,11 @@ class TestRoundTrip:
         os.unlink("dummy.hdf5")
         self._check_equal(so, new_so)
 
-    @pytest.mark.parametrize("fmt", ["ascii.ecsv", "fits"])
+    @pytest.mark.parametrize("fmt", ["ascii.ecsv", "ascii", "fits"])
     def test_file_export(self, fmt):
         so = self.vespec
-        so.write("dummy", fmt=fmt)
+        with pytest.warns(UserWarning, match=".* output does not serialize the metadata"):
+            so.write("dummy", fmt=fmt)
         new_so = Table.read("dummy", format=fmt)
         os.unlink("dummy")
         self._check_equal(so, new_so)

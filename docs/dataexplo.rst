@@ -26,3 +26,15 @@ black hole binary using NICER data.
    :maxdepth: 2
 
    notebooks/Spectral Timing/Spectral Timing Exploration.ipynb
+
+
+Studying very slow variability with the Lomb-Scargle periodogram
+================================================================
+
+In this Tutorial, we will show an example of how to use the Lomb-Scargle
+periodogram and cross spectrum to study very slow variability in a light curve.
+
+.. toctree::
+   :maxdepth: 2
+
+   notebooks/LombScargle/Very slow variability with Lomb-Scargle methods.ipynb

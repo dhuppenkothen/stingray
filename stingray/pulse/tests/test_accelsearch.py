@@ -3,6 +3,8 @@ import pytest
 from stingray.pulse.accelsearch import accelsearch
 from stingray.utils import HAS_NUMBA
 
+pytestmark = pytest.mark.slow
+
 
 np.random.seed(235425899)
 

@@ -1,5 +1,6 @@
 import numbers
 import os
+import re
 import copy
 import random
 import string
@@ -12,7 +13,7 @@ import numpy as np
 import scipy
 from numpy import histogram as histogram_np
 from numpy import histogram2d as histogram2d_np
-from .base import interpret_times
+from numpy import histogramdd as histogramdd_np
 
 try:
     import pyfftw
@@ -40,43 +41,33 @@ except ImportError:
 
 # If numba is installed, import jit. Otherwise, define an empty decorator with
 # the same name.
-HAS_NUMBA = False
 try:
     from numba import jit
 
     HAS_NUMBA = True
     from numba import njit, prange, vectorize, float32, float64, int32, int64
+    from numba.core.errors import NumbaValueError, NumbaNotImplementedError, TypingError
 except ImportError:
     warnings.warn("Numba not installed. Faking it")
+    HAS_NUMBA = False
+    NumbaValueError = NumbaNotImplementedError = TypingError = Exception
 
-    class jit(object):
-        def __init__(self, *args, **kwargs):
-            pass
+    def njit(f=None, *args, **kwargs):
+        def decorator(func, *a, **kw):
+            return func
 
-        def __call__(self, func):
-            def wrapped_f(*args, **kwargs):
-                return func(*args, **kwargs)
+        if callable(f):
+            return f
+        else:
+            return decorator
 
-            return wrapped_f
+    jit = njit
 
-    class njit(object):
-        def __init__(self, *args, **kwargs):
-            pass
+    def vectorize(*args, **kwargs):
+        def decorator(func, *a, **kw):
+            return np.vectorize(func)
 
-        def __call__(self, func):
-            def wrapped_f(*args, **kwargs):
-                return func(*args, **kwargs)
-
-            return wrapped_f
-
-    class vectorize(object):
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def __call__(self, func):
-            wrapped_f = np.vectorize(func)
-
-            return wrapped_f
+        return decorator
 
     def generic(x, y=None):
         return None
@@ -145,8 +136,248 @@ __all__ = [
     "standard_error",
     "nearest_power_of_two",
     "find_nearest",
-    "genDataPath",
+    "check_isallfinite",
 ]
+
+
+@njit
+def any_complex_in_array(array):
+    """Check if any element of an array is complex.
+
+    Examples
+    --------
+    >>> any_complex_in_array(np.array([1, 2, 3]))
+    False
+    >>> assert any_complex_in_array(np.array([1, 2 + 1.j, 3]))
+    """
+    for a in array:
+        if np.iscomplex(a):
+            return True
+    return False
+
+
+def make_nd_into_arrays(array: np.ndarray, label: str) -> dict:
+    """If an array is n-dimensional, make it into many 1-dimensional arrays.
+
+    Call additional dimensions, e.g. ``_dimN_M``. See examples below.
+
+    Parameters
+    ----------
+    array : `np.ndarray`
+        Input data
+    label : `str`
+        Label for the array
+
+    Returns
+    -------
+    data : `dict`
+        Dictionary of arrays. Defaults to ``{label: array}`` if ``array`` is 1-dimensional,
+        otherwise, e.g.: ``{label_dim1_2_3: array[1, 2, 3], ... }``
+
+    Examples
+    --------
+    >>> a1, a2, a3 = np.arange(3), np.arange(3, 6), np.arange(6, 9)
+    >>> A = np.array([a1, a2, a3]).T
+    >>> data = make_nd_into_arrays(A, "test")
+    >>> assert np.array_equal(data["test_dim0"], a1)
+    >>> assert np.array_equal(data["test_dim1"], a2)
+    >>> assert np.array_equal(data["test_dim2"], a3)
+    >>> A3 = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]]
+    >>> data = make_nd_into_arrays(A3, "test")
+    >>> assert np.array_equal(data["test_dim0_0"], [1, 5])
+    """
+    data = {}
+    array = np.asarray(array)
+    shape = np.shape(array)
+    ndim = len(shape)
+    if ndim <= 1:
+        data[label] = array
+    else:
+        for i in range(shape[1]):
+            new_label = f"_dim{i}" if "_dim" not in label else f"_{i}"
+            dumdata = make_nd_into_arrays(array[:, i], label=label + new_label)
+            data.update(dumdata)
+    return data
+
+
+def get_dimensions_from_list_of_column_labels(labels: list, label: str) -> list:
+    """Get the dimensions of a multi-dimensional array from a list of column labels.
+
+    Examples
+    --------
+    >>> labels = ['test_dim0_0', 'test_dim0_1', 'test_dim0_2',
+    ...           'test_dim1_0', 'test_dim1_1', 'test_dim1_2', 'test', 'bu']
+    >>> keys, dimensions = get_dimensions_from_list_of_column_labels(labels, "test")
+    >>> for key0, key1 in zip(labels[:6], keys): assert key0 == key1
+    >>> assert np.array_equal(dimensions, [2, 3])
+    """
+    all_keys = []
+    count_dimensions = None
+    for key in labels:
+        if label not in key:
+            continue
+        match = re.search("^" + label + r"_dim([0-9]+(_[0-9]+)*)", key)
+        if match is None:
+            continue
+        all_keys.append(key)
+        new_count_dimensions = [int(val) for val in match.groups()[0].split("_")]
+        if count_dimensions is None:
+            count_dimensions = np.array(new_count_dimensions)
+        else:
+            count_dimensions = np.max([count_dimensions, new_count_dimensions], axis=0)
+
+    return sorted(all_keys), count_dimensions + 1
+
+
+def make_1d_arrays_into_nd(data: dict, label: str) -> np.ndarray:
+    """Literally the opposite of make_nd_into_arrays.
+
+    Call additional dimensions, e.g. ``_dimN_M``
+
+    Parameters
+    ----------
+    data : dict
+        Input data
+    label : `str`
+        Label for the array
+
+    Returns
+    -------
+    array : `np.array`
+        N-dimensional array that was stored in the data.
+
+    Examples
+    --------
+    >>> a1, a2, a3 = np.arange(3), np.arange(3, 6), np.arange(6, 9)
+    >>> A = np.array([a1, a2, a3]).T
+    >>> data = make_nd_into_arrays(A, "test")
+    >>> A_ret = make_1d_arrays_into_nd(data, "test")
+    >>> assert np.array_equal(A, A_ret)
+    >>> A = np.array([[[1, 2, 12], [3, 4, 34]],
+    ...               [[5, 6, 56], [7, 8, 78]],
+    ...               [[9, 10, 910], [11, 12, 1112]],
+    ...               [[13, 14, 1314], [15, 16, 1516]]])
+    >>> data = make_nd_into_arrays(A, "_test")
+    >>> A_ret = make_1d_arrays_into_nd(data, "_test")
+    >>> assert np.array_equal(A, A_ret)
+    >>> data = make_nd_into_arrays(a1, "_test")
+    >>> A_ret = make_1d_arrays_into_nd(data, "_test")
+    >>> assert np.array_equal(a1, A_ret)
+    """
+
+    if label in list(data.keys()):
+        return data[label]
+
+    # Get the dimensionality of the data
+    dim = 0
+    all_keys = []
+
+    all_keys, dimensions = get_dimensions_from_list_of_column_labels(list(data.keys()), label)
+    arrays = np.array([np.array(data[key]) for key in all_keys])
+
+    return arrays.T.reshape([len(arrays[0])] + list(dimensions))
+
+
+@njit
+def _check_isallfinite_numba(array):
+    """Check if all elements of an array are finite.
+
+    This is faster than ``np.isfinite`` for large arrays, because it
+    exits at the first occurrence of a non-finite value.
+
+    Examples
+    --------
+    >>> assert _check_isallfinite_numba(np.array([1., 2., 3.]))
+    >>> _check_isallfinite_numba(np.array([1., np.inf, 3.]))
+    False
+    """
+    for a in array:
+        if not np.isfinite(a):
+            return False
+    return True
+
+
+def check_isallfinite(array):
+    """Check if all elements of an array are finite.
+
+    Calls ``_check_isallfinite_numba`` if numba is installed, otherwise
+    it uses ``np.isfinite``.
+
+    Examples
+    --------
+    >>> assert check_isallfinite([1, 2, 3])
+    >>> check_isallfinite([1, np.inf, 3])
+    False
+    >>> check_isallfinite([1, np.nan, 3])
+    False
+    """
+    if HAS_NUMBA:
+        # Numba is very picky about the type of the input array. If an exception
+        # occurs in the numba-compiled function, use the default Numpy implementation.
+        try:
+            return _check_isallfinite_numba(np.asarray(array))
+        except Exception:
+            pass
+    return bool(np.all(np.isfinite(array)))
+
+
+def is_sorted(array):
+    """Check if an array is sorted.
+
+    Checks if an array has extended precision before calling the
+    ``is_sorted`` numba-compiled function.
+
+    Parameters
+    ----------
+    array : iterable
+        The array to be checked
+
+    Returns
+    -------
+    is_sorted : bool
+        True if the array is sorted, False otherwise
+    """
+
+    array = np.asarray(array)
+    # If the array is empty or has only one element, it is sorted
+    if array.size <= 1:
+        return True
+
+    # If Numba is not installed, use numpy's implementation
+    if not HAS_NUMBA:
+        return np.all(np.diff(array) >= 0)
+    # Test if value is compatible with Numba's type system
+    try:
+        _is_sorted_numba(array[:2])
+    except NumbaValueError:
+        array = array.astype(float)
+
+    return _is_sorted_numba(array)
+
+
+@njit()
+def _is_sorted_numba(array):
+    """Check if an array is sorted.
+
+    .. note::
+        The array cannot have extended precision.
+        This function should always be wrapped into a function that
+        checks the type of the array and converts it to float if needed.
+
+    Parameters
+    ----------
+    array : iterable
+        The array to be checked
+
+    Returns
+    -------
+    is_sorted : bool
+        True if the array is sorted, False otherwise
+    """
+    for i in prange(len(array) - 1):
+        if array[i] > array[i + 1]:
+            return False
+    return True
 
 
 def _root_squared_mean(array):
@@ -222,16 +453,12 @@ def rebin_data(x, y, dx_new, yerr=None, method="sum", dx=None):
     >>> yerr = np.ones(x.size)
     >>> xbin, ybin, ybinerr, step_size = rebin_data(
     ...     x, y, 4, yerr=yerr, method='sum', dx=0.01)
-    >>> np.allclose(ybin, 400)
-    True
-    >>> np.allclose(ybinerr, 20)
-    True
+    >>> assert np.allclose(ybin, 400)
+    >>> assert np.allclose(ybinerr, 20)
     >>> xbin, ybin, ybinerr, step_size = rebin_data(
     ...     x, y, 4, yerr=yerr, method='mean')
-    >>> np.allclose(ybin, 1)
-    True
-    >>> np.allclose(ybinerr, 0.05)
-    True
+    >>> assert np.allclose(ybin, 1)
+    >>> assert np.allclose(ybinerr, 0.05)
     """
 
     y = np.asarray(y)
@@ -240,12 +467,12 @@ def rebin_data(x, y, dx_new, yerr=None, method="sum", dx=None):
     else:
         yerr = np.asarray(yerr)
 
-    if not dx:
-        dx_old = np.diff(x)
-    elif np.size(dx) == 1:
-        dx_old = np.array([dx])
-    else:
+    if isinstance(dx, Iterable):
         dx_old = dx
+    elif dx is None or dx == 0:
+        dx_old = np.diff(x)
+    else:
+        dx_old = np.array([dx])
 
     if np.any(dx_new < dx_old):
         raise ValueError(
@@ -466,7 +693,7 @@ def apply_function_if_none(variable, value, func):
     >>> apply_function_if_none(var, value, np.mean)
     4
     >>> var = None
-    >>> apply_function_if_none(var, value, lambda y: np.mean(y))
+    >>> apply_function_if_none(var, value, lambda y: float(np.mean(y)))
     0.0
     """
     if variable is None:
@@ -726,7 +953,14 @@ def _als(y, lam, p, niter=10):
     from scipy import sparse
 
     L = len(y)
-    D = sparse.csc_matrix(np.diff(np.eye(L), 2))
+
+    indptr = np.arange(0, L - 1, dtype=np.int32) * 3
+    indices = np.vstack(
+        (np.arange(0, L - 2).T, np.arange(0, L - 2).T + 1, np.arange(0, L - 2).T + 2)
+    ).T.flatten()
+    data = np.tile([1, -2, 1], L - 2)
+    D = sparse.csc_matrix((data, indices, indptr), shape=(L, L - 2))
+
     w = np.ones(L)
     for _ in range(niter):
         W = sparse.spdiags(w, 0, L, L)
@@ -775,8 +1009,7 @@ def baseline_als(x, y, lam=None, p=None, niter=10, return_baseline=False, offset
     >>> x = np.arange(0, 10, 0.01)
     >>> y = np.zeros_like(x) + 10
     >>> ysub = baseline_als(x, y)
-    >>> np.all(ysub < 0.001)
-    True
+    >>> assert np.all(ysub < 0.001)
     """
 
     if lam is None:
@@ -805,7 +1038,7 @@ def baseline_als(x, y, lam=None, p=None, niter=10, return_baseline=False, offset
 
 
 def excess_variance(lc, normalization="fvar"):
-    """Calculate the excess variance.
+    r"""Calculate the excess variance.
 
     Vaughan et al. 2003, MNRAS 345, 1271 give three measurements of source
     intrinsic variance: if a light curve has a total variance of :math:`S^2`,
@@ -1066,7 +1299,7 @@ def nearest_power_of_two(x):
     return x_nearest
 
 
-def find_nearest(array, value):
+def find_nearest(array, value, side="left"):
     """
     Return the array value that is closest to the input value (Abigail Stevens:
     Thanks StackOverflow!)
@@ -1080,6 +1313,11 @@ def find_nearest(array, value):
     value : int or float
         The value you want to find the closest to in the array.
 
+    Other Parameters
+    ----------------
+    side : str
+        Look at the ``numpy.searchsorted`` documentation for more information.
+
     Returns
     -------
     array[idx] : int or float
@@ -1089,47 +1327,11 @@ def find_nearest(array, value):
         The index of the array of the closest value.
 
     """
-    idx = np.searchsorted(array, value, side="left")
+    idx = np.searchsorted(array, value, side=side)
     if idx == len(array) or np.fabs(value - array[idx - 1]) < np.fabs(value - array[idx]):
         return array[idx - 1], idx - 1
     else:
         return array[idx], idx
-
-
-def genDataPath(dir_path):
-    """Generates data path to chunks.
-
-    Parameters
-    ----------
-    dir_path: string
-        Path to zarr datastore + Top level directory name for data
-
-    Returns
-    -------
-    list
-        List of path's to datastore
-
-    Raises
-    ------
-    IOError
-        If directory does not exist
-    """
-    path_list = []
-    if os.path.isdir(dir_path):
-        if not (
-            os.path.isdir(os.path.join(dir_path, "main_data/"))
-            or os.path.join(dir_path, "meta_data/")
-        ):
-            raise IOError(("Directory does not exist."))
-
-        else:
-            path_list.append(os.path.join(dir_path, "main_data/"))
-            path_list.append(os.path.join(dir_path, "meta_data/"))
-
-            return path_list
-
-    else:
-        raise IOError(("Directory does not exist."))
 
 
 def check_iterables_close(iter0, iter1, **kwargs):
@@ -1154,8 +1356,7 @@ def check_iterables_close(iter0, iter1, **kwargs):
     False
     >>> iter0 = [(0, 0), (0, 1)]
     >>> iter1 = [(0, 0.), (0, 1.)]
-    >>> check_iterables_close(iter0, iter1)
-    True
+    >>> assert check_iterables_close(iter0, iter1)
     >>> iter1 = [(0, 0.), (0, 3.)]
     >>> check_iterables_close(iter0, iter1)
     False
@@ -1201,7 +1402,7 @@ def check_allclose_and_print(
 
         raise AssertionError(
             f"Different values in the arrays check by allclose: \
-                        {v1[bad]} vs {v2[bad]}, indeces are {np.where(v1[bad])[0]}\
+                        {v1[bad]} vs {v2[bad]}, indices are {np.where(v1[bad])[0]}\
                         and {np.where(v2[bad])[0]}"
         )
 
@@ -1231,8 +1432,7 @@ def compute_bin(x, bin_edges):
     1
     >>> compute_bin(10, bin_edges)
     1
-    >>> compute_bin(11, bin_edges) is None
-    True
+    >>> assert compute_bin(11, bin_edges) is None
     """
 
     # assuming uniform bins for now
@@ -1294,7 +1494,7 @@ def _allocate_array_or_memmap(shape, dtype, use_memmap=False, tmp=None):
     return H
 
 
-def hist1d_numba_seq(a, bins, ranges, use_memmap=False, tmp=None):
+def hist1d_numba_seq(a, bins, range, use_memmap=False, tmp=None):
     """Numba-compiled 1-d histogram.
 
     Parameters
@@ -1303,7 +1503,7 @@ def hist1d_numba_seq(a, bins, ranges, use_memmap=False, tmp=None):
         Input array, to be histogrammed
     bins : integer
         number of bins in the final histogram
-    ranges : [min, max]
+    range : [min, max]
         Minimum and maximum value of the histogram
 
     Other parameters
@@ -1327,24 +1527,24 @@ def hist1d_numba_seq(a, bins, ranges, use_memmap=False, tmp=None):
     >>> if os.path.exists('out.npy'): os.unlink('out.npy')
     >>> x = np.random.uniform(0., 1., 100)
     >>> H, xedges = np.histogram(x, bins=5, range=[0., 1.])
-    >>> Hn = hist1d_numba_seq(x, bins=5, ranges=[0., 1.], tmp='out.npy',
+    >>> Hn = hist1d_numba_seq(x, bins=5, range=[0., 1.], tmp='out.npy',
     ...                       use_memmap=True)
     >>> assert np.all(H == Hn)
     >>> # The number of bins is small, memory map was not used!
     >>> assert not os.path.exists('out.npy')
     >>> H, xedges = np.histogram(x, bins=10**8, range=[0., 1.])
-    >>> Hn = hist1d_numba_seq(x, bins=10**8, ranges=[0., 1.],
+    >>> Hn = hist1d_numba_seq(x, bins=10**8, range=[0., 1.],
     ...                       use_memmap=True, tmp='out.npy')
     >>> assert np.all(H == Hn)
     >>> assert os.path.exists('out.npy')  # Created!
     >>> # Here, instead, it will create a temporary file for the memory map
-    >>> Hn = hist1d_numba_seq(x, bins=10**8, ranges=[0., 1.],
+    >>> Hn = hist1d_numba_seq(x, bins=10**8, range=[0., 1.],
     ...                       use_memmap=True)
     >>> assert np.all(H == Hn)
     """
     hist_arr = _allocate_array_or_memmap((bins,), a.dtype, use_memmap=use_memmap, tmp=tmp)
 
-    return _hist1d_numba_seq(hist_arr, a, bins, np.asarray(ranges))
+    return _hist1d_numba_seq(hist_arr, a, bins, np.asarray(range))
 
 
 @njit(nogil=True, parallel=False)
@@ -1360,7 +1560,7 @@ def _hist2d_numba_seq(H, tracks, bins, ranges):
     return H
 
 
-def hist2d_numba_seq(x, y, bins, ranges, use_memmap=False, tmp=None):
+def hist2d_numba_seq(x, y, bins, range, use_memmap=False, tmp=None):
     """Numba-compiled 2-d histogram.
 
     From https://iscinumpy.dev/post/histogram-speeds-in-python/
@@ -1373,7 +1573,7 @@ def hist2d_numba_seq(x, y, bins, ranges, use_memmap=False, tmp=None):
         Input array (equal length to x), to be histogrammed
     shape : (int, int)
         shape of the final histogram
-    ranges : [min, max]
+    range : [min, max]
         Minimum and maximum value of the histogram
 
     Other parameters
@@ -1397,18 +1597,18 @@ def hist2d_numba_seq(x, y, bins, ranges, use_memmap=False, tmp=None):
     >>> H, xedges, yedges = np.histogram2d(x, y, bins=(5, 5),
     ...                                    range=[(0., 1.), (2., 3.)])
     >>> Hn = hist2d_numba_seq(x, y, bins=(5, 5),
-    ...                       ranges=[[0., 1.], [2., 3.]])
+    ...                       range=[[0., 1.], [2., 3.]])
     >>> assert np.all(H == Hn)
     >>> H, xedges, yedges = np.histogram2d(x, y, bins=(5000, 5000),
     ...                                    range=[(0., 1.), (2., 3.)])
     >>> Hn = hist2d_numba_seq(x, y, bins=(5000, 5000),
-    ...                       ranges=[[0., 1.], [2., 3.]],
+    ...                       range=[[0., 1.], [2., 3.]],
     ...                       use_memmap=True)
     >>> assert np.all(H == Hn)
     """
 
     H = _allocate_array_or_memmap(bins, np.uint64, use_memmap=use_memmap, tmp=tmp)
-    return _hist2d_numba_seq(H, np.array([x, y]), np.asarray(list(bins)), np.asarray(ranges))
+    return _hist2d_numba_seq(H, np.array([x, y]), np.asarray(list(bins)), np.asarray(range))
 
 
 @njit(nogil=True, parallel=False)
@@ -1425,7 +1625,7 @@ def _hist3d_numba_seq(H, tracks, bins, ranges):
     return H
 
 
-def hist3d_numba_seq(tracks, bins, ranges, use_memmap=False, tmp=None):
+def hist3d_numba_seq(tracks, bins, range, use_memmap=False, tmp=None):
     """Numba-compiled 3d histogram
 
     From https://iscinumpy.dev/post/histogram-speeds-in-python/
@@ -1436,7 +1636,7 @@ def hist3d_numba_seq(tracks, bins, ranges, use_memmap=False, tmp=None):
         List of input arrays of identical length, to be histogrammed
     bins : (int, int, int)
         shape of the final histogram
-    ranges : [min, max]
+    range : [min, max]
         Minimum and maximum value of the histogram
 
     Other parameters
@@ -1461,17 +1661,90 @@ def hist3d_numba_seq(tracks, bins, ranges, use_memmap=False, tmp=None):
     >>> H, _ = np.histogramdd((x, y, z), bins=(5, 6, 7),
     ...                       range=[(0., 1.), (2., 3.), (4., 5)])
     >>> Hn = hist3d_numba_seq((x, y, z), bins=(5, 6, 7),
-    ...                       ranges=[[0., 1.], [2., 3.], [4., 5.]])
+    ...                       range=[[0., 1.], [2., 3.], [4., 5.]])
     >>> assert np.all(H == Hn)
     >>> H, _ = np.histogramdd((x, y, z), bins=(300, 300, 300),
     ...                       range=[(0., 1.), (2., 3.), (4., 5)])
     >>> Hn = hist3d_numba_seq((x, y, z), bins=(300, 300, 300),
-    ...                       ranges=[[0., 1.], [2., 3.], [4., 5.]])
+    ...                       range=[[0., 1.], [2., 3.], [4., 5.]])
     >>> assert np.all(H == Hn)
     """
     H = _allocate_array_or_memmap(bins, np.uint64, use_memmap=use_memmap, tmp=tmp)
 
-    return _hist3d_numba_seq(H, np.asarray(tracks), np.asarray(list(bins)), np.asarray(ranges))
+    return _hist3d_numba_seq(H, np.asarray(tracks), np.asarray(list(bins)), np.asarray(range))
+
+
+@njit(nogil=True, parallel=False)
+def _hist1d_numba_seq_weight(H, tracks, weights, bins, ranges):
+    delta = 1 / ((ranges[1] - ranges[0]) / bins)
+
+    for t in range(tracks.size):
+        i = (tracks[t] - ranges[0]) * delta
+        if 0 <= i < bins:
+            H[int(i)] += weights[t]
+
+    return H
+
+
+def hist1d_numba_seq_weight(a, weights, bins, range, use_memmap=False, tmp=None):
+    """Numba-compiled 1-d histogram with weights.
+
+    Parameters
+    ----------
+    a : array-like
+        Input array, to be histogrammed
+    weights : array-like
+        Input weight of each of the input values ``a``
+    bins : integer
+        number of bins in the final histogram
+    range : [min, max]
+        Minimum and maximum value of the histogram
+
+    Other parameters
+    ----------------
+    use_memmap : bool
+        If ``True`` and the number of bins is above 10 million,
+        the histogram is created into a memory-mapped Numpy array
+    tmp : str
+        Temporary file name for the memory map (only relevant if
+        ``use_memmap`` is ``True``)
+
+    Returns
+    -------
+    histogram: array-like
+        Histogrammed values of a, in ``bins`` bins.
+
+    Adapted from https://iscinumpy.dev/post/histogram-speeds-in-python/
+
+    Examples
+    --------
+    >>> if os.path.exists('out.npy'): os.unlink('out.npy')
+    >>> x = np.random.uniform(0., 1., 100)
+    >>> weights = np.random.uniform(0, 1, 100)
+    >>> H, xedges = np.histogram(x, bins=5, range=[0., 1.], weights=weights)
+    >>> Hn = hist1d_numba_seq_weight(x, weights, bins=5, range=[0., 1.], tmp='out.npy',
+    ...                              use_memmap=True)
+    >>> assert np.all(H == Hn)
+    >>> # The number of bins is small, memory map was not used!
+    >>> assert not os.path.exists('out.npy')
+    >>> H, xedges = np.histogram(x, bins=10**8, range=[0., 1.], weights=weights)
+    >>> Hn = hist1d_numba_seq_weight(x, weights, bins=10**8, range=[0., 1.], tmp='out.npy',
+    ...                              use_memmap=True)
+    >>> assert np.all(H == Hn)
+    >>> assert os.path.exists('out.npy')
+    >>> # Now use memmap but do not specify a tmp file
+    >>> Hn = hist1d_numba_seq_weight(x, weights, bins=10**8, range=[0., 1.],
+    ...                              use_memmap=True)
+    >>> assert np.all(H == Hn)
+    """
+    if bins > 10**7 and use_memmap:
+        if tmp is None:
+            tmp = tempfile.NamedTemporaryFile("w+").name
+        hist_arr = np.lib.format.open_memmap(tmp, mode="w+", dtype=a.dtype, shape=(bins,))
+    else:
+        hist_arr = np.zeros((bins,), dtype=a.dtype)
+
+    return _hist1d_numba_seq_weight(hist_arr, a, weights, bins, np.asarray(range))
 
 
 @njit(nogil=True, parallel=False)
@@ -1487,18 +1760,22 @@ def _hist2d_numba_seq_weight(H, tracks, weights, bins, ranges):
     return H
 
 
-def hist2d_numba_seq_weight(x, y, weights, bins, ranges, use_memmap=False, tmp=None):
-    """Numba-compiled 3d histogram
+def hist2d_numba_seq_weight(x, y, weights, bins, range, use_memmap=False, tmp=None):
+    """Numba-compiled 2d histogram with weights
 
     From https://iscinumpy.dev/post/histogram-speeds-in-python/
 
     Parameters
     ----------
-    tracks : (array-like, array-like, array-like)
-        List of input arrays of identical length, to be histogrammed
+    x : array-like
+        List of input values in the x-direction
+    y : array-like
+        List of input values in the y-direction, of the same length of ``x``
+    weights : array-like
+        Input weight of each of the input values.
     bins : (int, int, int)
         shape of the final histogram
-    ranges : [min, max]
+    range : [min, max]
         Minimum and maximum value of the histogram
 
     Other parameters
@@ -1526,7 +1803,7 @@ def hist2d_numba_seq_weight(x, y, weights, bins, ranges, use_memmap=False, tmp=N
     ...                                    range=[(0., 1.), (2., 3.)],
     ...                                    weights=weight)
     >>> Hn = hist2d_numba_seq_weight(x, y, bins=(5, 5),
-    ...                              ranges=[[0., 1.], [2., 3.]],
+    ...                              range=[[0., 1.], [2., 3.]],
     ...                              weights=weight)
     >>> assert np.all(H == Hn)
     """
@@ -1537,7 +1814,7 @@ def hist2d_numba_seq_weight(x, y, weights, bins, ranges, use_memmap=False, tmp=N
         np.array([x, y]),
         weights,
         np.asarray(list(bins)),
-        np.asarray(ranges),
+        np.asarray(range),
     )
 
 
@@ -1555,7 +1832,7 @@ def _hist3d_numba_seq_weight(H, tracks, weights, bins, ranges):
     return H
 
 
-def hist3d_numba_seq_weight(tracks, weights, bins, ranges, use_memmap=False, tmp=None):
+def hist3d_numba_seq_weight(tracks, weights, bins, range, use_memmap=False, tmp=None):
     """Numba-compiled weighted 3d histogram
 
     From https://iscinumpy.dev/post/histogram-speeds-in-python/
@@ -1568,7 +1845,7 @@ def hist3d_numba_seq_weight(tracks, weights, bins, ranges, use_memmap=False, tmp
         List of weights for each point of the input arrays
     bins : (int, int, int)
         shape of the final histogram
-    ranges : [[xmin, xmax], [ymin, ymax], [zmin, zmax]]]
+    range : [[xmin, xmax], [ymin, ymax], [zmin, zmax]]]
         Minimum and maximum value of the histogram, in each dimension
 
     Other parameters
@@ -1598,7 +1875,7 @@ def hist3d_numba_seq_weight(tracks, weights, bins, ranges, use_memmap=False, tmp
     ...                       weights=weights)
     >>> Hn = hist3d_numba_seq_weight(
     ...    (x, y, z), weights, bins=(5, 6, 7),
-    ...    ranges=[[0., 1.], [2., 3.], [4., 5.]])
+    ...    range=[[0., 1.], [2., 3.], [4., 5.]])
     >>> assert np.all(H == Hn)
     """
 
@@ -1608,7 +1885,7 @@ def hist3d_numba_seq_weight(tracks, weights, bins, ranges, use_memmap=False, tmp
         np.asarray(tracks),
         weights,
         np.asarray(list(bins)),
-        np.asarray(ranges),
+        np.asarray(range),
     )
 
 
@@ -1645,7 +1922,7 @@ def _histnd_numba_seq(H, tracks, bins, ranges, slice_int):
     return H
 
 
-def histnd_numba_seq(tracks, bins, ranges, use_memmap=False, tmp=None):
+def histnd_numba_seq(tracks, bins, range, use_memmap=False, tmp=None):
     """Numba-compiled n-d histogram
 
     From https://iscinumpy.dev/post/histogram-speeds-in-python/
@@ -1656,7 +1933,7 @@ def histnd_numba_seq(tracks, bins, ranges, use_memmap=False, tmp=None):
         List of input arrays, to be histogrammed
     bins : (int, int, ...)
         shape of the final histogram
-    ranges : [[min, max], ...]
+    range : [[min, max], ...]
         Minimum and maximum value of the histogram, in each dimension
 
     Other parameters
@@ -1685,41 +1962,190 @@ def histnd_numba_seq(tracks, bins, ranges, use_memmap=False, tmp=None):
     ...                          range=[(0., 1.), (2., 3.)])
     >>> alldata = np.array([x, y])
     >>> Hn = histnd_numba_seq(alldata, bins=np.array([5, 5]),
-    ...                       ranges=np.array([[0., 1.], [2., 3.]]))
+    ...                       range=np.array([[0., 1.], [2., 3.]]))
     >>> assert np.all(H == Hn)
     >>> # 3d example
     >>> H, _ = np.histogramdd((x, y, z), bins=np.array((5, 6, 7)),
     ...                       range=[(0., 1.), (2., 3.), (4., 5)])
     >>> alldata = np.array([x, y, z])
-    >>> Hn = hist3d_numba_seq(alldata, bins=np.array((5, 6, 7)),
-    ...                       ranges=np.array([[0., 1.], [2., 3.], [4., 5.]]))
+    >>> Hn = histnd_numba_seq(alldata, bins=np.array((5, 6, 7)),
+    ...                       range=np.array([[0., 1.], [2., 3.], [4., 5.]]))
     >>> assert np.all(H == Hn)
     """
+    tracks = np.asarray(tracks)
     H = _allocate_array_or_memmap(bins, np.uint64, use_memmap=use_memmap, tmp=tmp)
     slice_int = np.zeros(len(bins), dtype=np.uint64)
 
-    return _histnd_numba_seq(H, tracks, bins, ranges, slice_int)
+    return _histnd_numba_seq(H, tracks, bins, range, slice_int)
 
 
-if HAS_NUMBA:
+def _wrap_histograms(numba_func, weight_numba_func, np_func, *args, **kwargs):
+    """Histogram wrapper.
 
-    def histogram2d(*args, **kwargs):
-        if "range" in kwargs:
-            kwargs["ranges"] = kwargs.pop("range")
-        return hist2d_numba_seq(*args, **kwargs)
+    Make sure that the histogram fails safely if numba is not available or does not work.
 
-    def histogram(*args, **kwargs):
-        if "range" in kwargs:
-            kwargs["ranges"] = kwargs.pop("range")
-        return hist1d_numba_seq(*args, **kwargs)
+    In particular, if weights are complex, it will split them in real and imaginary part.
+    """
+    weights = kwargs.pop("weights", None)
+    use_memmap = kwargs.pop("use_memmap", False)
+    tmp = kwargs.pop("tmp", None)
 
-else:
+    if np.iscomplexobj(weights):
+        return (
+            _wrap_histograms(
+                numba_func,
+                weight_numba_func,
+                np_func,
+                *args,
+                weights=weights.real,
+                use_memmap=use_memmap,
+                tmp=tmp,
+                **kwargs,
+            )
+            + _wrap_histograms(
+                numba_func,
+                weight_numba_func,
+                np_func,
+                *args,
+                weights=weights.imag,
+                use_memmap=use_memmap,
+                tmp=tmp,
+                **kwargs,
+            )
+            * 1.0j
+        )
 
-    def histogram2d(*args, **kwargs):
-        return histogram2d_np(*args, **kwargs)[0]
+    if not HAS_NUMBA:
+        return np_func(*args, weights=weights, **kwargs)[0]
 
-    def histogram(*args, **kwargs):
-        return histogram_np(*args, **kwargs)[0]
+    try:
+        if weights is None:
+            return numba_func(*args, use_memmap=use_memmap, tmp=tmp, **kwargs)
+        if weight_numba_func is None:
+            raise TypeError("Weights not supported for this histogram")
+        return weight_numba_func(*args, weights=weights, use_memmap=use_memmap, tmp=tmp, **kwargs)
+    except (NumbaValueError, NumbaNotImplementedError, TypingError, TypeError):
+        warnings.warn(
+            "Cannot calculate the histogram with the numba implementation. "
+            "Trying standard numpy."
+        )
+
+        return np_func(*args, weights=weights, **kwargs)[0]
+
+
+def histogram3d(*args, **kwargs):
+    """Histogram implementation.
+
+    Accepts the same arguments as `numpy.histogramdd`, but tries to use a Numba implementation
+    of the histogram. Bonus: weights can be complex.
+
+    Examples
+    --------
+    >>> x = np.random.uniform(0., 1., 100)
+    >>> y = np.random.uniform(2., 3., 100)
+    >>> z = np.random.uniform(4., 5., 100)
+    >>> # 3d example
+    >>> H, _ = np.histogramdd((x, y, z), bins=np.array((5, 6, 7)),
+    ...                       range=[(0., 1.), (2., 3.), (4., 5)])
+    >>> Hn = histogram3d((x, y, z), bins=np.array((5, 6, 7)),
+    ...                  range=[(0., 1.), (2., 3.), (4., 5)])
+    >>> assert np.all(H == Hn)
+    """
+
+    return _wrap_histograms(
+        hist3d_numba_seq, hist3d_numba_seq_weight, histogramdd_np, *args, **kwargs
+    )
+
+
+def histogramnd(*args, **kwargs):
+    """Histogram implementation.
+
+    Accepts the same arguments as `numpy.histogramdd`, but tries to use a Numba implementation
+    of the histogram. Bonus: weights can be complex.
+
+    Examples
+    --------
+    >>> x = np.random.uniform(0., 1., 100)
+    >>> y = np.random.uniform(2., 3., 100)
+    >>> z = np.random.uniform(4., 5., 100)
+    >>> # 2d example
+    >>> H, _, _ = np.histogram2d(x, y, bins=np.array((5, 5)),
+    ...                          range=[(0., 1.), (2., 3.)])
+    >>> Hn = histogramnd((x, y), bins=np.array([5, 5]),
+    ...                  range=np.array([[0., 1.], [2., 3.]]))
+    >>> assert np.all(H == Hn)
+    >>> # 3d example
+    >>> H, _ = np.histogramdd((x, y, z), bins=np.array((5, 6, 7)),
+    ...                       range=[(0., 1.), (2., 3.), (4., 5)])
+    >>> alldata = (x, y, z)
+    >>> Hn = histogramnd(alldata, bins=np.array((5, 6, 7)),
+    ...                  range=np.array([[0., 1.], [2., 3.], [4., 5.]]))
+    >>> assert np.all(H == Hn)
+    """
+
+    return _wrap_histograms(histnd_numba_seq, None, histogramdd_np, *args, **kwargs)
+
+
+def histogram2d(*args, **kwargs):
+    """Histogram implementation.
+
+    Accepts the same arguments as `numpy.histogramdd`, but tries to use a Numba implementation
+    of the histogram. Bonus: weights can be complex.
+
+    Examples
+    --------
+    >>> x = np.random.uniform(0., 1., 100)
+    >>> y = np.random.uniform(2., 3., 100)
+    >>> weight = np.random.uniform(0, 1, 100)
+    >>> H, xedges, yedges = np.histogram2d(x, y, bins=(5, 5),
+    ...                                    range=[(0., 1.), (2., 3.)],
+    ...                                    weights=weight)
+    >>> Hn = histogram2d(x, y, bins=(5, 5),
+    ...                  range=[[0., 1.], [2., 3.]],
+    ...                  weights=weight)
+    >>> assert np.array_equal(H, Hn)
+    >>> Hn1 = histogram2d(x, y, bins=(5, 5),
+    ...                   range=[[0., 1.], [2., 3.]],
+    ...                   weights=None)
+    >>> Hn2 = histogram2d(x, y, bins=(5, 5),
+    ...                   range=[[0., 1.], [2., 3.]])
+    >>> assert np.array_equal(Hn1, Hn2)
+    >>> Hn = histogram2d(x, y, bins=(5, 5),
+    ...                  range=[[0., 1.], [2., 3.]],
+    ...                  weights=weight + 1.j * weight)
+    >>> assert np.array_equal(Hn.real, Hn.imag)
+    >>> assert np.array_equal(H, Hn.real)
+    """
+    return _wrap_histograms(
+        hist2d_numba_seq, hist2d_numba_seq_weight, histogram2d_np, *args, **kwargs
+    )
+
+
+def histogram(*args, **kwargs):
+    """Histogram implementation.
+
+    Accepts the same arguments as `numpy.histogramdd`, but tries to use a Numba implementation
+    of the histogram. Bonus: weights can be complex.
+
+    Examples
+    --------
+    >>> x = np.random.uniform(0., 1., 100)
+    >>> weights = np.random.uniform(0, 1, 100)
+    >>> H, xedges = np.histogram(x, bins=5, range=[0., 1.], weights=weights)
+    >>> Hn = histogram(x, weights=weights, bins=5, range=[0., 1.], tmp='out.npy',
+    ...                use_memmap=True)
+    >>> assert np.array_equal(H, Hn)
+    >>> Hn1 = histogram(x, weights=None, bins=5, range=[0., 1.])
+    >>> Hn2 = histogram(x, bins=5, range=[0., 1.])
+    >>> assert np.array_equal(Hn1, Hn2)
+    >>> Hn = histogram(x, weights=weights + weights * 2.j, bins=5, range=[0., 1.],
+    ...                tmp='out.npy', use_memmap=True)
+    >>> assert np.array_equal(Hn.real, Hn.imag / 2)
+    """
+
+    return _wrap_histograms(
+        hist1d_numba_seq, hist1d_numba_seq_weight, histogram_np, *args, **kwargs
+    )
 
 
 def equal_count_energy_ranges(energies, n_ranges, emin=None, emax=None):
@@ -1749,14 +2175,11 @@ def equal_count_energy_ranges(energies, n_ranges, emin=None, emax=None):
     --------
     >>> energies = np.random.uniform(0, 10, 1000000)
     >>> edges = equal_count_energy_ranges(energies, 5, emin=0, emax=10)
-    >>> np.allclose(edges, [0, 2, 4, 6, 8, 10], atol=0.05)
-    True
+    >>> assert np.allclose(edges, [0, 2, 4, 6, 8, 10], atol=0.05)
     >>> edges = equal_count_energy_ranges(energies, 5)
-    >>> np.allclose(edges, [0, 2, 4, 6, 8, 10], atol=0.05)
-    True
+    >>> assert np.allclose(edges, [0, 2, 4, 6, 8, 10], atol=0.05)
     >>> edges = equal_count_energy_ranges(energies, 0)
-    >>> np.allclose(edges, [0, 10], atol=0.05)
-    True
+    >>> assert np.allclose(edges, [0, 10], atol=0.05)
     """
     need_filtering = False
     if emin is not None or emax is not None:
@@ -1825,8 +2248,7 @@ def assign_if_not_finite(value, default):
     >>> assign_if_not_finite(np.inf, 3.2)
     3.2
     >>> input_arr = np.array([np.nan, 1, np.inf, 2])
-    >>> np.allclose(assign_if_not_finite(input_arr, 3.2), [3.2, 1, 3.2, 2])
-    True
+    >>> assert np.allclose(assign_if_not_finite(input_arr, 3.2), [3.2, 1, 3.2, 2])
 
     """
     if isinstance(value, Iterable):
@@ -1837,3 +2259,24 @@ def assign_if_not_finite(value, default):
     if not np.isfinite(value):
         return default
     return value
+
+
+def sqsum(array1, array2):
+    """Return the square root of the sum of the squares of two arrays."""
+    return np.sqrt(np.add(np.square(array1), np.square(array2)))
+
+
+@njit
+def _int_sum_non_zero(array):
+    """Sum all positive elements of an array of integers.
+
+    Parameters
+    ----------
+    array : array-like
+        Array of integers
+    """
+    sum = 0
+    for a in array:
+        if a > 0:
+            sum += int(a)
+    return sum

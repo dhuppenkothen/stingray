@@ -1,4 +1,5 @@
 import os
+import pytest
 import numpy as np
 from scipy.interpolate import interp1d
 
@@ -7,6 +8,9 @@ from stingray.powerspectrum import AveragedPowerspectrum
 from stingray.deadtime.model import r_det, r_in, pds_model_zhang
 from stingray.deadtime.model import check_A, check_B, heaviside
 from stingray.filters import filter_for_deadtime
+
+
+pytestmark = pytest.mark.slow
 
 
 def test_heaviside():

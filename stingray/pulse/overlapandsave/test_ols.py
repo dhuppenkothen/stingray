@@ -85,6 +85,7 @@ def testReflect():
             assert np.allclose(yRef, ypadRef[py : py + nx, px : px + nx])
 
 
+@pytest.mark.slow
 def testOls():
     def testouter(nx, nh):
         x = np.random.randint(-30, 30, size=(nx, nx)) + 1.0

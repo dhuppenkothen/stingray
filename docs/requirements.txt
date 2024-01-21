@@ -1,0 +1,7 @@
+jinja2<=3.0.0
+docutils
+sphinx-astropy
+nbsphinx>=0.8.3,!=0.8.8
+pandoc
+ipython
+towncrier<22.12.0

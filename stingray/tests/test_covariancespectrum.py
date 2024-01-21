@@ -47,15 +47,18 @@ class TestCovariancespectrumwithEvents(object):
             c = Covariancespectrum(self.event_list)
 
     def test_set_lc_flag_correctly(self):
-        c = Covariancespectrum(self.event_list, dt=1)
+        with pytest.warns(UserWarning, match="excess variance"):
+            c = Covariancespectrum(self.event_list, dt=1)
         assert c.use_lc is False
 
     def test_covar_without_any_band_interest(self):
-        c = Covariancespectrum(self.event_list, dt=1)
+        with pytest.warns(UserWarning, match="excess variance"):
+            c = Covariancespectrum(self.event_list, dt=1)
         assert len(c.covar) == 9
 
     def test_creates_band_interest_correctly(self):
-        c = Covariancespectrum(self.event_list, dt=1)
+        with pytest.warns(UserWarning, match="excess variance"):
+            c = Covariancespectrum(self.event_list, dt=1)
         energies = np.arange(1, 10, 1)
         band_low = np.zeros_like(energies)
         band_high = np.zeros_like(energies)
@@ -79,32 +82,34 @@ class TestCovariancespectrumwithEvents(object):
             c = Covariancespectrum(self.event_list, dt=1, ref_band_interest=(0))
 
     def test_covar_with_both_bands(self):
-        c = Covariancespectrum(
-            self.event_list, dt=1, band_interest=[(2, 6), (8, 9)], ref_band_interest=(1, 10)
-        )
+        with pytest.warns(UserWarning, match="excess variance"):
+            c = Covariancespectrum(
+                self.event_list, dt=1, band_interest=[(2, 6), (8, 9)], ref_band_interest=(1, 10)
+            )
         assert len(c.covar) == 2
 
     def test_with_separate_reference_band(self):
-        c = Covariancespectrum(
-            self.event_list, dt=1, band_interest=[(2, 6)], ref_band_interest=((7, 10))
-        )
+        with pytest.warns(UserWarning, match="excess variance"):
+            c = Covariancespectrum(
+                self.event_list, dt=1, band_interest=[(2, 6)], ref_band_interest=((7, 10))
+            )
 
     def test_with_unsorted_event_list(self):
         event_list = np.array([[2, 1], [2, 3], [1, 2], [5, 2], [4, 1]])
-        with warnings.catch_warnings(record=True) as w:
-            c = Covariancespectrum(event_list, dt=1)
-            assert np.any(["must be sorted" in str(wi.message) for wi in w])
+        with pytest.warns(UserWarning, match="must be sorted"):
+            _ = Covariancespectrum(event_list, dt=1)
 
     def test_with_std_as_iterable(self):
         c = Covariancespectrum(self.event_list, dt=1, std=[1, 2])
 
     def test_with_std_as_a_single_float(self):
-        c = Covariancespectrum(self.event_list, dt=1, std=2.55)
+        with pytest.warns(UserWarning, match="excess variance"):
+            c = Covariancespectrum(self.event_list, dt=1, std=2.55)
 
     def test_with_eventlist_object(self):
         e = EventList(time=self.event_list[:, 0], energy=self.event_list[:, 1])
-
-        c = Covariancespectrum(e, dt=1)
+        with pytest.warns(UserWarning, match="excess variance"):
+            c = Covariancespectrum(e, dt=1)
 
 
 class TestCovariancewithLightcurves(object):
@@ -135,18 +140,22 @@ class TestCovariancewithLightcurves(object):
         self.ref_band_interest = Lightcurve(time, np.array([2, 3, 1, 4, 4, 0, 1, 3, 2]))
 
     def test_class_initializes_with_lightcurves(self):
-        c = Covariancespectrum(self.lcs)
+        with pytest.warns(UserWarning, match="excess variance"):
+            c = Covariancespectrum(self.lcs)
 
     def test_set_lc_flag_correctly(self):
-        c = Covariancespectrum(self.lcs)
+        with pytest.warns(UserWarning, match="excess variance"):
+            c = Covariancespectrum(self.lcs)
         assert c.use_lc is True
         assert c.lcs == self.lcs
 
     def test_single_lc_as_ref_band_interest(self):
-        c = Covariancespectrum(self.lcs, ref_band_interest=self.ref_band_interest)
+        with pytest.warns(UserWarning, match="excess variance"):
+            c = Covariancespectrum(self.lcs, ref_band_interest=self.ref_band_interest)
 
     def test_lc_with_no_band_interest(self):
-        c = Covariancespectrum(self.lcs, ref_band_interest=None)
+        with pytest.warns(UserWarning, match="excess variance"):
+            c = Covariancespectrum(self.lcs, ref_band_interest=None)
 
         band_interest = np.vstack([np.arange(len(self.lcs)), np.arange(1, len(self.lcs) + 1, 1)]).T
 
@@ -157,11 +166,13 @@ class TestCovariancewithLightcurves(object):
             c = Covariancespectrum(self.lcs, band_interest=1.0)
 
     def test_ref_band_interest_created_correctly(self):
-        c = Covariancespectrum(self.lcs, ref_band_interest=None)
+        with pytest.warns(UserWarning, match="excess variance"):
+            c = Covariancespectrum(self.lcs, ref_band_interest=None)
         assert len(c.ref_band_lcs) == len(self.lcs)
 
     def test_class_fails_with_wrong_number_of_ref_band_interest_lcs(self):
-        c = Covariancespectrum(self.lcs, ref_band_interest=self.lcs[::-1])
+        with pytest.warns(UserWarning, match="excess variance"):
+            c = Covariancespectrum(self.lcs, ref_band_interest=self.lcs[::-1])
         assert len(c.lcs) == len(c.ref_band_lcs)
 
     def test_ref_band_interest_get_saved_correctly(self):
@@ -207,9 +218,12 @@ class TestAveragedCovariancespectrum(object):
         self.event_list = event_list
 
     def test_with_full_segment(self):
-        c = Covariancespectrum(self.event_list, 1)
-        avg_c = AveragedCovariancespectrum(self.event_list, segment_size=10, dt=1)
+        with pytest.warns(UserWarning, match="excess variance"):
+            c = Covariancespectrum(self.event_list, 1)
+        with pytest.warns(UserWarning, match="excess variance"):
+            avg_c = AveragedCovariancespectrum(self.event_list, segment_size=10, dt=1)
         assert np.allclose(avg_c.unnorm_covar, c.unnorm_covar)
 
     def test_with_two_segments(self):
-        avg_c = AveragedCovariancespectrum(self.event_list, segment_size=5, dt=1)
+        with pytest.warns(UserWarning, match="excess variance"):
+            avg_c = AveragedCovariancespectrum(self.event_list, segment_size=5, dt=1)

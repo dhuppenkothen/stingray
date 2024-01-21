@@ -197,15 +197,13 @@ class TestCrossCorrelation(object):
     def test_plot_wrong_label_type(self):
         cr = CrossCorrelation(self.lc1, self.lc2)
         with pytest.raises(TypeError):
-            with warnings.catch_warnings(record=True) as w:
+            with pytest.warns(UserWarning, match="must be either a list or tuple") as w:
                 cr.plot(labels=123)
-                assert np.any(["must be either a list or tuple" in str(wi.message) for wi in w])
 
     def test_plot_labels_index_error(self):
         cr = CrossCorrelation(self.lc1, self.lc2)
-        with warnings.catch_warnings(record=True) as w:
+        with pytest.warns(UserWarning, match="must have two labels") as w:
             cr.plot(labels="x")
-            assert np.any(["must have two labels" in str(wi.message) for wi in w])
 
     def test_plot_axis(self):
         cr = CrossCorrelation(self.lc1, self.lc2)

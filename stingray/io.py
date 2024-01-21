@@ -2,7 +2,8 @@ import logging
 import math
 import copy
 import os
-import pickle
+import sys
+import traceback
 import warnings
 from collections.abc import Iterable
 
@@ -14,7 +15,7 @@ import matplotlib.pyplot as plt
 
 import stingray.utils as utils
 
-from .utils import assign_value_if_none, is_string, order_list_of_arrays
+from .utils import assign_value_if_none, is_string, order_list_of_arrays, is_sorted
 from .gti import get_gti_from_all_extensions, load_gtis
 
 # Python 3
@@ -28,8 +29,15 @@ except ImportError:
     _H5PY_INSTALLED = False
 
 
+HAS_128 = True
+try:
+    np.float128
+except AttributeError:  # pragma: no cover
+    HAS_128 = False
+
+
 def rough_calibration(pis, mission):
-    """Make a rough conversion betwenn PI channel and energy.
+    """Make a rough conversion between PI channel and energy.
 
     Only works for NICER, NuSTAR, and XMM.
 
@@ -140,8 +148,7 @@ def _patch_mission_info(info, mission=None):
     --------
     >>> info = {'gti': 'STDGTI'}
     >>> new_info = _patch_mission_info(info, mission=None)
-    >>> new_info['gti'] == info['gti']
-    True
+    >>> assert new_info['gti'] == info['gti']
     >>> new_info = _patch_mission_info(info, mission="xmm")
     >>> new_info['gti']
     'STDGTI,GTI0'
@@ -204,8 +211,7 @@ def _case_insensitive_search_in_list(string, list_of_strings):
     -------
     >>> _case_insensitive_search_in_list("a", ["A", "b"])
     'A'
-    >>> _case_insensitive_search_in_list("a", ["c", "b"]) is None
-    True
+    >>> assert _case_insensitive_search_in_list("a", ["c", "b"]) is None
     """
     for s in list_of_strings:
         if string.lower() == s.lower():
@@ -213,7 +219,7 @@ def _case_insensitive_search_in_list(string, list_of_strings):
     return None
 
 
-def _get_additional_data(lctable, additional_columns):
+def _get_additional_data(lctable, additional_columns, warn_if_missing=True):
     """Get additional data from a FITS data table.
 
     Parameters
@@ -222,6 +228,11 @@ def _get_additional_data(lctable, additional_columns):
         Data table
     additional_columns: list of str
         List of column names to retrieve from the table
+
+    Other parameters
+    ----------------
+    warn_if_missing: bool, default True
+        Warn if a column is not found
 
     Returns
     -------
@@ -236,7 +247,8 @@ def _get_additional_data(lctable, additional_columns):
             if key is not None:
                 additional_data[a] = np.array(lctable.field(key))
             else:
-                warnings.warn("Column " + a + " not found")
+                if warn_if_missing:
+                    warnings.warn("Column " + a + " not found")
                 additional_data[a] = np.zeros(len(lctable))
 
     return additional_data
@@ -382,7 +394,7 @@ def lcurve_from_fits(
     except Exception:  # pragma: no cover
         raise (Exception("TSTART and TSTOP need to be specified"))
 
-    # For nulccorr lcs this whould work
+    # For nulccorr lcs this would work
 
     timezero = high_precision_keyword_read(lchdulist[ratehdu].header, "TIMEZERO")
     # Sometimes timezero is "from tstart", sometimes it's an absolute time.
@@ -398,7 +410,7 @@ def lcurve_from_fits(
         timezero = Time(2440000.5 + timezero, scale="tdb", format="jd")
         tstart = Time(2440000.5 + tstart, scale="tdb", format="jd")
         tstop = Time(2440000.5 + tstop, scale="tdb", format="jd")
-        # if None, use NuSTAR defaulf MJDREF
+        # if None, use NuSTAR default MJDREF
         mjdref = assign_value_if_none(
             mjdref,
             Time(np.longdouble("55197.00076601852"), scale="tdb", format="mjd"),
@@ -585,7 +597,8 @@ def load_events_and_gtis(
     if modekey is not None and modekey in probe_header:
         mode = probe_header[modekey].strip()
 
-    gtistring = get_key_from_mission_info(db, "gti", "GTI,STDGTI", instr, mode)
+    if gtistring is None:
+        gtistring = get_key_from_mission_info(db, "gti", "GTI,STDGTI", instr, mode)
     if hduname is None:
         hduname = get_key_from_mission_info(db, "events", "EVENTS", instr, mode)
 
@@ -644,10 +657,12 @@ def load_events_and_gtis(
                 accepted_gtistrings=accepted_gtistrings,
                 det_numbers=det_number,
             )
-        except Exception:  # pragma: no cover
+        except Exception as e:  # pragma: no cover
             warnings.warn(
-                "No extensions found with a valid name. "
-                "Please check the `accepted_gtistrings` values.",
+                (
+                    f"No valid GTI extensions found. \nError: {str(e)}\n"
+                    "GTIs will be set to the entire time series."
+                ),
                 AstropyUserWarning,
             )
             gti_list = np.array([[t_start, t_stop]], dtype=np.longdouble)
@@ -660,18 +675,21 @@ def load_events_and_gtis(
     if pi_col not in additional_columns:
         additional_columns.append(pi_col)
     # If data were already calibrated, use this!
-    if "energy" not in additional_columns:
-        additional_columns.append("energy")
-
     additional_data = _get_additional_data(datatable, additional_columns)
+    if "energy" not in additional_columns:
+        additional_data.update(_get_additional_data(datatable, ["energy"], warn_if_missing=False))
+    del additional_columns
+
     hdulist.close()
     # Sort event list
-    order = np.argsort(ev_list)
-    ev_list = ev_list[order]
-    if detector_id is not None:
-        detector_id = detector_id[order]
+    if not is_sorted(ev_list):
+        warnings.warn("Warning: input data are not sorted. Sorting them for you.")
+        order = np.argsort(ev_list)
+        ev_list = ev_list[order]
+        if detector_id is not None:
+            detector_id = detector_id[order]
 
-    additional_data = order_list_of_arrays(additional_data, order)
+        additional_data = order_list_of_arrays(additional_data, order)
 
     pi = additional_data[pi_col].astype(np.float32)
     cal_pi = pi
@@ -857,14 +875,10 @@ def split_numbers(number, shift=0):
     --------
     >>> n = 12.34
     >>> i, f = split_numbers(n)
-    >>> i == 12
-    True
-    >>> np.isclose(f, 0.34)
-    True
-    >>> split_numbers(n, 2)
-    (12.34, 0.0)
-    >>> split_numbers(n, -1)
-    (10.0, 2.34)
+    >>> assert i == 12
+    >>> assert np.isclose(f, 0.34)
+    >>> assert np.allclose(split_numbers(n, 2), (12.34, 0.0))
+    >>> assert np.allclose(split_numbers(n, -1), (10.0, 2.34))
     """
     if isinstance(number, Iterable):
         number = np.asarray(number)
@@ -897,7 +911,7 @@ def savefig(filename, **kwargs):
     kwargs : keyword arguments
         Keyword arguments to be passed to ``savefig`` function of
         ``matplotlib.pyplot``. For example use `bbox_inches='tight'` to
-        remove the undesirable whitepace around the image.
+        remove the undesirable whitespace around the image.
     """
 
     if not plt.fignum_exists(1):
@@ -907,3 +921,83 @@ def savefig(filename, **kwargs):
         )
 
     plt.savefig(filename, **kwargs)
+
+
+def _can_save_longdouble(probe_file: str, fmt: str) -> bool:
+    """Check if a given file format can save tables with longdoubles.
+
+    Try to save a table with a longdouble column, and if it doesn't work, catch the exception.
+    If the exception is related to longdouble, return False (otherwise just raise it, this
+    would mean there are larger problems that need to be solved). In this case, also warn that
+    probably part of the data will not be saved.
+
+    If no exception is raised, return True.
+
+    Parameters
+    ----------
+    probe_file : str
+        The name of the file to be used for probing
+    fmt : str
+        The format to be used for probing, in the ``format`` argument of ``Table.write``
+
+    Returns
+    -------
+    yes_it_can : bool
+        Whether the format can serialize the metadata
+    """
+    if not HAS_128:  # pragma: no cover
+        # There are no known issues with saving longdoubles where numpy.float128 is not defined
+        return True
+
+    try:
+        Table({"a": np.arange(0, 3, 1.212314).astype(np.float128)}).write(
+            probe_file, format=fmt, overwrite=True
+        )
+        yes_it_can = True
+        os.unlink(probe_file)
+    except ValueError as e:
+        if "float128" not in str(e):  # pragma: no cover
+            raise
+        warnings.warn(
+            f"{fmt} output does not allow saving metadata at maximum precision. "
+            "Converting to lower precision"
+        )
+        yes_it_can = False
+    return yes_it_can
+
+
+def _can_serialize_meta(probe_file: str, fmt: str) -> bool:
+    """
+    Try to save a table with meta to be serialized, and if it doesn't work, catch the exception.
+    If the exception is related to serialization, return False (otherwise just raise it, this
+    would mean there are larger problems that need to be solved). In this case, also warn that
+    probably part of the data will not be saved.
+
+    If no exception is raised, return True.
+
+    Parameters
+    ----------
+    probe_file : str
+        The name of the file to be used for probing
+    fmt : str
+        The format to be used for probing, in the ``format`` argument of ``Table.write``
+
+    Returns
+    -------
+    yes_it_can : bool
+        Whether the format can serialize the metadata
+    """
+    try:
+        Table({"a": [3]}).write(probe_file, overwrite=True, format=fmt, serialize_meta=True)
+
+        os.unlink(probe_file)
+        yes_it_can = True
+    except TypeError as e:
+        if "serialize_meta" not in str(e):  # pragma: no cover
+            raise
+        warnings.warn(
+            f"{fmt} output does not serialize the metadata at the moment. "
+            "Some attributes will be lost."
+        )
+        yes_it_can = False
+    return yes_it_can

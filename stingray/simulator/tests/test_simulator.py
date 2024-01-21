@@ -1,8 +1,9 @@
 import numpy as np
 import os
+import warnings
 
 from scipy.interpolate import interp1d
-from astropy.tests.helper import pytest
+import pytest
 import astropy.modeling.models
 from stingray import Lightcurve, Crossspectrum, sampledata, Powerspectrum
 from stingray.simulator import Simulator
@@ -38,7 +39,7 @@ class TestSimulator(object):
 
         lc1 = Lightcurve(time, s)
         lc2 = Lightcurve(time, output)
-        cross = Crossspectrum(lc1, lc2)
+        cross = Crossspectrum(lc2, lc1)
         cross = cross.rebin(0.0075)
 
         return np.angle(cross.power) / (2 * np.pi * cross.freq)
@@ -192,7 +193,8 @@ class TestSimulator(object):
         nsim = 1000
 
         mean = 0.0
-        sim = Simulator(dt=self.dt, N=self.N, rms=self.rms, mean=mean)
+        with pytest.warns(UserWarning, match="Careful! A mean of zero is unphysical!"):
+            sim = Simulator(dt=self.dt, N=self.N, rms=self.rms, mean=mean)
         lc_all = [sim.simulate(-2.0) for i in range(nsim)]
 
         mean_all = np.mean([np.mean(lc.counts) for lc in lc_all])
@@ -389,7 +391,9 @@ class TestSimulator(object):
         lorentzian = models.GeneralizedLorentz1D(x_0=10, fwhm=1.0, value=10.0, power_coeff=2.0)
         myModel = smoothbknpo + lorentzian
 
-        lc = [self.simulator.simulate(myModel) for i in range(1, 50)]
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            lc = [self.simulator.simulate(myModel) for i in range(1, 50)]
 
         simulated = self.simulator.powerspectrum(lc, lc[0].tseg)
 
@@ -554,7 +558,8 @@ class TestSimulator(object):
             lc2 = lc2.shift(-lc2.time[0] + lc.time[0])
             outputs.append(lc2)
 
-        cross = [Crossspectrum(lc, lc2).rebin(0.0075) for lc2 in outputs]
+        with pytest.warns(UserWarning, match="Your lightcurves have different statistics"):
+            cross = [Crossspectrum(lc2, lc).rebin(0.0075) for lc2 in outputs]
         lags = [np.angle(c.power) / (2 * np.pi * c.freq) for c in cross]
 
         v_cutoffs = [1.0 / (2.0 * 5), 1.0 / (2.0 * 10)]
@@ -582,7 +587,8 @@ class TestSimulator(object):
             lc2 = lc2.shift(-lc2.time[0] + lc.time[0])
             outputs.append(lc2)
 
-        cross = [Crossspectrum(lc, lc2).rebin(0.0075) for lc2 in outputs]
+        with pytest.warns(UserWarning, match="Your lightcurves have different statistics"):
+            cross = [Crossspectrum(lc2, lc).rebin(0.0075) for lc2 in outputs]
         lags = [np.angle(c.power) / (2 * np.pi * c.freq) for c in cross]
 
         v_cutoff = 1.0 / (2.0 * 5)
@@ -601,9 +607,8 @@ class TestSimulator(object):
     def test_io_with_unsupported_format(self):
         sim = Simulator(N=self.N, dt=self.dt, rms=self.rms, mean=self.mean)
         with pytest.raises(KeyError):
-            # Also use the deprecated format_, just because
-            sim.write("sim.hdf5", format_="hdf5")
+            sim.write("sim.hdf5", fmt="hdf5")
         sim.write("sim.pickle", fmt="pickle")
         with pytest.raises(KeyError):
-            sim.read("sim.pickle", format_="hdf5")
+            sim.read("sim.pickle", fmt="hdf5")
         os.remove("sim.pickle")

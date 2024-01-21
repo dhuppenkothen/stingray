@@ -1,14 +1,13 @@
 import os
+import importlib
 import copy
 import numpy as np
-from astropy.tests.helper import pytest
+import pytest
 import warnings
-import os
 import matplotlib.pyplot as plt
 from numpy.testing import assert_allclose
 import astropy.units as u
 from astropy.time import Time
-import astropy.timeseries
 from astropy.timeseries import TimeSeries
 from astropy.table import Table
 import scipy.stats
@@ -19,34 +18,17 @@ from stingray.gti import create_gti_mask
 
 np.random.seed(20150907)
 
-_H5PY_INSTALLED = True
-_HAS_LIGHTKURVE = True
-_HAS_YAML = True
+_H5PY_INSTALLED = importlib.util.find_spec("h5py") is not None
+_HAS_LIGHTKURVE = importlib.util.find_spec("lightkurve") is not None
+_HAS_YAML = importlib.util.find_spec("yaml") is not None
+_HAS_ULTRANEST = importlib.util.find_spec("ultranest") is not None
+
 _IS_WINDOWS = os.name == "nt"
-_HAS_ULTRANEST = True
-
-try:
-    import h5py
-except ImportError:
-    _H5PY_INSTALLED = False
-
-try:
-    import lightkurve
-except ImportError:
-    _HAS_LIGHTKURVE = False
-
-try:
-    import yaml
-except ImportError:
-    _HAS_YAML = False
-
-try:
-    import ultranest
-except ImportError:
-    _HAS_ULTRANEST = False
 
 curdir = os.path.abspath(os.path.dirname(__file__))
 datadir = os.path.join(curdir, "data")
+
+plt.close("all")
 
 
 def fvar_fun(lc):
@@ -81,6 +63,33 @@ class TestProperties(object):
         cls.lc = Lightcurve(times, counts, gti=cls.gti)
         cls.lc_lowmem = Lightcurve(times, counts, gti=cls.gti, low_memory=True)
 
+    def test_empty_lightcurve(self):
+        lc0 = Lightcurve()
+        lc1 = Lightcurve([], [])
+        assert lc0.time is None
+        assert lc1.time is None
+
+    def test_add_data_to_empty_lightcurve(self):
+        lc0 = Lightcurve()
+        lc0.time = [1, 2, 3]
+        lc0.counts = [1, 2, 3]
+
+    def test_bad_counts_lightcurve(self):
+        with pytest.raises(StingrayError, match="Empty or invalid counts array. "):
+            Lightcurve([1])
+
+        with pytest.raises(StingrayError, match="Empty or invalid counts array. "):
+            Lightcurve([1], [3, 4])
+
+    def test_single_time_no_dt_lightcurve(self):
+        with pytest.warns(UserWarning, match="Only one time bin and no dt specified. "):
+            lc = Lightcurve([1], [2])
+        assert lc.dt == 1
+
+    def test_single_time_with_dt_lightcurve(self):
+        lc = Lightcurve([1], [2], dt=5)
+        assert lc.dt == 5
+
     @pytest.mark.skipif("not _IS_WINDOWS")
     def test_warn_on_windows(self):
         with pytest.warns(UserWarning) as record:
@@ -88,7 +97,7 @@ class TestProperties(object):
         assert np.any(["On Windows, the size of an integer" in r.message.args[0] for r in record])
 
     @pytest.mark.skipif("_IS_WINDOWS")
-    def test_warn_on_windows(self, monkeypatch):
+    def test_warn_on_windows_monkeypatching_elsewhere(self, monkeypatch):
         monkeypatch.setattr(os, "name", "nt")
         with pytest.warns(UserWarning) as record:
             _ = Lightcurve(self.lc.time, self.lc.counts, gti=self.lc.gti)
@@ -126,6 +135,12 @@ class TestProperties(object):
         assert lc._bin_lo is None
         _ = lc.bin_lo
         assert lc._bin_lo is not None
+
+    def test_make_all_none(self):
+        lc = copy.deepcopy(self.lc)
+        lc.time = None
+        assert lc.counts is None
+        assert lc._counts is None
 
     def test_lightcurve_from_astropy_time(self):
         time = Time([57483, 57484], format="mjd")
@@ -223,18 +238,36 @@ class TestProperties(object):
         # (because low_memory, and input_counts is now False)
         assert lc._counts_err is None
 
-    @pytest.mark.parametrize(
-        "property", "time,counts,counts_err," "countrate,countrate_err".split(",")
-    )
-    def test_assign_bad_shape_fails(self, property):
+    @pytest.mark.parametrize("attr", "time,counts,countrate".split(","))
+    def test_add_data_to_empty_lightcurve_wrong(self, attr):
+        lc0 = Lightcurve()
+        lc0.time = [1, 2, 3]
+        with pytest.raises(ValueError, match=".*the same shape as the time array"):
+            setattr(lc0, attr, [1, 2, 3, 4])
+
+    @pytest.mark.parametrize("attr", "counts,countrate".split(","))
+    def test_add_err_data_to_empty_lightcurve_wrong_order(self, attr):
+        lc0 = Lightcurve()
+        lc0.time = [1, 2, 3]
+        with pytest.raises(ValueError, match=f"if the {attr} array is not None"):
+            setattr(lc0, attr + "_err", [1, 2, 3])
+
+    @pytest.mark.parametrize("attr", "counts,countrate".split(","))
+    def test_add_err_data_to_empty_lightcurve_wrong_size(self, attr):
+        lc0 = Lightcurve()
+        lc0.time = [1, 2, 3]
+        setattr(lc0, attr, [1, 2, 1])
+        with pytest.raises(ValueError, match=f"the same shape as the {attr} array"):
+            setattr(lc0, attr + "_err", [1, 2, 3, 4])
+
+    @pytest.mark.parametrize("attr", "time,counts,counts_err,countrate,countrate_err".split(","))
+    def test_assign_scalar_data(self, attr):
         lc = copy.deepcopy(self.lc)
         # Same shape passes
-        setattr(lc, property, np.zeros_like(lc.time))
+        setattr(lc, attr, np.zeros_like(lc.time))
         # Different shape doesn't
-        with pytest.raises(ValueError):
-            setattr(lc, property, 3)
-        with pytest.raises(ValueError):
-            setattr(lc, property, np.arange(2))
+        with pytest.raises(ValueError, match="at least 1D"):
+            setattr(lc, attr, 3)
 
 
 class TestChunks(object):
@@ -251,7 +284,8 @@ class TestChunks(object):
         cls.lc = Lightcurve(times, counts, gti=cls.gti)
 
     def test_analyze_lc_chunks_fvar_fracstep(self):
-        start, stop, res = self.lc.analyze_lc_chunks(20, fvar_fun, fraction_step=0.5)
+        with pytest.warns(DeprecationWarning, match="The analyze_lc_chunks method was superseded"):
+            start, stop, res = self.lc.analyze_lc_chunks(20, fvar_fun, fraction_step=0.5)
         # excess_variance returns fvar and fvar_err
         fvar, fvar_err = res
 
@@ -261,20 +295,55 @@ class TestChunks(object):
         assert np.all(fvar > fvar_err)
 
     def test_analyze_lc_chunks_nvar_fracstep(self):
-        start, stop, res = self.lc.analyze_lc_chunks(20, fvar_fun, fraction_step=0.5)
+        with pytest.warns(DeprecationWarning, match="The analyze_lc_chunks method was superseded"):
+            start, stop, res = self.lc.analyze_lc_chunks(20, fvar_fun, fraction_step=0.5)
         # excess_variance returns fvar and fvar_err
         fvar, fvar_err = res
-        start, stop, res = self.lc.analyze_lc_chunks(20, nvar_fun, fraction_step=0.5)
+        with pytest.warns(DeprecationWarning, match="The analyze_lc_chunks method was superseded"):
+            start, stop, res = self.lc.analyze_lc_chunks(20, nvar_fun, fraction_step=0.5)
         # excess_variance returns fvar and fvar_err
         nevar, nevar_err = res
         assert np.allclose(nevar, fvar**2, rtol=0.01)
 
     def test_analyze_lc_chunks_nvar_fracstep_mean(self):
-        start, stop, mean = self.lc.analyze_lc_chunks(20, np.mean, fraction_step=0.5)
-        start, stop, res = self.lc.analyze_lc_chunks(20, evar_fun, fraction_step=0.5)
+        with pytest.warns(DeprecationWarning, match="The analyze_lc_chunks method was superseded"):
+            start, stop, mean = self.lc.analyze_lc_chunks(20, np.mean, fraction_step=0.5)
+        with pytest.warns(DeprecationWarning, match="The analyze_lc_chunks method was superseded"):
+            start, stop, res = self.lc.analyze_lc_chunks(20, evar_fun, fraction_step=0.5)
         # excess_variance returns fvar and fvar_err
         evar, evar_err = res
-        start, stop, res = self.lc.analyze_lc_chunks(20, nvar_fun, fraction_step=0.5)
+        with pytest.warns(DeprecationWarning, match="The analyze_lc_chunks method was superseded"):
+            start, stop, res = self.lc.analyze_lc_chunks(20, nvar_fun, fraction_step=0.5)
+        # excess_variance returns fvar and fvar_err
+        nevar, nevar_err = res
+        assert np.allclose(nevar * mean**2, evar, rtol=0.01)
+        assert np.allclose(nevar_err * mean**2, evar_err, rtol=0.01)
+
+    def test_analyze_segments_fvar_fracstep(self):
+        start, stop, res = self.lc.analyze_segments(fvar_fun, 20, fraction_step=0.5)
+        # excess_variance returns fvar and fvar_err
+        fvar, fvar_err = res
+
+        assert np.allclose(start[0], self.gti[0, 0])
+        assert np.all(fvar > 0)
+        # This must be a clear measurement of fvar
+        assert np.all(fvar > fvar_err)
+
+    def test_analyze_segments_nvar_fracstep(self):
+        start, stop, res = self.lc.analyze_segments(fvar_fun, 20, fraction_step=0.5)
+        # excess_variance returns fvar and fvar_err
+        fvar, fvar_err = res
+        start, stop, res = self.lc.analyze_segments(nvar_fun, 20, fraction_step=0.5)
+        # excess_variance returns fvar and fvar_err
+        nevar, nevar_err = res
+        assert np.allclose(nevar, fvar**2, rtol=0.01)
+
+    def test_analyze_segments_nvar_fracstep_mean(self):
+        start, stop, mean = self.lc.analyze_segments(np.mean, 20, fraction_step=0.5)
+        start, stop, res = self.lc.analyze_segments(evar_fun, 20, fraction_step=0.5)
+        # excess_variance returns fvar and fvar_err
+        evar, evar_err = res
+        start, stop, res = self.lc.analyze_segments(nvar_fun, 20, fraction_step=0.5)
         # excess_variance returns fvar and fvar_err
         nevar, nevar_err = res
         assert np.allclose(nevar * mean**2, evar, rtol=0.01)
@@ -285,8 +354,8 @@ class TestLightcurve(object):
     @classmethod
     def setup_class(cls):
         cls.times = np.array([1, 2, 3, 4])
-        cls.counts = np.array([2, 2, 2, 2])
-        cls.counts_err = np.array([0.2, 0.2, 0.2, 0.2])
+        cls.counts = np.array([2, 4, 6, 8])
+        cls.counts_err = np.array([0.2, 0.4, 0.6, 0.8])
         cls.bg_counts = np.array([1, 0, 0, 1])
         cls.bg_ratio = np.array([1, 1, 0.5, 1])
         cls.frac_exp = np.array([1, 1, 1, 1])
@@ -298,6 +367,15 @@ class TestLightcurve(object):
         Demonstrate that we can create a trivial Lightcurve object.
         """
         lc = Lightcurve(self.times, self.counts)
+
+    def test_print(self, capsys):
+        lc = Lightcurve(self.times, self.counts, header="TEST")
+
+        print(lc)
+        captured = capsys.readouterr()
+        assert "header" not in captured.out
+        assert "time" in captured.out
+        assert "counts" in captured.out
 
     def test_irregular_time_warning(self):
         """
@@ -312,9 +390,8 @@ class TestLightcurve(object):
             "transforms. Please make the input time evenly sampled."
         )
 
-        with warnings.catch_warnings(record=True) as w:
+        with pytest.warns(UserWarning, match=warn_str):
             _ = Lightcurve(times, counts, err_dist="poisson")
-            assert np.any([str(wi.message) == warn_str for wi in w])
 
     def test_unrecognize_err_dist_warning(self):
         """
@@ -345,28 +422,33 @@ class TestLightcurve(object):
         counts = [2, 2, np.nan, 2, 2]
         counts_err = [1, 2, 3, np.nan, 2]
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Nonfinite values inside GTIs in counts"):
             lc = Lightcurve(times, counts)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Nonfinite values inside GTIs in err"):
             lc = Lightcurve(times, [2] * 5, err=counts_err)
+
+        with pytest.warns(
+            UserWarning, match="There are non-finite points in the data, but they are outside GTIs."
+        ):
+            lc = Lightcurve(times, counts, gti=[[0.5, 2.5]])
 
         times[2] = np.inf
 
-        with pytest.raises(ValueError):
-            lc = Lightcurve(times, [2] * 5)
+        with pytest.raises(ValueError, match="Nonfinite values inside GTIs in time, counts"):
+            lc = Lightcurve(times, counts)
 
     def test_n(self):
         lc = Lightcurve(self.times, self.counts)
         assert lc.n == 4
 
-    def test_analyze_lc_chunks(self):
+    def test_analyze_segments(self):
         lc = Lightcurve(self.times, self.counts, gti=self.gti)
 
         def func(lc):
             return lc.time[0]
 
-        start, stop, res = lc.analyze_lc_chunks(2, func)
+        start, stop, res = lc.analyze_segments(func, 2)
         assert start[0] == 0.5
         assert np.allclose(start + lc.dt / 2, res)
 
@@ -490,7 +572,7 @@ class TestLightcurve(object):
         t = [0.5, 1.5, 2.5, 3.5, 4.5]
         lc = [5, 5, 0, 5, 5]
         gtis = [[0, 2], [3, 5]]
-        lc = Lightcurve(t, lc, gti=gtis)
+        lc = Lightcurve(t, lc, gti=gtis, dt=1)
 
         assert lc.meanrate == 5
         assert lc.meancounts == 5
@@ -529,21 +611,20 @@ class TestLightcurve(object):
     def test_add_with_different_time_arrays(self):
         _times = [1.1, 2.1, 3.1, 4.1, 5.1]
         _counts = [2, 2, 2, 2, 2]
+        lc1 = Lightcurve(self.times, self.counts)
+        lc2 = Lightcurve(_times, _counts)
 
-        with pytest.raises(ValueError):
-            lc1 = Lightcurve(self.times, self.counts)
-            lc2 = Lightcurve(_times, _counts)
-
-            lc = lc1 + lc2
+        with pytest.warns(UserWarning, match="The good time intervals in the two time series"):
+            with pytest.raises(ValueError):
+                lc = lc1 + lc2
 
     def test_add_with_different_err_dist(self):
         lc1 = Lightcurve(self.times, self.counts)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
             lc2 = Lightcurve(self.times, self.counts, err=self.counts / 2, err_dist="gauss")
-        with warnings.catch_warnings(record=True) as w:
+        with pytest.warns(UserWarning, match="ightcurves have different statistics"):
             lc = lc1 + lc2
-            assert np.any(["ightcurves have different statistics" in str(wi.message) for wi in w])
 
     def test_add_with_same_gtis(self):
         lc1 = Lightcurve(self.times, self.counts, gti=self.gti)
@@ -555,16 +636,17 @@ class TestLightcurve(object):
         gti = [[0.0, 3.5]]
         lc1 = Lightcurve(self.times, self.counts, gti=self.gti)
         lc2 = Lightcurve(self.times, self.counts, gti=gti)
-        lc = lc1 + lc2
+        with pytest.warns(UserWarning, match="The good time intervals in the two time series"):
+            lc = lc1 + lc2
         np.testing.assert_almost_equal(lc.gti, [[0.5, 3.5]])
 
     def test_add_with_unequal_time_arrays(self):
         _times = [1, 3, 5, 7]
 
-        with pytest.raises(ValueError):
-            lc1 = Lightcurve(self.times, self.counts)
-            lc2 = Lightcurve(_times, self.counts)
+        lc1 = Lightcurve(self.times, self.counts)
+        lc2 = Lightcurve(_times, self.counts)
 
+        with pytest.raises(ValueError):
             lc = lc1 + lc2
 
     def test_add_with_equal_time_arrays(self):
@@ -583,11 +665,12 @@ class TestLightcurve(object):
         _times = [1.1, 2.1, 3.1, 4.1, 5.1]
         _counts = [2, 2, 2, 2, 2]
 
-        with pytest.raises(ValueError):
-            lc1 = Lightcurve(self.times, self.counts)
-            lc2 = Lightcurve(_times, _counts)
+        lc1 = Lightcurve(self.times, self.counts)
+        lc2 = Lightcurve(_times, _counts)
 
-            lc = lc1 - lc2
+        with pytest.warns(UserWarning, match="The good time intervals in the two time series"):
+            with pytest.raises(ValueError):
+                _ = lc1 - lc2
 
     def test_sub_with_different_err_dist(self):
         lc1 = Lightcurve(self.times, self.counts)
@@ -595,9 +678,8 @@ class TestLightcurve(object):
             warnings.simplefilter("ignore", category=UserWarning)
 
             lc2 = Lightcurve(self.times, self.counts, err=self.counts / 2, err_dist="gauss")
-        with warnings.catch_warnings(record=True) as w:
-            lc = lc1 - lc2
-            assert np.any(["ightcurves have different statistics" in str(wi.message) for wi in w])
+        with pytest.warns(UserWarning, match="ightcurves have different statistics") as w:
+            _ = lc1 - lc2
 
     def test_subtraction(self):
         _counts = [3, 4, 5, 6]
@@ -607,7 +689,7 @@ class TestLightcurve(object):
 
         lc = lc2 - lc1
 
-        expected_counts = np.array([1, 2, 3, 4])
+        expected_counts = np.array([1, 0, -1, -2])
         assert np.allclose(lc.counts, expected_counts)
         assert lc1.mjdref == lc.mjdref
 
@@ -633,7 +715,9 @@ class TestLightcurve(object):
     def test_indexing(self):
         lc = Lightcurve(self.times, self.counts)
 
-        assert lc[0] == lc[1] == lc[2] == lc[3] == 2
+        assert lc[0] == 2
+        assert lc[1] == 4
+        assert lc[3] == 8
 
     def test_slicing(self):
         lc = Lightcurve(
@@ -644,27 +728,21 @@ class TestLightcurve(object):
             err=self.counts / 10,
             err_dist="gauss",
         )
-        assert np.allclose(lc[1:3].counts, np.array([2, 2]))
-        assert np.allclose(lc[:2].counts, np.array([2, 2]))
+        assert np.allclose(lc[1:3].counts, np.array([4, 6]))
+        assert np.allclose(lc[:2].counts, np.array([2, 4]))
         assert np.allclose(lc[:2].gti, [[0.5, 2.5]])
-        assert np.allclose(lc[2:].counts, np.array([2, 2]))
+        assert np.allclose(lc[2:].counts, np.array([6, 8]))
         assert np.allclose(lc[2:].gti, [[2.5, 4.5]])
-        assert np.allclose(lc[:].counts, np.array([2, 2, 2, 2]))
+        assert np.allclose(lc[:].counts, np.array([2, 4, 6, 8]))
         assert np.allclose(lc[::2].gti, [[0.5, 1.5], [2.5, 3.5]])
         assert np.allclose(lc[:].gti, lc.gti)
         assert lc[:].mjdref == lc.mjdref
         assert lc[::2].n == 2
-        assert np.allclose(lc[1:3].counts_err, np.array([2, 2]) / 10)
-        assert np.allclose(lc[:2].counts_err, np.array([2, 2]) / 10)
-        assert np.allclose(lc[2:].counts_err, np.array([2, 2]) / 10)
-        assert np.allclose(lc[:].counts_err, np.array([2, 2, 2, 2]) / 10)
+        assert np.allclose(lc[1:3].counts_err, np.array([0.4, 0.6]))
+        assert np.allclose(lc[:2].counts_err, np.array([0.2, 0.4]))
+        assert np.allclose(lc[2:].counts_err, np.array([0.6, 0.8]))
+        assert np.allclose(lc[:].counts_err, np.array([0.2, 0.4, 0.6, 0.8]))
         assert lc[:].err_dist == lc.err_dist
-
-    def test_slicing_index_error(self):
-        lc = Lightcurve(self.times, self.counts)
-
-        with pytest.raises(StingrayError):
-            lc_new = lc[1:2]
 
     def test_index(self):
         lc = Lightcurve(self.times, self.counts)
@@ -680,25 +758,27 @@ class TestLightcurve(object):
         lc1 = Lightcurve(self.times, self.counts)
         lc2 = Lightcurve(_times, _counts)
 
-        with warnings.catch_warnings(record=True) as w:
+        with pytest.warns(UserWarning, match="different bin widths") as w:
             lc1.join(lc2)
-            assert np.any(["different bin widths" in str(wi.message) for wi in w])
 
     def test_join_with_different_mjdref(self):
         shift = 86400.0  # day
         lc1 = Lightcurve(self.times + shift, self.counts, gti=self.gti + shift, mjdref=57000)
         lc2 = Lightcurve(self.times, self.counts, gti=self.gti, mjdref=57001)
 
-        with warnings.catch_warnings(record=True) as w:
+        with pytest.warns(UserWarning) as record:
             newlc = lc1.join(lc2)
-            # The join operation *averages* the overlapping arrays
-            assert np.allclose(newlc.counts, lc1.counts)
-            assert np.any(
-                ["MJDref is different in the two light curves" in str(wi.message) for wi in w]
-            )
-            assert np.any(
-                ["The two light curves have overlapping time ranges" in str(wi.message) for wi in w]
-            )
+        assert np.any(
+            ["MJDref is different in the two light curves" in r.message.args[0] for r in record]
+        )
+        assert np.any(
+            [
+                "The two light curves have overlapping time ranges" in r.message.args[0]
+                for r in record
+            ]
+        )
+        # The join operation *averages* the overlapping arrays
+        assert np.allclose(newlc.counts, lc1.counts)
 
     def test_sum_with_different_mjdref(self):
         shift = 86400.0  # day
@@ -720,6 +800,23 @@ class TestLightcurve(object):
 
         assert np.allclose(newlc.counts, 0)
 
+    def test_concatenate(self):
+        time0 = [1, 2, 3, 4]
+        time1 = [5, 6, 7, 8, 9]
+        count0 = [10, 20, 30, 40]
+        count1 = [50, 60, 70, 80, 90]
+        gti0 = [[0.5, 4.5]]
+        gti1 = [[4.5, 9.5]]
+        lc0 = Lightcurve(time0, counts=count0, err=np.asarray(count0) / 2, dt=1, gti=gti0)
+        lc1 = Lightcurve(time1, counts=count1, dt=1, gti=gti1)
+        with pytest.warns(UserWarning, match="The _counts_err array is empty in one of the"):
+            lc = lc0.concatenate(lc1)
+        assert np.allclose(lc.counts, count0 + count1)
+        # Errors have been defined inside
+        assert len(lc.counts_err) == len(lc.counts)
+        assert np.allclose(lc.time, time0 + time1)
+        assert np.allclose(lc.gti, [[0.5, 9.5]])
+
     def test_join_disjoint_time_arrays(self):
         _times = [5, 6, 7, 8]
         _counts = [2, 2, 2, 2]
@@ -730,7 +827,8 @@ class TestLightcurve(object):
         lc = lc1.join(lc2)
 
         assert len(lc.counts) == len(lc.time) == 8
-        assert np.allclose(lc.counts, 2)
+        assert np.allclose(lc.counts[4:], 2)
+        assert np.allclose(lc.counts[:4], self.counts)
         assert lc.mjdref == lc1.mjdref
 
     def test_join_overlapping_time_arrays(self):
@@ -740,12 +838,11 @@ class TestLightcurve(object):
         lc1 = Lightcurve(self.times, self.counts)
         lc2 = Lightcurve(_times, _counts)
 
-        with warnings.catch_warnings(record=True) as w:
+        with pytest.warns(UserWarning, match="overlapping time ranges"):
             lc = lc1.join(lc2)
-            assert np.any(["overlapping time ranges" in str(wi.message) for wi in w])
 
         assert len(lc.counts) == len(lc.time) == 6
-        assert np.allclose(lc.counts, np.array([2, 2, 3, 3, 4, 4]))
+        assert np.allclose(lc.counts, np.array([2, 4, 5, 6, 4, 4]))
 
     def test_join_different_err_dist_disjoint_times(self):
         _times = [5, 6, 7, 8]
@@ -770,10 +867,9 @@ class TestLightcurve(object):
             warnings.simplefilter("ignore", category=UserWarning)
             lc2 = Lightcurve(_times, _counts, err_dist="gauss")
 
-        with warnings.catch_warnings(record=True) as w:
+        with pytest.warns(UserWarning, match="We are setting the errors to zero."):
             lc3 = lc1.join(lc2)
-            assert "We are setting the errors to zero." in str(w[1].message)
-            assert np.allclose(lc3.counts_err, np.zeros_like(lc3.time))
+        assert np.allclose(lc3.counts_err, np.zeros_like(lc3.time))
 
     def test_truncate_by_index(self):
         lc = Lightcurve(
@@ -789,21 +885,30 @@ class TestLightcurve(object):
 
         lc1 = lc.truncate(start=1)
         assert np.allclose(lc1.time, np.array([2, 3, 4]))
-        assert np.allclose(lc1.counts, np.array([2, 2, 2]))
+        assert np.allclose(lc1.counts, np.array([4, 6, 8]))
+        assert np.allclose(lc1.countrate, np.array([4, 6, 8]))
         assert np.allclose(lc1.bg_counts, np.array([0, 0, 1]))
         assert np.allclose(lc1.bg_ratio, np.array([1, 0.5, 1]))
         assert np.allclose(lc1.frac_exp, np.array([1, 1, 1]))
         np.testing.assert_almost_equal(lc1.gti[0][0], 1.5)
         assert lc1.mjdref == lc.mjdref
+        assert lc1.tstart == 1.5
+        assert lc1.tseg == 3
+        assert lc1.n == 3
 
         lc2 = lc.truncate(stop=2)
         assert np.allclose(lc2.time, np.array([1, 2]))
-        assert np.allclose(lc2.counts, np.array([2, 2]))
+        assert np.allclose(lc2.counts, np.array([2, 4]))
+        assert np.allclose(lc2.countrate, np.array([2, 4]))
         assert np.allclose(lc2.bg_counts, np.array([1, 0]))
         assert np.allclose(lc2.bg_ratio, np.array([1, 1]))
         assert np.allclose(lc2.frac_exp, np.array([1, 1]))
         np.testing.assert_almost_equal(lc2.gti[-1][-1], 2.5)
         assert lc2.mjdref == lc.mjdref
+        assert lc2.n == 2
+
+        assert lc2.tstart == lc.tstart
+        assert lc2.tseg == 2
 
     def test_truncate_by_time_stop_less_than_start(self):
         lc = Lightcurve(self.times, self.counts)
@@ -817,19 +922,35 @@ class TestLightcurve(object):
             lc1 = lc.truncate(start=1, method="wrong")
 
     def test_truncate_by_time(self):
-        lc = Lightcurve(self.times, self.counts, gti=self.gti)
+        lc = Lightcurve(self.times, self.counts, err=self.counts_err, gti=self.gti)
+        # make sure they are initialized
+        lc.meancounts, lc.meanrate, lc.n
 
         lc1 = lc.truncate(start=1, method="time")
         assert np.allclose(lc1.time, np.array([1, 2, 3, 4]))
-        assert np.allclose(lc1.counts, np.array([2, 2, 2, 2]))
+        assert np.allclose(lc1.counts, np.array([2, 4, 6, 8]))
+        assert np.allclose(lc1.counts_err, np.array([0.2, 0.4, 0.6, 0.8]))
+        assert np.allclose(lc1.countrate, np.array([2, 4, 6, 8]))
         np.testing.assert_almost_equal(lc1.gti[0][0], 0.5)
         assert lc1.mjdref == lc.mjdref
+        assert lc1.tstart == 0.5
+        assert lc1.tseg == 4.0
+        assert lc1.meancounts == 5
+        assert lc1.meanrate == 5
+        assert lc1.n == 4
 
         lc2 = lc.truncate(stop=3, method="time")
         assert np.allclose(lc2.time, np.array([1, 2]))
-        assert np.allclose(lc2.counts, np.array([2, 2]))
+        assert np.allclose(lc2.counts, np.array([2, 4]))
+        assert np.allclose(lc2.counts_err, np.array([0.2, 0.4]))
+        assert np.allclose(lc2.countrate, np.array([2, 4]))
         np.testing.assert_almost_equal(lc2.gti[-1][-1], 2.5)
         assert lc2.mjdref == lc.mjdref
+        assert lc2.tstart == 0.5
+        assert lc2.tseg == 2
+        assert lc2.meancounts == 3
+        assert lc2.meanrate == 3
+        assert lc2.n == 2
 
     def test_split_with_two_segments(self):
         test_time = np.array([1, 2, 3, 6, 7, 8])
@@ -913,7 +1034,7 @@ class TestLightcurve(object):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
             lc_test = Lightcurve(test_time, test_counts)
-        slc = lc_test.split(1.5)
+        slc = lc_test.split(1.5, min_points=2)
 
         assert np.allclose(slc[0].time, [1, 2, 3])
         assert np.allclose(slc[1].time, [9, 10, 11])
@@ -1032,45 +1153,59 @@ class TestLightcurve(object):
         assert_allclose(sr.counts_err, lc.flux_err)
 
     def test_plot_simple(self):
+        plt.close("all")
         lc = Lightcurve(self.times, self.counts)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=UserWarning)
             lc.plot()
         assert plt.fignum_exists(1)
+        plt.close("all")
 
     def test_plot_wrong_label_type(self):
         lc = Lightcurve(self.times, self.counts)
 
-        with pytest.raises(TypeError):
-            with warnings.catch_warnings(record=True) as w:
-                lc.plot(labels=123)
-                assert np.any(["must be either a list or tuple" in str(wi.message) for wi in w])
+        with pytest.warns(
+            UserWarning, match="``labels`` must be an iterable with two labels "
+        ) as w:
+            lc.plot(labels=123)
+        plt.close("all")
 
     def test_plot_labels_index_error(self):
         lc = Lightcurve(self.times, self.counts)
-        with warnings.catch_warnings(record=True) as w:
+        with pytest.warns(UserWarning) as w:
             lc.plot(labels=("x"))
 
-            assert np.any(["must have two labels" in str(wi.message) for wi in w])
+            assert np.any(
+                ["``labels`` must be an iterable with two labels " in str(wi.message) for wi in w]
+            )
+        plt.close("all")
 
     def test_plot_default_filename(self):
         lc = Lightcurve(self.times, self.counts)
         lc.plot(save=True)
         assert os.path.isfile("out.png")
         os.unlink("out.png")
+        plt.close("all")
 
     def test_plot_custom_filename(self):
         lc = Lightcurve(self.times, self.counts)
         lc.plot(save=True, filename="lc.png")
         assert os.path.isfile("lc.png")
         os.unlink("lc.png")
+        plt.close("all")
 
-    def test_plot_axis(self):
+    def test_plot_axis_arg(self):
         lc = Lightcurve(self.times, self.counts)
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=UserWarning)
+        with pytest.warns(DeprecationWarning, match="argument is deprecated in favor"):
             lc.plot(axis=[0, 1, 0, 100])
         assert plt.fignum_exists(1)
+        plt.close("all")
+
+    def test_plot_axis_limits_arg(self):
+        lc = Lightcurve(self.times, self.counts)
+        lc.plot(axis_limits=[0, 1, 0, 100])
+        assert plt.fignum_exists(1)
+        plt.close("all")
 
     def test_plot_title(self):
         lc = Lightcurve(self.times, self.counts)
@@ -1078,6 +1213,7 @@ class TestLightcurve(object):
             warnings.simplefilter("ignore", category=UserWarning)
             lc.plot(title="Test Lightcurve")
         assert plt.fignum_exists(1)
+        plt.close("all")
 
     def test_read_from_lcurve_1(self):
         fname = "lcurveA.fits"
@@ -1095,21 +1231,24 @@ class TestLightcurve(object):
         assert np.isclose(lc.countrate[0], ctrate)
         assert np.isclose(lc.mjdref, 55197.00076601852)
 
-    def test_io_warns(self):
-        lc = Lightcurve(self.times, self.counts)
-        with pytest.warns(DeprecationWarning):
-            lc.write("lc.pickle", format_="pickle")
-        with pytest.warns(DeprecationWarning):
-            lc.read("lc.pickle", format_="pickle")
-
     @pytest.mark.skipif("not _HAS_YAML")
     def test_io_with_ascii(self):
         lc = Lightcurve(self.times, self.counts)
-        lc.write("ascii_lc.ecsv", fmt="ascii")
+        with pytest.warns(UserWarning, match=".* output does not serialize the metadata"):
+            lc.write("ascii_lc.ecsv", fmt="ascii")
         lc = lc.read("ascii_lc.ecsv", fmt="ascii")
         assert np.allclose(lc.time, self.times)
         assert np.allclose(lc.counts, self.counts)
         os.remove("ascii_lc.ecsv")
+
+    def test_io_with_fits(self):
+        lc = Lightcurve(self.times, self.counts)
+        with pytest.warns(UserWarning, match=".* output does not serialize the metadata"):
+            lc.write("ascii_lc.fits", fmt="fits")
+        lc = lc.read("ascii_lc.fits", fmt="fits")
+        assert np.allclose(lc.time, self.times)
+        assert np.allclose(lc.counts, self.counts)
+        os.remove("ascii_lc.fits")
 
     def test_io_with_pickle(self):
         lc = Lightcurve(self.times, self.counts)
@@ -1132,26 +1271,32 @@ class TestLightcurve(object):
         os.remove("lc.hdf5")
 
     def test_split_lc_by_gtis(self):
-        times = [1, 2, 3, 4, 5, 6, 7, 8]
-        counts = [1, 1, 1, 1, 2, 3, 3, 2]
-        bg_counts = [0, 0, 0, 1, 0, 1, 2, 0]
-        bg_ratio = [0.1, 0.1, 0.1, 0.2, 0.1, 0.2, 0.2, 0.1]
-        frac_exp = [1, 0.5, 1, 1, 1, 0.5, 0.5, 1]
-        gti = [[0.5, 4.5], [5.5, 7.5]]
+        times = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        counts = [1, 1, 1, 1, 2, 3, 3, 2, 3, 3]
+        bg_counts = [0, 0, 0, 1, 0, 1, 2, 0, 0, 1]
+        bg_ratio = [0.1, 0.1, 0.1, 0.2, 0.1, 0.2, 0.2, 0.1, 0.1, 0.2]
+        frac_exp = [1, 0.5, 1, 1, 1, 0.5, 0.5, 1, 1, 1]
+        gti = [[0.5, 4.5], [5.5, 7.5], [8.5, 9.5]]
 
         lc = Lightcurve(
             times, counts, gti=gti, bg_counts=bg_counts, bg_ratio=bg_ratio, frac_exp=frac_exp
         )
-        list_of_lcs = lc.split_by_gti()
+        list_of_lcs = lc.split_by_gti(min_points=0)
+        assert len(list_of_lcs) == 3
+
         lc0 = list_of_lcs[0]
         lc1 = list_of_lcs[1]
+        lc2 = list_of_lcs[2]
         assert np.allclose(lc0.time, [1, 2, 3, 4])
         assert np.allclose(lc1.time, [6, 7])
+        assert np.allclose(lc2.time, [9])
         assert np.allclose(lc0.counts, [1, 1, 1, 1])
         assert np.allclose(lc1.counts, [3, 3])
+        assert np.allclose(lc1.counts, [3])
         assert np.allclose(lc0.gti, [[0.5, 4.5]])
         assert np.allclose(lc1.gti, [[5.5, 7.5]])
-        # Check if new attributes are also splited accordingly
+        assert np.allclose(lc2.gti, [[8.5, 9.5]])
+        # Check if new attributes are also split accordingly
         assert np.allclose(lc0.bg_counts, [0, 0, 0, 1])
         assert np.allclose(lc1.bg_counts, [1, 2])
         assert np.allclose(lc0.bg_ratio, [0.1, 0.1, 0.1, 0.2])
@@ -1167,6 +1312,7 @@ class TestLightcurve(object):
 
         lc = Lightcurve(times, counts, gti=gti)
         list_of_lcs = lc.split_by_gti(min_points=min_points)
+        assert len(list_of_lcs) == 2
         lc0 = list_of_lcs[0]
         lc1 = list_of_lcs[1]
         assert np.allclose(lc0.time, [1, 2, 3])
@@ -1378,31 +1524,46 @@ class TestLightcurveRebin(object):
         counts = np.random.normal(100, input_stdev, len(times)) + 0.001 * times
         gti = [[-0.005, 4.005]]
         lc = Lightcurve(times, counts, gti=gti)
-        with pytest.warns(UserWarning) as record:
+        with pytest.warns(UserWarning, match="Too few bins to perform baseline offset correction"):
             lc.baseline(10000, 0.01, offset_correction=True)
-
-        assert np.any(
-            [
-                "Too few bins to perform baseline offset correction" in r.message.args[0]
-                for r in record
-            ]
-        )
 
     def test_change_mjdref(self):
         lc_new = self.lc.change_mjdref(57000)
         assert lc_new.mjdref == 57000
 
-    def testapply_gtis(self):
+    @pytest.mark.parametrize("inplace", [True, False])
+    def test_apply_gtis(self, inplace):
         time = np.arange(150)
         count = np.zeros_like(time) + 3
         lc = Lightcurve(time, count, gti=[[-0.5, 150.5]])
         lc.gti = [[-0.5, 2.5], [12.5, 14.5]]
-        lc.apply_gtis()
-        assert lc.n == 5
-        assert np.allclose(lc.time, np.array([0, 1, 2, 13, 14]))
-        lc.gti = [[-0.5, 10.5]]
-        lc.apply_gtis()
-        assert np.allclose(lc.time, np.array([0, 1, 2]))
+        lc_new = lc.apply_gtis(inplace=inplace)
+        if inplace:
+            assert lc_new is lc
+        assert lc_new.n == 5
+        for attr in lc_new.array_attrs():
+            assert len(getattr(lc_new, attr)) == 5
+        assert np.allclose(lc_new.time, np.array([0, 1, 2, 13, 14]))
+
+        lc_new.gti = [[-0.5, 10.5]]
+        lc_new2 = lc_new.apply_gtis(inplace=inplace)
+        assert np.allclose(lc_new2.time, np.array([0, 1, 2]))
+
+    @pytest.mark.parametrize("inplace", [True, False])
+    def test_apply_gtis_lc_rate(self, inplace):
+        dt = 1
+        time = np.arange(1, 10, dt)
+        countrate = np.zeros_like(time) + 5
+        # create the lightcurve from countrare
+        lc_rate = Lightcurve(time, counts=countrate, input_counts=False, gti=[[-0.5, 10.5]])
+        lc_rate.gti = [[-0.5, 2.5]]
+        lc_rate_new = lc_rate.apply_gtis(inplace=inplace)
+        if inplace:
+            assert lc_rate_new is lc_rate
+        assert lc_rate_new.n == 2
+        for attr in lc_rate_new.array_attrs():
+            assert len(getattr(lc_rate_new, attr)) == 2
+        assert np.allclose(lc_rate_new.time, np.array([1, 2]))
 
     def test_eq_operator(self):
         time = [1, 2, 3]
@@ -1438,6 +1599,7 @@ class TestLightcurveRebin(object):
         assert not lc1 == lc2
 
 
+@pytest.mark.slow
 class TestBexvar(object):
     @classmethod
     def setup_class(cls):
@@ -1478,15 +1640,19 @@ class TestBexvar(object):
     @pytest.mark.skipif("not _HAS_ULTRANEST")
     def test_bexvar_with_dt_as_array(self):
         # create lightcurve with ``dt`` as an array
-        lc = Lightcurve(
-            time=self.time,
-            counts=self.src_counts,
-            dt=self.time_delta,
-            gti=[[self.time[0], self.time[-1]]],
-            bg_counts=self.bg_counts,
-            bg_ratio=self.bg_ratio,
-            frac_exp=self.frac_exp,
-        )
+        with pytest.warns(
+            UserWarning,
+            match="Some functionalities of Stingray Lightcurve will not work when `dt` is Iterable",
+        ):
+            lc = Lightcurve(
+                time=self.time,
+                counts=self.src_counts,
+                dt=self.time_delta,
+                gti=[[self.time[0], self.time[-1]]],
+                bg_counts=self.bg_counts,
+                bg_ratio=self.bg_ratio,
+                frac_exp=self.frac_exp,
+            )
 
         # provide time intervals externally to find bexvar
         log_cr_sigma_from_method = lc.bexvar()
@@ -1524,41 +1690,44 @@ class TestArraydt(object):
         bg_ratio = np.array([1, 1, 0.5, 1])
         frac_exp = np.array([1, 1, 1, 1])
         gti = np.array([[0.5, 4.5]])
-        lc = Lightcurve(
-            time=times,
-            counts=counts,
-            dt=dt,
-            err=counts_err,
-            gti=gti,
-            bg_counts=bg_counts,
-            bg_ratio=bg_ratio,
-            frac_exp=frac_exp,
-        )
+        with pytest.warns(
+            UserWarning,
+            match="Some functionalities of Stingray Lightcurve will not work when `dt` is Iterable",
+        ):
+            lc = Lightcurve(
+                time=times,
+                counts=counts,
+                dt=dt,
+                err=counts_err,
+                gti=gti,
+                bg_counts=bg_counts,
+                bg_ratio=bg_ratio,
+                frac_exp=frac_exp,
+            )
 
         # demonstrate that we can create a Lightcurve object with dt being an array of floats
         # and without explicitly providing gtis.
 
-        lc = Lightcurve(
-            time=times,
-            counts=counts,
-            dt=dt,
-            err=counts_err,
-            bg_counts=bg_counts,
-            bg_ratio=bg_ratio,
-            frac_exp=frac_exp,
-        )
+        with pytest.warns(
+            UserWarning,
+            match="Some functionalities of Stingray Lightcurve will not work when `dt` is Iterable",
+        ):
+            lc = Lightcurve(
+                time=times,
+                counts=counts,
+                dt=dt,
+                err=counts_err,
+                bg_counts=bg_counts,
+                bg_ratio=bg_ratio,
+                frac_exp=frac_exp,
+            )
 
     def test_warning_when_dt_is_array(self):
-        with pytest.warns(UserWarning) as record:
+        with pytest.warns(
+            UserWarning,
+            match="Some functionalities of Stingray Lightcurve will not work when `dt` is Iterable",
+        ):
             _ = Lightcurve(time=self.times, counts=self.counts, dt=self.dt)
-
-        assert any(
-            [
-                "Some functionalities of Stingray Lightcurve will not work when `dt` is Iterable"
-                in r.message.args[0]
-                for r in record
-            ]
-        )
 
     def test_truncate_by_index_when_dt_is_array(self):
         """
@@ -1676,7 +1845,7 @@ class TestArraydt(object):
         assert np.allclose(lc1.bg_ratio, [0.2, 0.2])
         assert np.allclose(lc0.frac_exp, [1, 0.5, 1, 1])
         assert np.allclose(lc1.frac_exp, [0.5, 0.5])
-        # Check if `dt` is also splited accordingly
+        # Check if `dt` is also split accordingly
         assert np.allclose(lc0.dt, [1, 1, 1, 2])
         assert np.allclose(lc1.dt, [1, 2])
 

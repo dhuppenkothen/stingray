@@ -2,7 +2,8 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 
-from astropy.tests.helper import pytest
+import pytest
+from astropy.utils.exceptions import AstropyUserWarning
 
 from ..io import split_numbers
 from ..io import ref_mjd
@@ -55,7 +56,7 @@ class TestIO(object):
         f = path / "xselect.mdb"
         f.write_text("MAXI:submkey       NONE\nMAXI:instkey       INSTRUME")
 
-        monkeypatch.setenv("HEADAS", tmp_path)
+        monkeypatch.setenv("HEADAS", str(tmp_path))
 
         info = read_mission_info()
         assert "NUSTAR" not in info
@@ -67,10 +68,17 @@ class TestIO(object):
         assert "XMM" in info
         assert "NICER" in info
 
-    def test_event_file_read(self):
+    def test_event_file_read_and_automatic_sort(self):
         """Test event file reading."""
-        fname = os.path.join(datadir, "monol_testA.evt")
-        load_events_and_gtis(fname, additional_columns=["PI"])
+        fname = os.path.join(datadir, "monol_testA_calib.evt")
+        with pytest.warns(AstropyUserWarning, match="No valid GTI extensions"):
+            evdata = load_events_and_gtis(fname)
+        fname_unsrt = os.path.join(datadir, "monol_testA_calib_unsrt.evt")
+        with pytest.warns(UserWarning, match="not sorted. Sorting them for you"):
+            evdata_unsrt = load_events_and_gtis(fname_unsrt)
+
+        for attr in "ev_list", "energy_list", "pi_list":
+            assert np.allclose(getattr(evdata, attr), getattr(evdata_unsrt, attr))
 
     def test_event_file_read_additional_warns_uncal(self):
         """Test event file reading."""
@@ -85,7 +93,8 @@ class TestIO(object):
     def test_event_file_read_additional_energy_cal(self):
         """Test event file reading."""
         fname = os.path.join(datadir, "monol_testA_calib.evt")
-        vals = load_events_and_gtis(fname, additional_columns=["energy"])
+        with pytest.warns(AstropyUserWarning, match="No valid GTI extensions"):
+            vals = load_events_and_gtis(fname, additional_columns=["energy"])
         # These energies were calibrated with a different calibration than
         # returned from rough_calibration, on purpose! (notice the +1.)
         assert np.allclose(vals.energy_list, vals.pi_list * 0.04 + 1.6 + 1.0)
@@ -100,7 +109,8 @@ class TestIO(object):
     def test_event_file_read_no_mission(self):
         """Test event file reading."""
         fname = os.path.join(datadir, "nomission.evt")
-        load_events_and_gtis(fname)
+        with pytest.warns(UserWarning, match="Sorting them"):
+            load_events_and_gtis(fname)
 
     def test_event_file_read_no_additional(self):
         """Test event file reading."""
@@ -161,9 +171,8 @@ class TestFileFormats(object):
         from ..io import savefig
 
         plt.close("all")
-        with warnings.catch_warnings(record=True) as w:
+        with pytest.warns(UserWarning, match="plot the image first"):
             savefig("test.png")
-            assert np.any(["plot the image first" in str(wi.message) for wi in w])
         os.unlink("test.png")
 
     def test_savefig(self):

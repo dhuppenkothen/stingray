@@ -1,15 +1,16 @@
 import numpy as np
 import scipy.stats
 import os
+import warnings
 import logging
 
-from astropy.tests.helper import pytest, catch_warnings
+import pytest
 from astropy.modeling import models
-from astropy.modeling.fitting import _fitter_to_model_params
 
 from stingray import Powerspectrum, AveragedPowerspectrum
 from stingray.modeling import ParameterEstimation, PSDParEst, OptimizationResults, SamplingResults
 from stingray.modeling import PSDPosterior, set_logprior, PSDLogLikelihood, LogLikelihood
+from stingray.modeling.posterior import fitter_to_model_params
 
 try:
     from statsmodels.tools.numdiff import approx_hess
@@ -26,6 +27,8 @@ except ImportError:
     can_sample = False
 
 import matplotlib.pyplot as plt
+
+pytestmark = pytest.mark.slow
 
 
 class LogLikelihoodDummy(LogLikelihood):
@@ -165,7 +168,9 @@ class TestParameterEstimation(object):
         pe = ParameterEstimation()
         if os.path.exists("test_corner.pdf"):
             os.unlink("test_corner.pdf")
-        with catch_warnings(RuntimeWarning):
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
             sample_res = pe.sample(
                 self.lpost, [2.0], nwalkers=50, niter=10, burnin=50, print_results=True, plot=True
             )
@@ -180,7 +185,7 @@ class TestParameterEstimation(object):
     #        pe = ParameterEstimation()
     #        if os.path.exists("test_corner.pdf"):
     #            os.unlink("test_corner.pdf")
-    #        with catch_warnings(RuntimeWarning):
+    #        with pytest.warns(RuntimeWarning):
     #            sample_res = pe.sample(self.lpost, [2.0], nwalkers=50, niter=10,
     #                                   burnin=50, print_results=True, plot=True,
     #                                   pool=True)
@@ -290,7 +295,7 @@ class TestOptimizationResults(object):
             "OptimizationResult object should have mfit " "attribute at this point!"
         )
 
-        _fitter_to_model_params(self.model, self.opt.x)
+        fitter_to_model_params(self.model, self.opt.x)
         mfit_test = self.model(self.lpost.x)
 
         assert np.allclose(self.optres.mfit, mfit_test)
@@ -449,7 +454,8 @@ if can_sample:
                 cls.nwalkers, len(res.p_opt), cls.lpost, args=[False]
             )
 
-            with catch_warnings(RuntimeWarning):
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
                 _, _, _ = cls.sampler.run_mcmc(p0, cls.niter)
 
         def test_can_sample_is_true(self):
@@ -728,7 +734,7 @@ class TestPSDParEst(object):
         pe = PSDParEst(self.ps)
 
         m = self.model
-        _fitter_to_model_params(m, self.t0)
+        fitter_to_model_params(m, self.t0)
 
         model = m(self.ps.freq)
 
@@ -896,7 +902,8 @@ class TestPSDParEst(object):
 
         pe = PSDParEst(ps)
 
-        with catch_warnings(RuntimeWarning):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=RuntimeWarning)
             pval = pe.calibrate_lrt(
                 lpost,
                 [2.0],
@@ -1057,17 +1064,16 @@ class TestPSDParEst(object):
 
         pe = PSDParEst(ps)
 
-        with catch_warnings(RuntimeWarning):
-            pval = pe.calibrate_highest_outlier(
-                lpost,
-                [2.0],
-                sample=None,
-                max_post=True,
-                seed=seed,
-                nsim=nsim,
-                niter=10,
-                nwalkers=20,
-                burnin=10,
-            )
+        pval = pe.calibrate_highest_outlier(
+            lpost,
+            [2.0],
+            sample=None,
+            max_post=True,
+            seed=seed,
+            nsim=nsim,
+            niter=10,
+            nwalkers=20,
+            burnin=10,
+        )
 
         assert pval > 0.001

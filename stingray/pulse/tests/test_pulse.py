@@ -1,9 +1,10 @@
 import numpy as np
 from stingray.pulse import fold_events, get_TOA, phase_exposure
-from stingray.pulse import profile_stat, z_n, pulse_phase
+from stingray.pulse import ef_profile_stat, z_n, pulse_phase
+from stingray.pulse import pdm_profile_stat
 from stingray.pulse import z_n, z_n_events, z_n_binned_events, z_n_gauss, htest
 from stingray.pulse import z_n_events_all, z_n_binned_events_all, z_n_gauss_all
-from stingray.pulse import get_orbital_correction_from_ephemeris_file
+from stingray.pulse import get_orbital_correction_from_ephemeris_file, p_to_f
 from stingray.pulse import HAS_PINT
 import pytest
 import os
@@ -15,6 +16,11 @@ def _template_fun(phase, ph0, amplitude, baseline=0):
     return baseline + amplitude * np.cos((phase - ph0) * 2 * np.pi)
 
 
+def test_p_to_f_warns():
+    with pytest.warns(UserWarning, match="Derivatives above third are not supported"):
+        assert np.allclose(p_to_f(1, 2, 3, 4, 32, 22), [1, -2, 5, -16, 0, 0])
+
+
 class TestAll(object):
     """Unit tests for the stingray.pulsar module."""
 
@@ -23,6 +29,7 @@ class TestAll(object):
         cls.curdir = os.path.abspath(os.path.dirname(__file__))
         cls.datadir = os.path.join(cls.curdir, "data")
 
+    @pytest.mark.slow
     @pytest.mark.remote_data
     @pytest.mark.skipif("not HAS_PINT")
     def test_pint_installed_correctly(self):
@@ -45,6 +52,7 @@ class TestAll(object):
         # Due to the gps2utc clock correction. We are at 3e-8 seconds level.
         assert np.all(np.abs(pint_resids_us.value) < 3e-6)
 
+    @pytest.mark.slow
     @pytest.mark.remote_data
     @pytest.mark.skipif("not HAS_PINT")
     def test_orbit_from_parfile(self):
@@ -58,8 +66,7 @@ class TestAll(object):
 
         mjdstart, mjdstop = mjds[0] - 1, mjds[-1] + 1
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=UserWarning)
+        with pytest.warns(UserWarning, match="Assuming events are already referred to "):
             correction_sec, correction_mjd, model = get_orbital_correction_from_ephemeris_file(
                 mjdstart, mjdstop, parfile, ntimes=1000, return_pint_model=True
             )
@@ -79,7 +86,14 @@ class TestAll(object):
     def test_stat(self):
         """Test pulse phase calculation, frequency only."""
         prof = np.array([2, 2, 2, 2])
-        np.testing.assert_array_almost_equal(profile_stat(prof), 0)
+        np.testing.assert_array_almost_equal(ef_profile_stat(prof), 0)
+
+    def test_pdm_stat(self):
+        """Test pulse phase calculation, frequency only."""
+        prof = np.array([1, 1, 1, 1, 1])
+        sample_var = 2.0
+        nsample = 10
+        np.testing.assert_array_almost_equal(pdm_profile_stat(prof, sample_var, nsample), 0.5)
 
     def test_zn(self):
         """Test pulse phase calculation, frequency only."""
@@ -191,6 +205,33 @@ class TestAll(object):
         expected_err = 2**0.5 * np.ones(nbin)
         expected_err[-1] = 2  # Because of the change of exposure
         np.testing.assert_array_almost_equal(pe, expected_err)
+
+    def test_pulse_profile_pdm(self):
+        nbin = 16
+        dt = 1 / (2 * nbin)
+        times = np.arange(0, 2 - dt, dt)
+        counts = np.random.normal(3, 0.5, size=len(times))
+        gti = np.array([[-0.5 * dt, 2 - dt]])
+        bins, profile, prof_err = fold_events(times, 1, nbin=nbin, weights=counts, mode="pdm")
+        assert np.all(prof_err == 0)
+
+    def test_mode_incorrect(self):
+        nbin = 16
+        dt = 1 / nbin
+        times = np.arange(0, 2 - dt, dt)
+        counts = np.random.normal(3, 0.5, size=len(times))
+        gti = np.array([[-0.5 * dt, 2 - dt]])
+
+        wrong_mode = "blarg"
+        with pytest.raises(ValueError) as excinfo:
+            fold_events(times, 1, nbin=nbin, weights=counts, mode=wrong_mode)
+
+    def test_pdm_fails_without_weights(self):
+        nbin = 16
+        dt = 1 / nbin
+        times = np.arange(0, 2 - dt, dt)
+        with pytest.raises(ValueError) as excinfo:
+            fold_events(times, 1, nbin=nbin, mode="pdm")
 
     def test_zn_2(self):
         with pytest.warns(DeprecationWarning) as record:

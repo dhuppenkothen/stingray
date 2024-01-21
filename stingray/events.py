@@ -4,23 +4,79 @@ Definition of :class:`EventList`.
 :class:`EventList` is used to handle photon arrival times.
 """
 
-import copy
-import pickle
+import logging
 import warnings
-from collections.abc import Iterable
 
 import numpy as np
-import numpy.random as ra
-from astropy.table import Table
 
-from .base import StingrayObject, StingrayTimeseries
+from stingray.utils import _int_sum_non_zero
+
+from .base import StingrayTimeseries
 from .filters import get_deadtime_mask
-from .gti import append_gtis, check_separate, cross_gtis, generate_indices_of_boundaries
+from .gti import generate_indices_of_boundaries
 from .io import load_events_and_gtis
 from .lightcurve import Lightcurve
-from .utils import assign_value_if_none, simon, interpret_times
+from .utils import simon, njit
+from .utils import histogram
 
 __all__ = ["EventList"]
+
+
+@njit
+def _from_lc_numba(times, counts, empty_times):
+    """Create a rough event list from a light curve.
+
+    This function creates as many events as the counts in each time bin of the light curve,
+    with event times equal to the light curve time stamps.
+
+    Parameters
+    ----------
+    times : array-like
+        Array of time stamps
+    counts : array-like
+        Array of counts
+    empty_times : array-like
+        Empty array to be filled with time stamps
+    """
+    last = 0
+    for t, c in zip(times, counts):
+        if c <= 0:
+            continue
+        val = c + last
+        empty_times[last:val] = t
+        last = val
+    # If c < 0 in some cases, some times will be empty
+    return empty_times[:val]
+
+
+def simple_events_from_lc(lc):
+    """
+    Create an :class:`EventList` from a :class:`stingray.Lightcurve` object. Note that all
+    events in a given time bin will have the same time stamp.
+
+    Bins with negative counts will be ignored.
+
+    Parameters
+    ----------
+    lc: :class:`stingray.Lightcurve` object
+        Light curve to use for creation of the event list.
+
+    Returns
+    -------
+    ev: :class:`EventList` object
+        The resulting list of photon arrival times generated from the light curve.
+
+    Examples
+    --------
+    >>> from stingray import Lightcurve
+    >>> lc = Lightcurve([0, 1, 2], [2, 3, -1], dt=1)
+    >>> ev = simple_events_from_lc(lc)
+    >>> assert np.allclose(ev.time, [0, 0, 1, 1, 1])
+    """
+    counts = lc.counts.astype(int)
+    allcounts = _int_sum_non_zero(counts)
+    times = _from_lc_numba(lc.time, counts, np.zeros(allcounts, dtype=float))
+    return EventList(time=times, gti=lc.gti)
 
 
 class EventList(StingrayTimeseries):
@@ -48,7 +104,7 @@ class EventList(StingrayTimeseries):
         The MJD used as a reference for the time array.
 
     ncounts: int
-        Number of desired data points in event list.
+        Number of desired data points in event list. Deprecated
 
     gtis: ``[[gti0_0, gti0_1], [gti1_0, gti1_1], ...]``
         Good Time Intervals
@@ -151,39 +207,43 @@ class EventList(StingrayTimeseries):
         timesys=None,
         **other_kw,
     ):
-        StingrayObject.__init__(self)
+        if ncounts is not None:
+            warnings.warn(
+                "The ncounts keyword does nothing, and is maintained for backwards compatibility.",
+                DeprecationWarning,
+            )
 
-        self.energy = None if energy is None else np.asarray(energy)
-        self.notes = notes
-        self.dt = dt
-        self.mjdref = mjdref
-        self.gti = np.asarray(gti) if gti is not None else None
-        self.pi = None if pi is None else np.asarray(pi)
-        self.ncounts = ncounts
-        self.mission = mission
-        self.instr = instr
-        self.detector_id = detector_id
-        self.header = header
-        self.ephem = ephem
-        self.timeref = timeref
-        self.timesys = timesys
+        StingrayTimeseries.__init__(
+            self,
+            time=time,
+            energy=None if energy is None else np.asarray(energy),
+            mjdref=mjdref,
+            dt=dt,
+            notes=notes,
+            gti=np.asarray(gti) if gti is not None else None,
+            pi=None if pi is None else np.asarray(pi),
+            high_precision=high_precision,
+            mission=mission,
+            instr=instr,
+            header=header,
+            detector_id=detector_id,
+            ephem=ephem,
+            timeref=timeref,
+            timesys=timesys,
+            **other_kw,
+        )
 
         if other_kw != {}:
             warnings.warn(f"Unrecognized keywords: {list(other_kw.keys())}")
 
-        if time is not None:
-            time, mjdref = interpret_times(time, mjdref)
-            if not high_precision:
-                self.time = np.asarray(time)
-            else:
-                self.time = np.asarray(time, dtype=np.longdouble)
-            self.ncounts = self.time.size
-        else:
-            self.time = None
-
         if (self.time is not None) and (self.energy is not None):
-            if self.time.size != self.energy.size:
+            if np.size(self.time) != np.size(self.energy):
                 raise ValueError("Lengths of time and energy must be equal.")
+
+    @property
+    def ncounts(self):
+        """Number of events in the event list."""
+        return self.n
 
     def to_lc(self, dt, tstart=None, tseg=None):
         """
@@ -206,13 +266,58 @@ class EventList(StingrayTimeseries):
         -------
         lc: :class:`stingray.Lightcurve` object
         """
-        if tstart is None and self.gti is not None:
-            tstart = self.gti[0][0]
-            tseg = self.gti[-1][1] - tstart
-
         return Lightcurve.make_lightcurve(
-            self.time, dt, tstart=tstart, gti=self.gti, tseg=tseg, mjdref=self.mjdref
+            self.time, dt, tstart=tstart, gti=self._gti, tseg=tseg, mjdref=self.mjdref
         )
+
+    def to_binned_timeseries(self, dt, array_attrs=None):
+        """Convert the event list to a binned :class:`stingray.StingrayTimeseries` object.
+
+        The result will be something similar to a light curve, but with arbitrary
+        attributes corresponding to a weighted sum of each specified attribute of
+        the event list.
+
+        E.g. if the event list has a ``q`` attribute, the final time series will
+        have a ``q`` attribute, which is the sum of all ``q`` values in each time bin.
+
+        Parameters
+        ----------
+        dt: float
+            Binning time of the light curve
+
+        Other Parameters
+        ----------------
+        array_attrs: list of str
+            List of attributes to be converted to light curve arrays. If None,
+            all array attributes will be converted.
+
+        Returns
+        -------
+        lc: :class:`stingray.Lightcurve` object
+        """
+        if array_attrs is None:
+            array_attrs = self.array_attrs()
+
+        ranges = [self.gti[0, 0], self.gti[-1, 1]]
+        nbins = int((ranges[1] - ranges[0]) / dt)
+        ranges = [ranges[0], ranges[0] + nbins * dt]
+        times = np.arange(ranges[0] + dt * 0.5, ranges[1], dt)
+
+        counts = histogram(self.time, range=ranges, bins=nbins)
+
+        attr_dict = dict(counts=counts)
+
+        for attr in array_attrs:
+            if getattr(self, attr, None) is not None:
+                logging.info(f"Creating the {attr} array")
+
+                attr_dict[attr] = histogram(
+                    self.time, bins=nbins, weights=getattr(self, attr), range=ranges
+                )
+        meta_attrs = dict((attr, getattr(self, attr)) for attr in self.meta_attrs())
+        new_ts = StingrayTimeseries(times, array_attrs=attr_dict, **meta_attrs)
+        new_ts.dt = dt
+        return new_ts
 
     def to_lc_iter(self, dt, segment_size=None):
         """Convert event list to a generator of Lightcurves.
@@ -267,7 +372,7 @@ class EventList(StingrayTimeseries):
         Returns
         -------
         lc_list: `List`
-            List containig one :class:`stingray.Lightcurve` object for each GTI or segment
+            List containing one :class:`stingray.Lightcurve` object for each GTI or segment
         """
         return list(self.to_lc_iter(dt, segment_size))
 
@@ -276,6 +381,8 @@ class EventList(StingrayTimeseries):
         """
         Create an :class:`EventList` from a :class:`stingray.Lightcurve` object. Note that all
         events in a given time bin will have the same time stamp.
+
+        Bins with negative counts will be ignored.
 
         Parameters
         ----------
@@ -287,13 +394,7 @@ class EventList(StingrayTimeseries):
         ev: :class:`EventList` object
             The resulting list of photon arrival times generated from the light curve.
         """
-
-        # Multiply times by number of counts
-        times = [[i] * int(j) for i, j in zip(lc.time, lc.counts)]
-        # Concatenate all lists
-        times = [i for j in times for i in j]
-
-        return EventList(time=times, gti=lc.gti)
+        return simple_events_from_lc(lc)
 
     def simulate_times(self, lc, use_spline=False, bin_time=None):
         """Simulate times from an input light curve.
@@ -328,9 +429,9 @@ class EventList(StingrayTimeseries):
         if bin_time is not None:
             warnings.warn("Bin time will be ignored in simulate_times", DeprecationWarning)
 
-        self.time = simulate_times(lc, use_spline=use_spline)
-        self.gti = lc.gti
-        self.ncounts = len(self.time)
+        vals = simulate_times(lc, use_spline=use_spline)
+        self.time = vals
+        self._gti = lc.gti
 
     def simulate_energies(self, spectrum, use_spline=False):
         """
@@ -350,8 +451,8 @@ class EventList(StingrayTimeseries):
         """
         from .simulator.base import simulate_with_inverse_cdf
 
-        if self.ncounts is None:
-            simon("Either set time values or explicity provide counts.")
+        if self.ncounts is None or self.ncounts == 0:
+            simon("Simulating on an empty event list")
             return
 
         if isinstance(spectrum, list) or isinstance(spectrum, np.ndarray):
@@ -390,32 +491,26 @@ class EventList(StingrayTimeseries):
         --------
         >>> events = EventList(time=[0, 2, 1], energy=[0.3, 2, 0.5], pi=[3, 20, 5])
         >>> e1 = events.sort()
-        >>> np.allclose(e1.time, [0, 1, 2])
-        True
-        >>> np.allclose(e1.energy, [0.3, 0.5, 2])
-        True
-        >>> np.allclose(e1.pi, [3, 5, 20])
-        True
+        >>> assert np.allclose(e1.time, [0, 1, 2])
+        >>> assert np.allclose(e1.energy, [0.3, 0.5, 2])
+        >>> assert np.allclose(e1.pi, [3, 5, 20])
 
         But the original event list has not been altered (``inplace=False`` by
         default):
-        >>> np.allclose(events.time, [0, 2, 1])
-        True
+        >>> assert np.allclose(events.time, [0, 2, 1])
 
         Let's do it in place instead
         >>> e2 = events.sort(inplace=True)
-        >>> np.allclose(e2.time, [0, 1, 2])
-        True
+        >>> assert np.allclose(e2.time, [0, 1, 2])
 
         In this case, the original event list has been altered.
-        >>> np.allclose(events.time, [0, 1, 2])
-        True
+        >>> assert np.allclose(events.time, [0, 1, 2])
 
         """
         order = np.argsort(self.time)
         return self.apply_mask(order, inplace=inplace)
 
-    def join(self, other):
+    def join(self, other, strategy="infer"):
         """
         Join two :class:`EventList` objects into one.
 
@@ -424,13 +519,34 @@ class EventList(StingrayTimeseries):
         GTIs are crossed if the event lists are over a common time interval,
         and appended otherwise.
 
-        ``pi`` and ``pha`` remain ``None`` if they are ``None`` in both. Otherwise, 0 is used
-        as a default value for the :class:`EventList` where they were None.
+        Standard attributes such as ``pi`` and ``energy`` remain ``None`` if they are ``None``
+        in both. Otherwise, ``np.nan`` is used as a default value for the :class:`EventList` where
+        they were None. Arbitrary attributes (e.g., Stokes parameters in polarimetric data) are
+        created and joined using the same convention.
+
+        Multiple checks are done on the joined event lists. If the time array of the event list
+        being joined is empty, it is ignored. If the time resolution is different, the final
+        event list will have the rougher time resolution. If the MJDREF is different, the time
+        reference will be changed to the one of the first event list. An empty event list will
+        be ignored.
 
         Parameters
         ----------
-        other : :class:`EventList` object
+        other : :class:`EventList` object or class:`list` of :class:`EventList` objects
             The other :class:`EventList` object which is supposed to be joined with.
+            If ``other`` is a list, it is assumed to be a list of :class:`EventList` objects
+            and they are all joined, one by one.
+
+        Other parameters
+        ----------------
+        strategy : {"intersection", "union", "append", "infer", "none"}
+            Method to use to merge the GTIs. If "intersection", the GTIs are merged
+            using the intersection of the GTIs. If "union", the GTIs are merged
+            using the union of the GTIs. If "none", a single GTI with the minimum and
+            the maximum time stamps of all GTIs is returned. If "infer", the strategy
+            is decided based on the GTIs. If there are no overlaps, "union" is used,
+            otherwise "intersection" is used. If "append", the GTIs are simply appended
+            but they must be mutually exclusive.
 
         Returns
         -------
@@ -438,86 +554,10 @@ class EventList(StingrayTimeseries):
             The resulting :class:`EventList` object.
         """
 
-        ev_new = EventList()
-
-        if self.dt != other.dt:
-            simon("The time resolution is different." " Using the rougher by default")
-            ev_new.dt = np.max([self.dt, other.dt])
-
-        if self.time is None and other.time is None:
-            return ev_new
-
-        if self.time is None:
-            simon("One of the event lists you are concatenating is empty.")
-            self.time = np.asarray([])
-
-        elif other.time is None:
-            simon("One of the event lists you are concatenating is empty.")
-            other.time = np.asarray([])
-
-        # Tolerance for MJDREF:1 microsecond
-        if not np.isclose(self.mjdref, other.mjdref, atol=1e-6 / 86400):
-            other = other.change_mjdref(self.mjdref)
-
-        ev_new.time = np.concatenate([self.time, other.time])
-        order = np.argsort(ev_new.time)
-        ev_new.time = ev_new.time[order]
-
-        if (self.pi is None) and (other.pi is None):
-            ev_new.pi = None
-        elif (self.pi is None) or (other.pi is None):
-            self.pi = assign_value_if_none(self.pi, np.zeros_like(self.time))
-            other.pi = assign_value_if_none(other.pi, np.zeros_like(other.time))
-
-        if (self.pi is not None) and (other.pi is not None):
-            ev_new.pi = np.concatenate([self.pi, other.pi])
-            ev_new.pi = ev_new.pi[order]
-
-        if (self.energy is None) and (other.energy is None):
-            ev_new.energy = None
-        elif (self.energy is None) or (other.energy is None):
-            self.energy = assign_value_if_none(self.energy, np.zeros_like(self.time))
-            other.energy = assign_value_if_none(other.energy, np.zeros_like(other.time))
-
-        if (self.energy is not None) and (other.energy is not None):
-            ev_new.energy = np.concatenate([self.energy, other.energy])
-            ev_new.energy = ev_new.energy[order]
-
-        if self.gti is None and other.gti is not None and len(self.time) > 0:
-            self.gti = assign_value_if_none(
-                self.gti, np.asarray([[self.time[0] - self.dt / 2, self.time[-1] + self.dt / 2]])
-            )
-        if other.gti is None and self.gti is not None and len(other.time) > 0:
-            other.gti = assign_value_if_none(
-                other.gti,
-                np.asarray([[other.time[0] - other.dt / 2, other.time[-1] + other.dt / 2]]),
-            )
-
-        if (self.gti is None) and (other.gti is None):
-            ev_new.gti = None
-
-        elif (self.gti is not None) and (other.gti is not None):
-            if check_separate(self.gti, other.gti):
-                ev_new.gti = append_gtis(self.gti, other.gti)
-                simon(
-                    "GTIs in these two event lists do not overlap at all."
-                    "Merging instead of returning an overlap."
-                )
-            else:
-                ev_new.gti = cross_gtis([self.gti, other.gti])
-
-        for attr in ["mission", "instr"]:
-            if getattr(self, attr) != getattr(other, attr):
-                setattr(ev_new, attr, getattr(self, attr) + "," + getattr(other, attr))
-            else:
-                setattr(ev_new, attr, getattr(self, attr))
-
-        ev_new.mjdref = self.mjdref
-
-        return ev_new
+        return self._join_timeseries(other, strategy=strategy, ignore_meta=["header", "ncounts"])
 
     @classmethod
-    def read(cls, filename, fmt=None, format_=None, **kwargs):
+    def read(cls, filename, fmt=None, **kwargs):
         r"""Read a :class:`EventList` object from file.
 
         Currently supported formats are
@@ -556,14 +596,8 @@ class EventList(StingrayTimeseries):
         ev: :class:`EventList` object
             The :class:`EventList` object reconstructed from file
         """
-        if fmt is None and format_ is not None:
-            warnings.warn(
-                "The format_ keyword for read and write is deprecated. " "Use fmt instead",
-                DeprecationWarning,
-            )
-            fmt = format_
 
-        if fmt.lower() in ("hea", "ogip"):
+        if fmt is not None and fmt.lower() in ("hea", "ogip"):
             evtdata = load_events_and_gtis(filename, **kwargs)
 
             evt = EventList(
@@ -588,6 +622,25 @@ class EventList(StingrayTimeseries):
 
         return super().read(filename=filename, fmt=fmt)
 
+    def get_energy_mask(self, energy_range, use_pi=False):
+        """Get a mask corresponding to events with a given energy range.
+
+        Parameters
+        ----------
+        energy_range: [float, float]
+            Energy range in keV, or in PI channel (if ``use_pi`` is True)
+
+        Other Parameters
+        ----------------
+        use_pi : bool, default False
+            Use PI channel instead of energy in keV
+        """
+        if use_pi:
+            energies = self.pi
+        else:
+            energies = self.energy
+        return (energies >= energy_range[0]) & (energies < energy_range[1])
+
     def filter_energy_range(self, energy_range, inplace=False, use_pi=False):
         """Filter the event list from a given energy range.
 
@@ -608,68 +661,15 @@ class EventList(StingrayTimeseries):
         --------
         >>> events = EventList(time=[0, 1, 2], energy=[0.3, 0.5, 2], pi=[3, 5, 20])
         >>> e1 = events.filter_energy_range([0, 1])
-        >>> np.allclose(e1.time, [0, 1])
-        True
-        >>> np.allclose(events.time, [0, 1, 2])
-        True
+        >>> assert np.allclose(e1.time, [0, 1])
+        >>> assert np.allclose(events.time, [0, 1, 2])
         >>> e2 = events.filter_energy_range([0, 10], use_pi=True, inplace=True)
-        >>> np.allclose(e2.time, [0, 1])
-        True
-        >>> np.allclose(events.time, [0, 1])
-        True
+        >>> assert np.allclose(e2.time, [0, 1])
+        >>> assert np.allclose(events.time, [0, 1])
 
         """
-        if use_pi:
-            energies = self.pi
-        else:
-            energies = self.energy
-        mask = (energies >= energy_range[0]) & (energies < energy_range[1])
-
+        mask = self.get_energy_mask(energy_range, use_pi=use_pi)
         return self.apply_mask(mask, inplace=inplace)
-
-    def apply_mask(self, mask, inplace=False):
-        """Apply a mask to all array attributes of the event list
-
-        Parameters
-        ----------
-        mask : array of ``bool``
-            The mask. Has to be of the same length as ``self.time``
-
-        Other parameters
-        ----------------
-        inplace : bool
-            If True, overwrite the current event list. Otherwise, return a new one.
-
-        Examples
-        --------
-        >>> evt = EventList(time=[0, 1, 2], mission="nustar")
-        >>> evt.bubuattr = [222, 111, 333]
-        >>> newev0 = evt.apply_mask([True, True, False], inplace=False);
-        >>> newev1 = evt.apply_mask([True, True, False], inplace=True);
-        >>> newev0.mission == "nustar"
-        True
-        >>> np.allclose(newev0.time, [0, 1])
-        True
-        >>> np.allclose(newev0.bubuattr, [222, 111])
-        True
-        >>> np.allclose(newev1.time, [0, 1])
-        True
-        >>> evt is newev1
-        True
-        """
-        array_attrs = self.array_attrs()
-
-        if inplace:
-            new_ev = self
-        else:
-            new_ev = EventList()
-            for attr in self.meta_attrs():
-                setattr(new_ev, attr, copy.deepcopy(getattr(self, attr)))
-
-        for attr in array_attrs:
-            if hasattr(self, attr) and getattr(self, attr) is not None:
-                setattr(new_ev, attr, copy.deepcopy(np.asarray(getattr(self, attr))[mask]))
-        return new_ev
 
     def apply_deadtime(self, deadtime, inplace=False, **kwargs):
         """Apply deadtime filter to this event list.
@@ -696,28 +696,22 @@ class EventList(StingrayTimeseries):
         Examples
         --------
         >>> events = np.array([1, 1.05, 1.07, 1.08, 1.1, 2, 2.2, 3, 3.1, 3.2])
-        >>> events = EventList(events)
+        >>> events = EventList(events, gti=[[0, 3.3]])
         >>> events.pi=np.array([1, 2, 2, 2, 2, 1, 1, 1, 2, 1])
         >>> events.energy=np.array([1, 2, 2, 2, 2, 1, 1, 1, 2, 1])
         >>> events.mjdref = 10
         >>> filt_events, retval = events.apply_deadtime(0.11, inplace=False,
         ...                                             verbose=False,
         ...                                             return_all=True)
-        >>> filt_events is events
-        False
+        >>> assert filt_events is not events
         >>> expected = np.array([1, 2, 2.2, 3, 3.2])
-        >>> np.allclose(filt_events.time, expected)
-        True
-        >>> np.allclose(filt_events.pi, 1)
-        True
-        >>> np.allclose(filt_events.energy, 1)
-        True
-        >>> np.allclose(events.pi, 1)
-        False
+        >>> assert np.allclose(filt_events.time, expected)
+        >>> assert np.allclose(filt_events.pi, 1)
+        >>> assert np.allclose(filt_events.energy, 1)
+        >>> assert not np.allclose(events.pi, 1)
         >>> filt_events = events.apply_deadtime(0.11, inplace=True,
         ...                                     verbose=False)
-        >>> filt_events is events
-        True
+        >>> assert filt_events is events
         """
         local_retall = kwargs.pop("return_all", False)
 
@@ -729,3 +723,80 @@ class EventList(StingrayTimeseries):
             new_ev = [new_ev, retall]
 
         return new_ev
+
+    def get_color_evolution(self, energy_ranges, segment_size=None, use_pi=False):
+        """Compute the color in equal-length segments of the event list.
+
+        Parameters
+        ----------
+        energy_ranges : 2x2 list
+            List of energy ranges to compute the color:
+            ``[[en1_min, en1_max], [en2_min, en2_max]]``
+        segment_size : float
+            Segment size in seconds. If None, the full GTIs are considered
+            instead as segments.
+
+        Other Parameters
+        ----------------
+        use_pi : bool, default False
+            Use PI channel instead of energy in keV
+
+        Returns
+        -------
+        color : array-like
+            Array of colors, computed in each segment as the ratio of the
+            counts in the second energy range to the counts in the first energy
+            range.
+        """
+        if energy_ranges is None or np.shape(energy_ranges) != (2, 2):
+            raise ValueError("Energy ranges must be specified as a 2x2 array")
+
+        def color(ev):
+            mask1 = ev.get_energy_mask(energy_ranges[0], use_pi=use_pi)
+            mask2 = ev.get_energy_mask(energy_ranges[1], use_pi=use_pi)
+            en1_ct = np.count_nonzero(mask1)
+            en2_ct = np.count_nonzero(mask2)
+
+            color = en2_ct / en1_ct
+            color_err = color * (np.sqrt(en1_ct) / en1_ct + np.sqrt(en2_ct) / en2_ct)
+            return color, color_err
+
+        starts, stops, (colors, color_errs) = self.analyze_segments(color, segment_size)
+
+        return starts, stops, colors, color_errs
+
+    def get_intensity_evolution(self, energy_range, segment_size=None, use_pi=False):
+        """Compute the intensity in equal-length segments (or full GTIs) of the event list.
+
+        Parameters
+        ----------
+        energy_range : ``[en1_min, en1_max]``
+            Energy range to compute the intensity
+        segment_size : float
+            Segment size in seconds. If None, the full GTIs are considered
+            instead as segments.
+
+        Other Parameters
+        ----------------
+        use_pi : bool, default False
+            Use PI channel instead of energy in keV
+
+        Returns
+        -------
+        intensity : array-like
+            Array of intensities (in counts/s), computed in each segment.
+        """
+        if energy_range is None or np.shape(energy_range) != (2,):
+            raise ValueError("Energy ranges must be specified as a 2-element list")
+
+        def intensity(ev):
+            mask1 = ev.get_energy_mask(energy_range, use_pi=use_pi)
+            en1_ct = np.count_nonzero(mask1)
+            segment_size = ev.gti[0, 1] - ev.gti[0, 0]
+            rate = en1_ct / segment_size
+            rate_err = np.sqrt(en1_ct) / segment_size
+            return rate, rate_err
+
+        starts, stops, (rate, rate_err) = self.analyze_segments(intensity, segment_size)
+
+        return starts, stops, rate, rate_err

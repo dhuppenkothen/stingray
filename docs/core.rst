@@ -1,9 +1,9 @@
 Core Stingray Functionality
 ***************************
 
-Here we show how many of the core Stingray classes and methods 
-work in practice. We start with basic data constructs for 
-event data and light curve data, and then show how to produce 
+Here we show how many of the core Stingray classes and methods
+work in practice. We start with basic data constructs for
+event data and light curve data, and then show how to produce
 various Fourier products from these data sets.
 
 Working with Event Data
@@ -85,3 +85,20 @@ Multi-taper Periodogram
    :maxdepth: 2
 
    notebooks/Multitaper/multitaper_example.ipynb
+
+
+Lomb Scargle Crossspectrum
+--------------------------
+.. toctree::
+   :maxdepth: 2
+
+   notebooks/LombScargle/LombScargleCrossspectrum_tutorial.ipynb
+
+
+Lomb Scargle Powerspectrum
+--------------------------
+
+.. toctree::
+   :maxdepth: 2
+
+   notebooks/LombScargle/LombScarglePowerspectrum_tutorial.ipynb

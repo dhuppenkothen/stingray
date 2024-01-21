@@ -1,0 +1,1 @@
+Fix issue with the Poisson noise calculation in lag spectra, that produced NaN errors under some conditions

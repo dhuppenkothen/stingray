@@ -3,7 +3,7 @@ import numpy as np
 import scipy
 import matplotlib.pyplot as plt
 
-from scipy.ndimage.filters import gaussian_filter1d
+from scipy.ndimage import gaussian_filter1d
 from scipy.interpolate import UnivariateSpline
 from astropy import log
 from astropy.table import Table
@@ -35,7 +35,7 @@ def FAD(
     output_file=None,
     return_objects=False,
 ):
-    """Calculate Frequency Amplitude Difference-corrected (cross)power spectra.
+    r"""Calculate Frequency Amplitude Difference-corrected (cross)power spectra.
 
     Reference: Bachetti \& Huppenkothen, 2018, ApJ, 853L, 21
 
@@ -310,7 +310,7 @@ def calculate_FAD_correction(
     output_file=None,
     return_objects=False,
 ):
-    """Calculate Frequency Amplitude Difference-corrected (cross)power spectra.
+    r"""Calculate Frequency Amplitude Difference-corrected (cross)power spectra.
 
     Reference: Bachetti \& Huppenkothen, 2018, ApJ, 853L, 21
 

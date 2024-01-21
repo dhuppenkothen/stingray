@@ -33,6 +33,19 @@ def test_fold_detection_level():
     )
 
 
+def test_pdm_detection_level():
+    """Test pulse phase calculation, frequency only."""
+    nsamples = 10000
+    nbin = 32
+    beta_ppf = 0.9947853493529972
+    np.testing.assert_almost_equal(phase_dispersion_detection_level(nsamples, nbin), beta_ppf)
+    epsilon_corr = p_single_trial_from_p_multitrial(0.01, 2)
+    np.testing.assert_almost_equal(
+        phase_dispersion_detection_level(nsamples, nbin, 0.01, ntrial=2),
+        phase_dispersion_detection_level(nsamples, nbin, epsilon_corr),
+    )
+
+
 def test_zn_detection_level():
     np.testing.assert_almost_equal(z2_n_detection_level(2), 13.276704135987625)
     epsilon_corr = p_single_trial_from_p_multitrial(0.01, 2)
@@ -45,6 +58,17 @@ def test_zn_detection_level():
 def test_fold_probability(ntrial):
     detlev = fold_detection_level(16, 0.1, ntrial=ntrial)
     np.testing.assert_almost_equal(fold_profile_probability(detlev, 16, ntrial=ntrial), 0.1)
+
+
+@pytest.mark.parametrize("ntrial", [1, 10, 100, 1000, 100000])
+def test_pdm_probability(ntrial):
+    nsamples = 10000
+    nbin = 32
+    detec_level = 0.01
+    detlev = phase_dispersion_detection_level(nsamples, nbin, epsilon=detec_level, ntrial=ntrial)
+    np.testing.assert_almost_equal(
+        phase_dispersion_probability(detlev, nsamples, nbin, ntrial=ntrial), detec_level
+    )
 
 
 @pytest.mark.parametrize("ntrial", [1, 10, 100, 1000, 100000])
@@ -70,8 +94,8 @@ class TestClassicalSignificances(object):
     def test_power_is_not_infinite2(self):
         power = -np.inf
         nspec = 1
-        with pytest.warns(DeprecationWarning):
-            with pytest.raises(ValueError):
+        with pytest.raises(ValueError):
+            with pytest.warns(DeprecationWarning):
                 classical_pvalue(power, nspec)
 
     def test_power_is_non_nan(self):
@@ -99,7 +123,8 @@ class TestClassicalSignificances(object):
         power = 2.0
         nspec = -np.inf
         with pytest.raises(ValueError):
-            classical_pvalue(power, nspec)
+            with pytest.warns(DeprecationWarning):
+                classical_pvalue(power, nspec)
 
     def test_nspec_is_not_nan(self):
         power = 2.0
@@ -201,6 +226,14 @@ class TestClassicalSignificances(object):
         stat = np.random.uniform(5, 200, 5)
         logp = fold_profile_logprobability(stat, nbin)
         p = fold_profile_probability(stat, nbin)
+        assert np.allclose(logp, np.log(p))
+
+    @pytest.mark.parametrize("nbin", [8, 16, 23, 72])
+    def test_compare_pdm_logprob_with_prob(self, nbin):
+        nsamples = 10000
+        stat = np.random.uniform(5, 200, 5)
+        logp = phase_dispersion_logprobability(stat, nsamples, nbin)
+        p = phase_dispersion_probability(stat, nsamples, nbin)
         assert np.allclose(logp, np.log(p))
 
     @pytest.mark.parametrize("n", [2, 16, 23, 72])

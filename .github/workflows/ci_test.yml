@@ -14,10 +14,43 @@ env:
   TOXARGS: '-v'
 
 jobs:
+
+  check_commit:
+    # Check the commit message for the presence of keywords that indicate
+    # that the CI tests should be skipped, in favor of running doc builds only.
+    # Messages like [docs only], [docs-only], or [skip-tests] will skip
+    # Only the CI part of the workflow, not the doc build.
+    # [skip ci], [ci skip] etc. are instead handled by GitHub itself and will skip
+    # the entire workflow.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{github.event.pull_request.head.repo.full_name}}
+
+      # Found this solution at
+      # https://monadical.com/posts/filters-github-actions.html#Case-2-Pull-request
+      - name: check if message indicates that tests should be skipped
+        id: check_commit
+        run: |
+          message=$(git log -1 --pretty=format:'%B')
+          re="\[(docs.only|skip-tests).*\]"
+          if [[ $message =~ $re ]]; then
+            echo "match=true" >> $GITHUB_OUTPUT
+            echo "$message -> Match is true"
+          else
+            echo "$message -> Match is false"
+          fi
+    outputs:
+      match: ${{ steps.check_commit.outputs.match }}
+
   ci-tests:
-    name: ${{ matrix.os }}, ${{ matrix.tox_env }}
+    needs: check_commit
+    if: ${{ needs.check_commit.outputs.match != 'true' }}
+    # name: ${{ matrix.os }}, ${{ matrix.tox_env }}
     runs-on: ${{ matrix.os }}
-    if: "!(contains(github.event.head_commit.message, '[skip ci]') || contains(github.event.head_commit.message, '[ci skip]'))"
+    continue-on-error: ${{ matrix.experimental }}
     strategy:
       fail-fast: false
       matrix:
@@ -26,49 +59,79 @@ jobs:
           # we select only a few, in order to conserve resources. If you add
           # an additional environment, please include a comment to indicate
           # why it is useful.
-          - os: ubuntu-latest
+          - name: Black test
+            os: ubuntu-latest
             python: '3.10'
             tox_env: 'black'
+            experimental: false
+
           # Basic tests on the oldest & newest supported versions of Python,
           # recording coverage data for the latter.
-          - os: ubuntu-latest
+          - name: Py3.8 with old Astropy version
+            os: ubuntu-latest
             python: '3.8'
-            tox_env: 'py38-test'
-          - os: ubuntu-latest
+            tox_env: 'py38-test-astropy4-cov'
+            experimental: false
+
+          - name: Linux, Py3.10 with coverage
+            os: ubuntu-latest
             python: '3.10'
             tox_env: 'py310-test-cov'
+            experimental: false
 
           # Basic tests on alternative operating systems.
-          - os: windows-latest
-            python: '3.10'
-            tox_env: 'py310-test'
-          - os: macos-latest
-            python: '3.10'
-            tox_env: 'py310-test'
+          - name: Windows, Py3.11 with coverage
+            os: windows-latest
+            python: '3.11'
+            tox_env: 'py311-test-cov'
+            experimental: false
+
+          - name: Mac OS, Py3.11
+            os: macos-latest
+            python: '3.11'
+            tox_env: 'py311-test'
+            experimental: false
 
           # Test with all optional dependencies installed.
-          - os: ubuntu-latest
-            python: '3.10'
-            tox_env: 'py310-test-alldeps-cov'
+          - name: Linux, Py3.11 all dependencies and coverage
+            os: ubuntu-latest
+            python: '3.11'
+            tox_env: 'py311-test-alldeps-cov'
             use_remote_data: true
+            experimental: false
 
-          # Test with the various supported releases of Astropy.
-          - os: ubuntu-latest
-            python: '3.8'
-            tox_env: 'py38-test-astropy4'
-          - os: ubuntu-latest
-            python: '3.10'
-            tox_env: 'py310-test-astropy5'
+          # Test 3.12 with basic optional dependencies installed.
+          - name: Linux, Py3.12 basic dependencies and coverage
+            os: ubuntu-latest
+            python: '3.12'
+            tox_env: 'py312-test-cov'
+            use_remote_data: true
+            experimental: true
 
           # Development version of dependencies
-          - os: ubuntu-latest
-            python: '3.10'
-            tox_env: 'py310-test-devdeps'
+          - name: Linux, Py3.11 with dev versions of dependencies
+            os: ubuntu-latest
+            python: '3.11'
+            tox_env: 'py311-test-devdeps-cov'
+            experimental: false
 
-          # Test the documentation build
-          - os: ubuntu-latest
-            python: '3.10'
-            tox_env: 'build_docs'
+          # Test with all optional dependencies installed.
+          - name: Slow tests on Linux, Py3.11, all deps and coverage
+            os: ubuntu-latest
+            python: '3.11'
+            tox_env: 'py311-test-alldeps-cov'
+            use_remote_data: true
+            experimental: false
+            slow: true
+
+          # Test with all optional dependencies installed.
+          - name: Slow tests on Linux, Py3.11, basic deps and coverage
+            os: ubuntu-latest
+            python: '3.11'
+            tox_env: 'py311-test-cov'
+            use_remote_data: true
+            experimental: false
+            slow: true
 
     steps:
     - name: Check out repository
@@ -83,7 +146,7 @@ jobs:
         python-version: ${{ matrix.python }}
     - name: Install base dependencies
       run: |
-        python -m pip install --upgrade pip
+        python -m pip install --upgrade pip setuptools wheel
         python -m pip install tox
     - name: Install system dependencies
       if: "endsWith(matrix.tox_env, 'build_docs')"
@@ -94,14 +157,19 @@ jobs:
         python -c "import pip; print(f'pip {pip.__version__}')"
         python -c "import setuptools; print(f'setuptools {setuptools.__version__}')"
         python -c "import tox; print(f'tox {tox.__version__}')"
-    - name: Run tests
-      if: "! matrix.use_remote_data"
-      run: tox -e ${{ matrix.tox_env }}
-    - name: Run tests with remote data
-      if: "matrix.use_remote_data"
+    - name: Run quick tests
+      if: "(! matrix.use_remote_data) && (! matrix.slow)"
+      run: tox -e ${{ matrix.tox_env }} --
+    - name: Run quick tests with remote data
+      if: "matrix.use_remote_data && (! matrix.slow)"
       run: |
         pip install pytest-remotedata
         tox -e ${{ matrix.tox_env }} -- --remote-data=any
+    - name: Run slow tests with remote data
+      if: "matrix.use_remote_data && matrix.slow"
+      run: |
+        pip install pytest-remotedata
+        tox -e ${{ matrix.tox_env }} -- --remote-data=any -m slow --run-slow
     - name: Upload coverage to codecov
       if: "endsWith(matrix.tox_env, '-cov')"
       uses: codecov/codecov-action@v3

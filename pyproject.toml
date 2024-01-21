@@ -48,3 +48,6 @@ build-backend = 'setuptools.build_meta'
       directory = "trivial"
       name = "Internal Changes"
       showcontent = true
+
+[tool.black]
+line-length = 100

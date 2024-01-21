@@ -49,16 +49,13 @@ def get_non_overlapping_ref_band(channel_band, ref_band):
     >>> channel_band = [2, 3]
     >>> ref_band = [[0, 10]]
     >>> new_ref = get_non_overlapping_ref_band(channel_band, ref_band)
-    >>> np.allclose(new_ref, [[0, 2], [3, 10]])
-    True
+    >>> assert np.allclose(new_ref, [[0, 2], [3, 10]])
 
     Test this also works with a 1-D ref. band
     >>> new_ref = get_non_overlapping_ref_band(channel_band, [0, 10])
-    >>> np.allclose(new_ref, [[0, 2], [3, 10]])
-    True
+    >>> assert np.allclose(new_ref, [[0, 2], [3, 10]])
     >>> new_ref = get_non_overlapping_ref_band([0, 1], [[2, 3]])
-    >>> np.allclose(new_ref, [[2, 3]])
-    True
+    >>> assert np.allclose(new_ref, [[2, 3]])
     """
     channel_band = np.asarray(channel_band)
     ref_band = np.asarray(ref_band)
@@ -100,11 +97,9 @@ def _decode_energy_specification(energy_spec):
      ...
     ValueError: Energy specification must be a tuple
     >>> a = _decode_energy_specification((0, 2, 2, 'lin'))
-    >>> np.allclose(a, [0, 1, 2])
-    True
+    >>> assert np.allclose(a, [0, 1, 2])
     >>> a = _decode_energy_specification((1, 4, 2, 'log'))
-    >>> np.allclose(a, [1, 2, 4])
-    True
+    >>> assert np.allclose(a, [1, 2, 4])
     """
     if not isinstance(energy_spec, tuple):
         raise ValueError("Energy specification must be a tuple")
@@ -227,8 +222,8 @@ class VarEnergySpectrum(StingrayObject, metaclass=ABCMeta):
 
         self._create_empty_spectrum()
 
-        if len(events.time) == 0:
-            simon("There are no events in your event list!" + "Can't make a spectrum!")
+        if events.time is None or len(events.time) == 0:
+            simon("There are no events in your event list! Can't make a spectrum!")
         else:
             self._spectrum_function()
 
@@ -807,12 +802,15 @@ class LagSpectrum(VarEnergySpectrum):
     def _spectrum_function(self):
         # Extract the photon arrival times from the reference band
         ref_events = self._get_times_from_energy_range(self.events2, self.ref_band[0])
-        ref_power_noise = poisson_level(norm="none", n_ph=ref_events.size)
 
         # Calculate the PDS in the reference band. Needed to calculate errors.
         results = avg_pds_from_events(
             ref_events, self.gti, self.segment_size, self.bin_time, silent=True, norm="none"
         )
+
+        # Nph per interval, so on average it's the total number of events divided by
+        # the number of intervals
+        ref_power_noise = poisson_level(norm="none", n_ph=ref_events.size / results.meta["m"])
         freq = results["freq"]
         ref_power = results["power"]
         m_ave = results.meta["m"]
@@ -828,7 +826,6 @@ class LagSpectrum(VarEnergySpectrum):
         for i, eint in enumerate(show_progress(self.energy_intervals)):
             # Extract the photon arrival times from the subject band
             sub_events = self._get_times_from_energy_range(self.events1, eint)
-            sub_power_noise = poisson_level(norm="none", n_ph=sub_events.size)
 
             results_cross = avg_cs_from_events(
                 sub_events,
@@ -846,6 +843,12 @@ class LagSpectrum(VarEnergySpectrum):
 
             if results_cross is None or results_ps is None:
                 continue
+
+            # Nph per interval, so on average it's the total number of events divided by
+            # the number of intervals
+            sub_power_noise = poisson_level(
+                norm="none", n_ph=sub_events.size / results_ps.meta["m"]
+            )
 
             cross = results_cross["power"]
             sub_power = results_ps["power"]

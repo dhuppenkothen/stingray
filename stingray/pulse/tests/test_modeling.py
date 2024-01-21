@@ -1,4 +1,5 @@
 import numpy as np
+import warnings
 from stingray.pulse.modeling import fit_sinc, fit_gaussian, SincSquareModel
 
 np.random.seed(0)
@@ -21,7 +22,9 @@ def test_sinc_fixed():
     y = 2 * (np.sin(x) / x) ** 2
     y += np.random.normal(0.0, 0.1, x.shape)
 
-    sf = fit_sinc(x, y, mean=1.0, fixed={"mean": True, "amplitude": False})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        sf = fit_sinc(x, y, mean=1.0, fixed={"mean": True, "amplitude": False})
     assert sf.mean.fixed
     assert not sf.amplitude.fixed
 

@@ -2,14 +2,15 @@ import numpy as np
 import copy
 import warnings
 
-from astropy.tests.helper import pytest
+import pytest
 from numpy.random import poisson, standard_cauchy
-from scipy.signal.ltisys import TransferFunction
+from scipy.signal import TransferFunction
 
 from stingray import Lightcurve
 from stingray.events import EventList
 from stingray import Multitaper, Powerspectrum
 
+pytestmark = pytest.mark.slow
 np.random.seed(1)
 
 
@@ -149,12 +150,12 @@ class TestMultitaper(object):
         lc = Lightcurve(time, counts=poisson_counts, dt=1, gti=[[0, 100]])
         mtp = Multitaper(lc, norm="leahy")
         rms_mtp_l, rms_err_l = mtp.compute_rms(
-            min_freq=mtp.freq[1], max_freq=mtp.freq[-1], white_noise_offset=0
+            min_freq=mtp.freq[1], max_freq=mtp.freq[-1], poisson_noise_level=0
         )
 
         mtp = Multitaper(lc, norm="frac")
         rms_mtp, rms_err = mtp.compute_rms(
-            min_freq=mtp.freq[1], max_freq=mtp.freq[-1], white_noise_offset=0
+            min_freq=mtp.freq[1], max_freq=mtp.freq[-1], poisson_noise_level=0
         )
         assert np.allclose(rms_mtp, rms_mtp_l, atol=0.01)
         assert np.allclose(rms_err, rms_err_l, atol=0.01)
@@ -201,7 +202,7 @@ class TestMultitaper(object):
 
     def test_rebin_output_shapes(self):
         """
-        Test wether all the rebinned spectral attributes have the same shape.
+        Test whether all the rebinned spectral attributes have the same shape.
         """
         mtp = Multitaper(self.lc, norm="Leahy")
         mtp_rebin = mtp.rebin(df=1.5)

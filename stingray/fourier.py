@@ -1,15 +1,321 @@
 import copy
 import warnings
 from collections.abc import Iterable
+from typing import Optional
 
 import numpy as np
+import numpy.typing as npt
 from astropy.table import Table
+from astropy.timeseries.periodograms.lombscargle.implementations.utils import trig_sum
 
 from .gti import (
     generate_indices_of_segment_boundaries_binned,
     generate_indices_of_segment_boundaries_unbinned,
 )
-from .utils import histogram, show_progress, sum_if_not_none_or_initialize, fft, fftfreq
+from .utils import fft, fftfreq, histogram, show_progress, sum_if_not_none_or_initialize
+
+
+def integrate_power_in_frequency_range(
+    frequency,
+    power,
+    frequency_range,
+    power_err=None,
+    df=None,
+    m=1,
+    poisson_power=0,
+):
+    """
+    Integrate the power in a given frequency range.
+
+    Parameters
+    ----------
+    frequency : iterable
+        The frequencies of the power spectrum
+    power : iterable
+        The power at each frequency
+    frequency_range : iterable of length 2
+        The frequency range to integrate
+    power_err : iterable, optional, default None
+        The power error bar at each frequency
+    df : float or float iterable, optional, default None
+        The frequency resolution of the input data. If None, it is calculated
+        from the median difference of input frequencies.
+    m : int, optional, default 1
+        The number of segments and/or contiguous frequency bins averaged to obtain power.
+        Only needed if ``power_err`` is None
+    poisson_power : float, optional, default 0
+        The Poisson noise level of the power spectrum.
+
+    Returns
+    -------
+    power_integrated : float
+        The integrated power
+    power_integrated_err : float
+        The error on the integrated power
+
+    """
+    frequency = np.array(frequency, dtype=float)
+    power = np.array(power)
+    if not np.iscomplexobj(power):
+        power = power.astype(float)
+    if not isinstance(poisson_power, Iterable):
+        poisson_power = np.ones_like(frequency) * poisson_power
+    if df is None:
+        df = np.median(np.diff(frequency))
+    if not isinstance(df, Iterable):
+        df = np.ones_like(frequency) * df
+
+    # The frequency_range is in the middle or at the edge of each bin. When only a part of the
+    # bin is included, we need to add the fraction of the bin that is included.
+    frequency_mask = (frequency + df / 2 > frequency_range[0]) & (
+        frequency - df / 2 < frequency_range[1]
+    )
+
+    freqs_to_integrate = frequency[frequency_mask]
+    poisson_power = poisson_power[frequency_mask]
+    correction_ratios = np.ones_like(freqs_to_integrate)
+    dfs_to_integrate = df[frequency_mask]
+
+    # The first and last bins are only partially included. We need to correct for the
+    # fraction of the bin actually included.
+    correction_ratios[0] = (
+        freqs_to_integrate[0] + 0.5 * dfs_to_integrate[0] - frequency_range[0]
+    ) / dfs_to_integrate[0]
+    correction_ratios[-1] = (
+        frequency_range[-1] - freqs_to_integrate[-1] + 0.5 * dfs_to_integrate[-1]
+    ) / dfs_to_integrate[-1]
+    dfs_to_integrate = dfs_to_integrate * correction_ratios
+
+    powers_to_integrate = power[frequency_mask]
+
+    if power_err is None:
+        power_err_to_integrate = powers_to_integrate / np.sqrt(m)
+    else:
+        power_err_to_integrate = np.asarray(power_err)[frequency_mask]
+
+    power_integrated = np.sum((powers_to_integrate - poisson_power) * dfs_to_integrate)
+    power_err_integrated = np.sqrt(np.sum((power_err_to_integrate * dfs_to_integrate) ** 2))
+    return power_integrated, power_err_integrated
+
+
+def power_color(
+    frequency,
+    power,
+    power_err=None,
+    freq_edges=[1 / 256, 1 / 32, 0.25, 2.0, 16.0],
+    df=None,
+    m=1,
+    freqs_to_exclude=None,
+    poisson_power=0,
+    return_log=False,
+):
+    """
+    Calculate two power colors from a power spectrum.
+
+    Power colors are an alternative to spectral colors to understand the spectral state of an
+    accreting source. They are defined as the ratio of the power in two frequency ranges,
+    analogously to the colors calculated from electromagnetic spectra.
+
+    This function calculates two power colors, using the four frequency ranges contained
+    between the five frequency edges in ``freq_edges``. Given [f0, f1, f2, f3, f4], the
+    two power colors are calculated as the following ratios of the integrated power
+    (which are variances):
+
+    + PC0 = Var([f0, f1]) / Var([f2, f3])
+
+    + PC1 = Var([f1, f2]) / Var([f3, f4])
+
+    Errors are calculated using simple error propagation from the integrated power errors.
+
+    See Heil et al. 2015, MNRAS, 448, 3348
+
+    Parameters
+    ----------
+    frequency : iterable
+        The frequencies of the power spectrum
+    power : iterable
+        The power at each frequency
+
+    Other Parameters
+    ----------------
+    power_err : iterable
+        The power error bar at each frequency
+    freq_edges : iterable, optional, default ``[0.0039, 0.031, 0.25, 2.0, 16.0]``
+        The five edges defining the four frequency intervals to use to calculate the power color.
+        If empty, the power color is calculated using the frequencies from Heil et al. 2015.
+    df : float or float iterable, optional, default None
+        The frequency resolution of the input data. If None, it is calculated
+        from the median difference of input frequencies.
+    m : int, optional, default 1
+        The number of segments and/or contiguous frequency bins averaged to obtain power
+    freqs_to_exclude : 1-d or 2-d iterable, optional, default None
+        The ranges of frequencies to exclude from the calculation of the power color.
+        For example, the frequencies containing strong QPOs.
+        A 1-d iterable should contain two values for the edges of a single range. (E.g.
+        ``[0.1, 0.2]``). ``[[0.1, 0.2], [3, 4]]`` will exclude the ranges 0.1-0.2 Hz and 3-4 Hz.
+    poisson_power : float or iterable, optional, default 0
+        The Poisson noise level of the power spectrum. If iterable, it should have the same
+        length as ``frequency``. (This might apply to the case of a power spectrum with a
+        strong dead time distortion
+    return_log : bool, optional, default False
+        Return the base-10 logarithm of the power color and the errors
+
+    Returns
+    -------
+    PC0 : float
+        The first power color
+    PC0_err : float
+        The error on the first power color
+    PC1 : float
+        The second power color
+    PC1_err : float
+        The error on the second power color
+    """
+    freq_edges = np.asarray(freq_edges)
+    if len(freq_edges) != 5:
+        raise ValueError("freq_edges must have 5 elements")
+
+    frequency = np.asarray(frequency)
+    power = np.asarray(power)
+
+    if df is None:
+        df = np.median(np.diff(frequency))
+    input_frequency_low_edges = frequency - df / 2
+    input_frequency_high_edges = frequency + df / 2
+
+    if freq_edges.min() < input_frequency_low_edges[0]:
+        raise ValueError("The minimum frequency is larger than the first frequency edge")
+    if freq_edges.max() > input_frequency_high_edges[-1]:
+        raise ValueError("The maximum frequency is lower than the last frequency edge")
+
+    if power_err is None:
+        power_err = power / np.sqrt(m)
+    else:
+        power_err = np.asarray(power_err)
+
+    if freqs_to_exclude is not None:
+        if len(np.shape(freqs_to_exclude)) == 1:
+            freqs_to_exclude = [freqs_to_exclude]
+
+        if (
+            not isinstance(freqs_to_exclude, Iterable)
+            or len(np.shape(freqs_to_exclude)) != 2
+            or np.shape(freqs_to_exclude)[1] != 2
+        ):
+            raise ValueError("freqs_to_exclude must be of format [[f0, f1], [f2, f3], ...]")
+        for f0, f1 in freqs_to_exclude:
+            frequency_mask = (input_frequency_low_edges > f0) & (input_frequency_high_edges < f1)
+            idx0, idx1 = np.searchsorted(frequency, [f0, f1])
+            power[frequency_mask] = np.mean([power[idx0], power[idx1]])
+
+    var00, var00_err = integrate_power_in_frequency_range(
+        frequency,
+        power,
+        freq_edges[:2],
+        power_err=power_err,
+        df=df,
+        m=m,
+        poisson_power=poisson_power,
+    )
+    var01, var01_err = integrate_power_in_frequency_range(
+        frequency,
+        power,
+        freq_edges[2:4],
+        power_err=power_err,
+        df=df,
+        m=m,
+        poisson_power=poisson_power,
+    )
+    var10, var10_err = integrate_power_in_frequency_range(
+        frequency,
+        power,
+        freq_edges[1:3],
+        power_err=power_err,
+        df=df,
+        m=m,
+        poisson_power=poisson_power,
+    )
+    var11, var11_err = integrate_power_in_frequency_range(
+        frequency,
+        power,
+        freq_edges[3:5],
+        power_err=power_err,
+        df=df,
+        m=m,
+        poisson_power=poisson_power,
+    )
+    pc0 = var00 / var01
+    pc1 = var10 / var11
+    pc0_err = pc0 * (var00_err / var00 + var01_err / var01)
+    pc1_err = pc1 * (var10_err / var10 + var11_err / var11)
+    if return_log:
+        pc0_err = 1 / pc0 * pc0_err
+        pc1_err = 1 / pc1 * pc1_err
+        pc0 = np.log10(pc0)
+        pc1 = np.log10(pc1)
+    return pc0, pc0_err, pc1, pc1_err
+
+
+def hue_from_power_color(pc0, pc1, center=[4.51920, 0.453724]):
+    """Measure the angle of a point in the log-power color diagram wrt the center.
+
+    Angles are measured in radians, **in the clockwise direction**, with respect to a line oriented
+    at -45 degrees wrt the horizontal axis.
+
+    See Heil et al. 2015, MNRAS, 448, 3348
+
+    Parameters
+    ----------
+    pc0 : float
+        The (linear, not log!) power color in the first frequency range
+    pc1 : float
+        The (linear, not log!) power color in the second frequency range
+
+    Other Parameters
+    ----------------
+    center : iterable, optional, default [4.51920, 0.453724]
+        The coordinates of the center of the power color diagram
+
+    Returns
+    -------
+    hue : float
+        The angle of the point wrt the center, in radians
+    """
+    pc0 = np.log10(pc0)
+    pc1 = np.log10(pc1)
+
+    center = np.log10(np.asarray(center))
+
+    return hue_from_logpower_color(pc0, pc1, center=center)
+
+
+def hue_from_logpower_color(log10pc0, log10pc1, center=(np.log10(4.51920), np.log10(0.453724))):
+    """Measure the angle of a point in the log-power color diagram wrt the center.
+
+    Angles are measured in radians, **in the clockwise direction**, with respect to a line oriented
+    at -45 degrees wrt the horizontal axis.
+
+    See Heil et al. 2015, MNRAS, 448, 3348
+
+    Parameters
+    ----------
+    log10pc0 : float
+        The log10 power color in the first frequency range
+    log10pc1 : float
+        The log10 power color in the second frequency range
+
+    Other Parameters
+    ----------------
+    center : iterable, optional, default ``log10([4.51920, 0.453724])``
+        The coordinates of the center of the power color diagram
+
+    Returns
+    -------
+    hue : float
+        The angle of the point wrt the center, in radians
+    """
+    hue = 3 / 4 * np.pi - np.arctan2(log10pc1 - center[1], log10pc0 - center[0])
+    return hue
 
 
 def positive_fft_bins(n_bin, include_zero=False):
@@ -53,23 +359,19 @@ def positive_fft_bins(n_bin, include_zero=False):
     as an equivalent mask for the positive bins. Below, a few tests that
     this works as expected.
     >>> goodbins = positive_fft_bins(10)
-    >>> np.allclose(freq[good], freq[goodbins])
-    True
+    >>> assert np.allclose(freq[good], freq[goodbins])
     >>> freq = np.fft.fftfreq(11)
     >>> good = freq > 0
     >>> goodbins = positive_fft_bins(11)
-    >>> np.allclose(freq[good], freq[goodbins])
-    True
+    >>> assert np.allclose(freq[good], freq[goodbins])
     >>> freq = np.fft.fftfreq(10)
     >>> good = freq >= 0
     >>> goodbins = positive_fft_bins(10, include_zero=True)
-    >>> np.allclose(freq[good], freq[goodbins])
-    True
+    >>> assert np.allclose(freq[good], freq[goodbins])
     >>> freq = np.fft.fftfreq(11)
     >>> good = freq >= 0
     >>> goodbins = positive_fft_bins(11, include_zero=True)
-    >>> np.allclose(freq[good], freq[goodbins])
-    True
+    >>> assert np.allclose(freq[good], freq[goodbins])
     """
     # The zeroth bin is 0 Hz. We usually don't include it, but
     # if the user wants it, we do.
@@ -84,7 +386,7 @@ def positive_fft_bins(n_bin, include_zero=False):
 
 
 def poisson_level(norm="frac", meanrate=None, n_ph=None, backrate=0):
-    """
+    r"""
     Poisson (white)-noise level in a periodogram of pure counting noise.
 
     For Leahy normalization, this is:
@@ -177,7 +479,7 @@ def poisson_level(norm="frac", meanrate=None, n_ph=None, backrate=0):
 
 
 def normalize_frac(unnorm_power, dt, n_bin, mean_flux, background_flux=0):
-    """
+    r"""
     Fractional rms normalization.
 
     ..math::
@@ -243,12 +545,12 @@ def normalize_frac(unnorm_power, dt, n_bin, mean_flux, background_flux=0):
     >>> lc = np.random.poisson(mean, n_bin)
     >>> pds = np.abs(fft(lc))**2
     >>> pdsnorm = normalize_frac(pds, dt, lc.size, mean)
-    >>> np.isclose(pdsnorm[1:n_bin//2].mean(), poisson_level(meanrate=meanrate,norm="frac"), rtol=0.01)
-    True
+    >>> assert np.isclose(
+    ...     pdsnorm[1:n_bin//2].mean(), poisson_level(meanrate=meanrate,norm="frac"), rtol=0.01)
     >>> pdsnorm = normalize_frac(pds, dt, lc.size, mean, background_flux=back)
-    >>> np.isclose(pdsnorm[1:n_bin//2].mean(),
-    ...            poisson_level(meanrate=meanrate,norm="frac",backrate=backrate), rtol=0.01)
-    True
+    >>> assert np.isclose(pdsnorm[1:n_bin//2].mean(),
+    ...                   poisson_level(meanrate=meanrate,norm="frac",backrate=backrate),
+    ...                   rtol=0.01)
     """
     #     (mean * n_bin) / (mean /dt) = n_bin * dt
     #     It's Leahy / meanrate;
@@ -265,7 +567,7 @@ def normalize_frac(unnorm_power, dt, n_bin, mean_flux, background_flux=0):
 
 
 def normalize_abs(unnorm_power, dt, n_bin):
-    """
+    r"""
     Absolute rms normalization.
 
     .. math::
@@ -305,8 +607,8 @@ def normalize_abs(unnorm_power, dt, n_bin):
     >>> lc = np.random.poisson(mean, n_bin)
     >>> pds = np.abs(fft(lc))**2
     >>> pdsnorm = normalize_abs(pds, dt, lc.size)
-    >>> np.isclose(pdsnorm[1:n_bin//2].mean(), poisson_level(norm="abs", meanrate=meanrate), rtol=0.01)
-    True
+    >>> assert np.isclose(
+    ...     pdsnorm[1:n_bin//2].mean(), poisson_level(norm="abs", meanrate=meanrate), rtol=0.01)
     """
     #     It's frac * meanrate**2; Leahy / meanrate * meanrate**2
     #     n_ph = mean * n_bin
@@ -317,7 +619,7 @@ def normalize_abs(unnorm_power, dt, n_bin):
 
 
 def normalize_leahy_from_variance(unnorm_power, variance, n_bin):
-    """
+    r"""
     Leahy+83 normalization, from the variance of the lc.
 
     .. math::
@@ -353,10 +655,8 @@ def normalize_leahy_from_variance(unnorm_power, variance, n_bin):
     >>> lc = np.random.poisson(mean, n_bin).astype(float)
     >>> pds = np.abs(fft(lc))**2
     >>> pdsnorm = normalize_leahy_from_variance(pds, var, lc.size)
-    >>> np.isclose(pdsnorm[0], 2 * np.sum(lc), rtol=0.01)
-    True
-    >>> np.isclose(pdsnorm[1:n_bin//2].mean(), poisson_level(norm="leahy"), rtol=0.01)
-    True
+    >>> assert np.isclose(pdsnorm[0], 2 * np.sum(lc), rtol=0.01)
+    >>> assert np.isclose(pdsnorm[1:n_bin//2].mean(), poisson_level(norm="leahy"), rtol=0.01)
 
     If the variance is zero, it will fail:
     >>> pdsnorm = normalize_leahy_from_variance(pds, 0., lc.size)
@@ -403,10 +703,8 @@ def normalize_leahy_poisson(unnorm_power, n_ph):
     >>> lc = np.random.poisson(mean, n_bin).astype(float)
     >>> pds = np.abs(fft(lc))**2
     >>> pdsnorm = normalize_leahy_poisson(pds, np.sum(lc))
-    >>> np.isclose(pdsnorm[0], 2 * np.sum(lc), rtol=0.01)
-    True
-    >>> np.isclose(pdsnorm[1:n_bin//2].mean(), poisson_level(norm="leahy"), rtol=0.01)
-    True
+    >>> assert np.isclose(pdsnorm[0], 2 * np.sum(lc), rtol=0.01)
+    >>> assert np.isclose(pdsnorm[1:n_bin//2].mean(), poisson_level(norm="leahy"), rtol=0.01)
     """
     return unnorm_power * 2.0 / n_ph
 
@@ -823,6 +1121,12 @@ def rms_calculation(
     rms_squared = (
         np.sum((unnorm_powers - poisson_noise_unnrom) * 1 / T * K_freqs) * 2 * T / nphots**2
     )
+
+    if rms_squared < 0.0:
+        rms_err = np.sqrt(
+            np.var((unnorm_powers - poisson_noise_unnrom) * 1 / T * K_freqs) * 2 * T / nphots**2
+        )
+        return 0.0, rms_err
     rms = np.sqrt(rms_squared)
 
     rms_noise_squared = (
@@ -1002,10 +1306,8 @@ def get_average_ctrate(times, gti, segment_size, counts=None):
     >>> gti = np.asarray([[0, 1000]])
     >>> counts, _ = np.histogram(times, bins=np.linspace(0, 1000, 11))
     >>> bin_times = np.arange(50, 1000, 100)
-    >>> get_average_ctrate(bin_times, gti, 1000, counts=counts)
-    1.0
-    >>> get_average_ctrate(times, gti, 1000)
-    1.0
+    >>> assert get_average_ctrate(bin_times, gti, 1000, counts=counts) == 1.0
+    >>> assert get_average_ctrate(times, gti, 1000) == 1.0
     """
     n_ph = 0
     n_intvs = 0
@@ -1022,7 +1324,9 @@ def get_average_ctrate(times, gti, segment_size, counts=None):
     return n_ph / (n_intvs * segment_size)
 
 
-def get_flux_iterable_from_segments(times, gti, segment_size, n_bin=None, fluxes=None, errors=None):
+def get_flux_iterable_from_segments(
+    times, gti, segment_size, n_bin=None, dt=None, fluxes=None, errors=None
+):
     """
     Get fluxes from different segments of the observation.
 
@@ -1053,6 +1357,8 @@ def get_flux_iterable_from_segments(times, gti, segment_size, n_bin=None, fluxes
         Array of fluxes.
     errors : float `np.array`, default None
         Array of error bars corresponding to the flux values above.
+    dt : float, default None
+        Time resolution of the light curve used to produce periodograms
 
     Yields
     ------
@@ -1067,10 +1373,14 @@ def get_flux_iterable_from_segments(times, gti, segment_size, n_bin=None, fluxes
             "At least one between fluxes (if light curve) and " "n_bin (if events) has to be set"
         )
 
-    dt = None
     binned = fluxes is not None
-    if binned:
+    cast_kind = float
+    if dt is None and binned:
         dt = np.median(np.diff(times[:100]))
+    if binned:
+        fluxes = np.asarray(fluxes)
+        if np.iscomplexobj(fluxes):
+            cast_kind = complex
 
     fun = _which_segment_idx_fun(binned, dt)
 
@@ -1087,14 +1397,16 @@ def get_flux_iterable_from_segments(times, gti, segment_size, n_bin=None, fluxes
             ).astype(float)
             cts = np.array(cts)
         else:
-            cts = fluxes[idx0:idx1].astype(float)
+            cts = fluxes[idx0:idx1].astype(cast_kind)
             if errors is not None:
-                cts = cts, errors[idx0:idx1]
+                cts = cts, errors[idx0:idx1].astype(cast_kind)
 
         yield cts
 
 
-def avg_pds_from_iterable(flux_iterable, dt, norm="frac", use_common_mean=True, silent=False):
+def avg_pds_from_iterable(
+    flux_iterable, dt, norm="frac", use_common_mean=True, silent=False, return_subcs=False
+):
     """
     Calculate the average periodogram from an iterable of light curves
 
@@ -1120,6 +1432,8 @@ def avg_pds_from_iterable(flux_iterable, dt, norm="frac", use_common_mean=True, 
         per-segment basis.
     silent : bool, default False
         Silence the progress bars
+    return_subcs : bool, default False
+        Return all sub spectra from each light curve chunk
 
     Returns
     -------
@@ -1155,6 +1469,10 @@ def avg_pds_from_iterable(flux_iterable, dt, norm="frac", use_common_mean=True, 
 
     sum_of_photons = 0
     common_variance = None
+    if return_subcs:
+        subcs = []
+        unnorm_subcs = []
+
     for flux in local_show_progress(flux_iterable):
         if flux is None or np.all(flux == 0):
             continue
@@ -1192,7 +1510,7 @@ def avg_pds_from_iterable(flux_iterable, dt, norm="frac", use_common_mean=True, 
 
         # If the user wants to normalize using the mean of the total
         # lightcurve, normalize it here
-        cs_seg = unnorm_power
+        cs_seg = copy.deepcopy(unnorm_power)
         if not use_common_mean:
             mean = n_ph / n_bin
 
@@ -1209,6 +1527,10 @@ def avg_pds_from_iterable(flux_iterable, dt, norm="frac", use_common_mean=True, 
         # Accumulate the total sum cross spectrum
         cross = sum_if_not_none_or_initialize(cross, cs_seg)
         unnorm_cross = sum_if_not_none_or_initialize(unnorm_cross, unnorm_power)
+
+        if return_subcs:
+            subcs.append(cs_seg)
+            unnorm_subcs.append(unnorm_power)
 
         n_ave += 1
 
@@ -1232,9 +1554,13 @@ def avg_pds_from_iterable(flux_iterable, dt, norm="frac", use_common_mean=True, 
 
     # Final normalization (If not done already!)
     if use_common_mean:
-        cross = normalize_periodograms(
-            unnorm_cross, dt, n_bin, common_mean, n_ph=n_ph, norm=norm, variance=common_variance
+        factor = normalize_periodograms(
+            1, dt, n_bin, common_mean, n_ph=n_ph, norm=norm, variance=common_variance
         )
+        cross = unnorm_cross * factor
+        if return_subcs:
+            for i in range(len(subcs)):
+                subcs[i] *= factor
 
     results = Table()
     results["freq"] = freq
@@ -1253,6 +1579,9 @@ def avg_pds_from_iterable(flux_iterable, dt, norm="frac", use_common_mean=True, 
             "segment_size": dt * n_bin,
         }
     )
+    if return_subcs:
+        results.meta["subcs"] = subcs
+        results.meta["unnorm_subcs"] = unnorm_subcs
 
     return results
 
@@ -1422,6 +1751,7 @@ def avg_cs_from_iterables(
     fullspec=False,
     power_type="all",
     return_auxil=False,
+    return_subcs=False,
 ):
     """Calculate the average cross spectrum from an iterable of light curves
 
@@ -1456,6 +1786,8 @@ def avg_cs_from_iterables(
         the real part
     return_auxil : bool, default False
         Return the auxiliary unnormalized PDSs from the two separate channels
+    return_subcs : bool, default False
+        Return all sub spectra from each light curve chunk
 
     Returns
     -------
@@ -1499,6 +1831,10 @@ def avg_cs_from_iterables(
 
     sum_of_photons1 = sum_of_photons2 = 0
     common_variance1 = common_variance2 = common_variance = None
+
+    if return_subcs:
+        subcs = []
+        unnorm_subcs = []
 
     for flux1, flux2 in local_show_progress(zip(flux_iterable1, flux_iterable2)):
         if flux1 is None or flux2 is None or np.all(flux1 == 0) or np.all(flux2 == 0):
@@ -1560,7 +1896,7 @@ def avg_cs_from_iterables(
                 unnorm_pd1 = unnorm_pd1[fgt0]
                 unnorm_pd2 = unnorm_pd2[fgt0]
 
-        cs_seg = unnorm_power
+        cs_seg = copy.deepcopy(unnorm_power)
         p1_seg = unnorm_pd1
         p2_seg = unnorm_pd2
 
@@ -1584,26 +1920,31 @@ def avg_cs_from_iterables(
                 power_type=power_type,
                 variance=variance,
             )
-            p1_seg = normalize_periodograms(
-                unnorm_pd1,
-                dt,
-                n_bin,
-                mean1,
-                n_ph=n_ph1,
-                norm=norm,
-                power_type=power_type,
-                variance=variance1,
-            )
-            p2_seg = normalize_periodograms(
-                unnorm_pd2,
-                dt,
-                n_bin,
-                mean2,
-                n_ph=n_ph2,
-                norm=norm,
-                power_type=power_type,
-                variance=variance2,
-            )
+            if return_auxil:
+                p1_seg = normalize_periodograms(
+                    unnorm_pd1,
+                    dt,
+                    n_bin,
+                    mean1,
+                    n_ph=n_ph1,
+                    norm=norm,
+                    power_type=power_type,
+                    variance=variance1,
+                )
+                p2_seg = normalize_periodograms(
+                    unnorm_pd2,
+                    dt,
+                    n_bin,
+                    mean2,
+                    n_ph=n_ph2,
+                    norm=norm,
+                    power_type=power_type,
+                    variance=variance2,
+                )
+
+        if return_subcs:
+            subcs.append(cs_seg)
+            unnorm_subcs.append(unnorm_power)
 
         # Initialize or accumulate final averaged spectra
         cross = sum_if_not_none_or_initialize(cross, cs_seg)
@@ -1657,6 +1998,20 @@ def avg_cs_from_iterables(
             variance=common_variance,
             power_type=power_type,
         )
+
+        if return_subcs:
+            for i in range(len(subcs)):
+                subcs[i] = normalize_periodograms(
+                    unnorm_subcs[i],
+                    dt,
+                    n_bin,
+                    common_mean,
+                    n_ph=n_ph,
+                    norm=norm,
+                    variance=common_variance,
+                    power_type=power_type,
+                )
+
         if return_auxil:
             pds1 = normalize_periodograms(
                 unnorm_pds1,
@@ -1716,6 +2071,10 @@ def avg_cs_from_iterables(
         results["unnorm_pds1"] = unnorm_pds1
         results["unnorm_pds2"] = unnorm_pds2
 
+    if return_subcs:
+        results.meta["subcs"] = np.array(subcs)
+        results.meta["unnorm_subcs"] = np.array(unnorm_subcs)
+
     return results
 
 
@@ -1729,6 +2088,7 @@ def avg_pds_from_events(
     silent=False,
     fluxes=None,
     errors=None,
+    return_subcs=False,
 ):
     """
     Calculate the average periodogram from a list of event times or a light
@@ -1737,7 +2097,7 @@ def avg_pds_from_events(
     If the input is a light curve, the time array needs to be uniformly sampled
     inside GTIs (it can have gaps outside), and the fluxes need to be passed
     through the ``fluxes`` array.
-    Otherwise, times are interpeted as photon arrival times.
+    Otherwise, times are interpreted as photon arrival times.
 
     Parameters
     ----------
@@ -1768,6 +2128,8 @@ def avg_pds_from_events(
         Array of counts per bin or fluxes
     errors : float `np.array`, default None
         Array of errors on the fluxes above
+    return_subcs : bool, default False
+        Return all sub spectra from each light curve chunk
 
     Returns
     -------
@@ -1784,14 +2146,21 @@ def avg_pds_from_events(
     """
     if segment_size is None:
         segment_size = gti.max() - gti.min()
-    n_bin = np.rint(segment_size / dt).astype(int)
-    dt = segment_size / n_bin
-
+    n_bin = int(segment_size / dt)
+    if fluxes is None:
+        dt = segment_size / n_bin
+    else:
+        segment_size = n_bin * dt
     flux_iterable = get_flux_iterable_from_segments(
-        times, gti, segment_size, n_bin, fluxes=fluxes, errors=errors
+        times, gti, segment_size, n_bin, dt=dt, fluxes=fluxes, errors=errors
     )
     cross = avg_pds_from_iterable(
-        flux_iterable, dt, norm=norm, use_common_mean=use_common_mean, silent=silent
+        flux_iterable,
+        dt,
+        norm=norm,
+        use_common_mean=use_common_mean,
+        silent=silent,
+        return_subcs=return_subcs,
     )
     if cross is not None:
         cross.meta["gti"] = gti
@@ -1814,6 +2183,7 @@ def avg_cs_from_events(
     errors1=None,
     errors2=None,
     return_auxil=False,
+    return_subcs=False,
 ):
     """
     Calculate the average cross spectrum from a list of event times or a light
@@ -1822,7 +2192,7 @@ def avg_cs_from_events(
     If the input is a light curve, the time arrays need to be uniformly sampled
     inside GTIs (they can have gaps outside), and the fluxes need to be passed
     through the ``fluxes1`` and ``fluxes2`` arrays.
-    Otherwise, times are interpeted as photon arrival times
+    Otherwise, times are interpreted as photon arrival times
 
     Parameters
     ----------
@@ -1864,6 +2234,8 @@ def avg_cs_from_events(
         Array of errors on the fluxes on channel 1
     errors2 : float `np.array`, default None
         Array of errors on the fluxes on channel 2
+    return_subcs : bool, default False
+        Return all sub spectra from each light curve chunk
 
     Returns
     -------
@@ -1878,15 +2250,18 @@ def avg_cs_from_events(
     """
     if segment_size is None:
         segment_size = gti.max() - gti.min()
-    n_bin = np.rint(segment_size / dt).astype(int)
+    n_bin = int(segment_size / dt)
     # adjust dt
-    dt = segment_size / n_bin
-
+    # dt = segment_size / n_bin
+    if fluxes1 is None and fluxes2 is None:
+        dt = segment_size / n_bin
+    else:
+        segment_size = n_bin * dt
     flux_iterable1 = get_flux_iterable_from_segments(
-        times1, gti, segment_size, n_bin, fluxes=fluxes1, errors=errors1
+        times1, gti, segment_size, n_bin, dt=dt, fluxes=fluxes1, errors=errors1
     )
     flux_iterable2 = get_flux_iterable_from_segments(
-        times2, gti, segment_size, n_bin, fluxes=fluxes2, errors=errors2
+        times2, gti, segment_size, n_bin, dt=dt, fluxes=fluxes2, errors=errors2
     )
 
     is_events = np.all([val is None for val in (fluxes1, fluxes2, errors1, errors2)])
@@ -1898,6 +2273,7 @@ def avg_cs_from_events(
         and power_type == "all"
         and not fullspec
         and not return_auxil
+        and not return_subcs
     ):
         results = avg_cs_from_iterables_quick(flux_iterable1, flux_iterable2, dt, norm=norm)
 
@@ -1912,7 +2288,224 @@ def avg_cs_from_events(
             fullspec=fullspec,
             power_type=power_type,
             return_auxil=return_auxil,
+            return_subcs=return_subcs,
         )
+
     if results is not None:
         results.meta["gti"] = gti
     return results
+
+
+def lsft_fast(
+    y: npt.ArrayLike,
+    t: npt.ArrayLike,
+    freqs: npt.ArrayLike,
+    sign: Optional[int] = 1,
+    oversampling: Optional[int] = 5,
+) -> npt.NDArray:
+    """
+    Calculates the Lomb-Scargle Fourier transform of a light curve.
+    Only considers non-negative frequencies.
+    Subtracts mean from data as it is required for the working of the algorithm.
+
+    Parameters
+    ----------
+    y : a :class:`numpy.array` of floats
+        Observations to be transformed.
+
+    t : :class:`numpy.array` of floats
+        Times of the observations
+
+    freqs : :class:`numpy.array`
+        An array of frequencies at which the transform is sampled.
+
+    sign : int, optional, default: 1
+        The sign of the fourier transform. 1 implies positive sign and -1 implies negative sign.
+
+    fullspec : bool, optional, default: False
+        Return LSFT values for full frequency array (True) or just positive frequencies (False).
+
+    oversampling : float, optional, default: 5
+        Interpolation Oversampling Factor
+
+    Returns
+    -------
+    ft_res : numpy.ndarray
+        An array of Fourier transformed data.
+    """
+    y_ = copy.deepcopy(y) - np.mean(y)
+    freqs = freqs[freqs >= 0]
+    # Constants initialization
+    sum_xx = np.sum(y_)
+    num_xt = len(y_)
+    num_ww = len(freqs)
+
+    # Arrays initialization
+    ft_real = ft_imag = np.zeros((num_ww))
+    f0, df, N = freqs[0], freqs[1] - freqs[0], len(freqs)
+
+    # Sum (y_i * cos(wt - wtau))
+    Sh, Ch = trig_sum(t, y_, df, N, f0, oversampling=oversampling)
+
+    # Angular Frequency
+    w = freqs * 2 * np.pi
+
+    # Summation of cos(2wt) and sin(2wt)
+    csum, ssum = trig_sum(
+        t, np.ones_like(y_) / len(y_), df, N, f0, freq_factor=2, oversampling=oversampling
+    )
+
+    wtau = 0.5 * np.arctan2(ssum, csum)
+
+    S2, C2 = trig_sum(
+        t,
+        np.ones_like(y_),
+        df,
+        N,
+        f0,
+        freq_factor=2,
+        oversampling=oversampling,
+    )
+
+    const = np.sqrt(0.5) * np.sqrt(num_ww)
+
+    coswtau = np.cos(wtau)
+    sinwtau = np.sin(wtau)
+
+    sumr = Ch * coswtau + Sh * sinwtau
+    sumi = Sh * coswtau - Ch * sinwtau
+
+    cos2wtau = np.cos(2 * wtau)
+    sin2wtau = np.sin(2 * wtau)
+
+    scos2 = 0.5 * (N + C2 * cos2wtau + S2 * sin2wtau)
+    ssin2 = 0.5 * (N - C2 * cos2wtau - S2 * sin2wtau)
+
+    ft_real = const * sumr / np.sqrt(scos2)
+    ft_imag = const * np.sign(sign) * sumi / np.sqrt(ssin2)
+
+    ft_real[freqs == 0] = sum_xx / np.sqrt(num_xt)
+    ft_imag[freqs == 0] = 0
+
+    phase = wtau - w * t[0]
+
+    ft_res = np.complex128(ft_real + (1j * ft_imag)) * np.exp(-1j * phase)
+
+    return ft_res
+
+
+def lsft_slow(
+    y: npt.ArrayLike,
+    t: npt.ArrayLike,
+    freqs: npt.ArrayLike,
+    sign: Optional[int] = 1,
+) -> npt.NDArray:
+    """
+    Calculates the Lomb-Scargle Fourier transform of a light curve.
+    Only considers non-negative frequencies.
+    Subtracts mean from data as it is required for the working of the algorithm.
+
+    Parameters
+    ----------
+    y : a `:class:numpy.array` of floats
+        Observations to be transformed.
+
+    t : `:class:numpy.array` of floats
+        Times of the observations
+
+    freqs : numpy.ndarray
+        An array of frequencies at which the transform is sampled.
+
+    sign : int, optional, default: 1
+        The sign of the fourier transform. 1 implies positive sign and -1 implies negative sign.
+
+    fullspec : bool, optional, default: False
+        Return LSFT values for full frequency array (True) or just positive frequencies (False).
+
+    Returns
+    -------
+    ft_res : numpy.ndarray
+        An array of Fourier transformed data.
+    """
+    y_ = y - np.mean(y)
+    freqs = np.asarray(freqs[np.asarray(freqs) >= 0])
+
+    ft_real = np.zeros_like(freqs)
+    ft_imag = np.zeros_like(freqs)
+    ft_res = np.zeros_like(freqs, dtype=np.complex128)
+
+    num_y = y_.shape[0]
+    num_freqs = freqs.shape[0]
+    sum_y = np.sum(y_)
+    const1 = np.sqrt(0.5 * num_y)
+    const2 = const1 * np.sign(sign)
+    ft_real = ft_imag = np.zeros(num_freqs)
+    ft_res = np.zeros(num_freqs, dtype=np.complex128)
+
+    for i in range(num_freqs):
+        wrun = freqs[i] * 2 * np.pi
+        if wrun == 0:
+            ft_real = sum_y / np.sqrt(num_y)
+            ft_imag = 0
+            phase_this = 0
+        else:
+            # Calculation of \omega \tau (II.5) --
+            csum = np.sum(np.cos(2.0 * wrun * t))
+            ssum = np.sum(np.sin(2.0 * wrun * t))
+
+            watan = np.arctan2(ssum, csum)
+            wtau = 0.5 * watan
+            # --
+            # In the following, instead of t'_n we are using \omega t'_n = \omega t - \omega\tau
+
+            # Terms of kind X_n * cos or sin (II.1) --
+            sumr = np.sum(y_ * np.cos(wrun * t - wtau))
+            sumi = np.sum(y_ * np.sin(wrun * t - wtau))
+            # --
+
+            # A and B before the square root and inversion in (II.3) --
+            scos2 = np.sum(np.power(np.cos(wrun * t - wtau), 2))
+            ssin2 = np.sum(np.power(np.sin(wrun * t - wtau), 2))
+
+            # const2 is const1 times the sign.
+            # It's the F0 in II.2 without the phase factor
+            # The sign decides whether we are calculating the direct or inverse transform
+            ft_real = const1 * sumr / np.sqrt(scos2)
+            ft_imag = const2 * sumi / np.sqrt(ssin2)
+
+            phase_this = wtau - wrun * t[0]
+
+        ft_res[i] = np.complex128(ft_real + (1j * ft_imag)) * np.exp(-1j * phase_this)
+    return ft_res
+
+
+def impose_symmetry_lsft(
+    ft_res: npt.ArrayLike,
+    sum_y: float,
+    len_y: int,
+    freqs: npt.ArrayLike,
+) -> npt.ArrayLike:
+    """
+    Impose symmetry on the input fourier transform.
+
+    Parameters
+    ----------
+    ft_res : np.array
+        The Fourier transform of the signal.
+    sum_y : float
+        The sum of the values of the signal.
+    len_y : int
+        The length of the signal.
+    freqs : np.array
+        An array of frequencies at which the transform is sampled.
+
+    Returns
+    -------
+    lsft_res : np.array
+        The Fourier transform of the signal with symmetry imposed.
+    freqs_new : np.array
+        The new frequencies
+    """
+    ft_res_new = np.concatenate([np.conjugate(np.flip(ft_res)), [0.0], ft_res])
+    freqs_new = np.concatenate([np.flip(-freqs), [0.0], freqs])
+    return ft_res_new, freqs_new

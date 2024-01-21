@@ -19,6 +19,10 @@ MANIFEST
 .tmp
 *.png
 *.jpg
+*.ascii
+*.ecsv
+*.pickle
+*.fits
 *.p
 *.npy
 *.pdf
@@ -26,6 +30,7 @@ MANIFEST
 .hypothesis
 cov.xml
 *coverage*
+release.*
 
 # Sphinx
 docs/api

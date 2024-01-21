@@ -9,9 +9,11 @@ from ._astropy_init import *
 
 # For egg_info test builds to pass, put package imports here.
 if not _ASTROPY_SETUP_:
+    from stingray.base import *
     from stingray.events import *
     from stingray.lightcurve import *
     from stingray.utils import *
+    from stingray.lombscargle import *
     from stingray.powerspectrum import *
     from stingray.crossspectrum import *
     from stingray.multitaper import *
@@ -22,4 +24,4 @@ if not _ASTROPY_SETUP_:
     from stingray.stats import *
     from stingray.bispectrum import *
     from stingray.varenergyspectrum import *
-    from stingray.largememory import *
+    from stingray.lombscargle import *

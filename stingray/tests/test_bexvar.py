@@ -8,6 +8,8 @@ from astropy.table import Table
 from astropy.io import fits
 import signal
 
+pytestmark = pytest.mark.slow
+
 
 class TimeoutException(Exception):
     pass

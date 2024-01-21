@@ -1,6 +1,7 @@
 import numpy as np
 from collections.abc import Iterable
-from .pulsar import profile_stat, fold_events, z_n, pulse_phase
+from .pulsar import ef_profile_stat, pdm_profile_stat
+from .pulsar import fold_events, z_n, pulse_phase
 from ..utils import jit, HAS_NUMBA
 from ..utils import contiguous_regions
 from astropy.stats import poisson_conf_interval
@@ -14,6 +15,7 @@ __all__ = [
     "plot_profile",
     "plot_phaseogram",
     "phaseogram",
+    "phase_dispersion_search",
 ]
 
 
@@ -139,12 +141,13 @@ def epoch_folding_search(
     stats : array-like
         the epoch folding statistics corresponding to each frequency bin.
     """
+
     if expocorr or not HAS_NUMBA or isinstance(weights, Iterable):
         if expocorr and gti is None:
             raise ValueError("To calculate exposure correction, you need to" " specify the GTIs")
 
         def stat_fun(t, f, fd=0, **kwargs):
-            return profile_stat(fold_events(t, f, fd, **kwargs)[1])
+            return ef_profile_stat(fold_events(t, f, fd, **kwargs)[1])
 
         return _folding_search(
             stat_fun,
@@ -160,10 +163,84 @@ def epoch_folding_search(
         )
 
     return _folding_search(
-        lambda x: profile_stat(_profile_fast(x, nbin=nbin)),
+        lambda x: ef_profile_stat(_profile_fast(x, nbin=nbin)),
         times,
         frequencies,
         segment_size=segment_size,
+        fdots=fdots,
+    )
+
+
+def phase_dispersion_search(
+    times, flux, frequencies, nbin=128, segment_size=5000, expocorr=False, gti=None, fdots=0
+):
+    """Performs folding at trial frequencies in time series data (i.e.~a light curve
+    of flux or photon counts) and computes the Phase Dispersion Minimization statistic.
+
+    If no exposure correction is needed and numba is installed, it uses a fast
+    algorithm to perform the folding. Otherwise, it runs a *much* slower
+    algorithm, which however yields a more precise result.
+    The search can be done in segments and the results averaged. Use
+    segment_size to control this
+
+    Parameters
+    ----------
+    times : array-like
+        the time stamps of the time series
+
+    flux : array-like
+        the flux or photon count values of the time series
+
+    frequencies : array-like
+        the trial values for the frequencies
+
+    Other Parameters
+    ----------------
+    nbin : int
+        the number of bins of the folded profiles
+
+    segment_size : float
+        the length of the segments to be averaged in the periodogram
+
+    fdots : array-like
+        trial values of the first frequency derivative (optional)
+
+    expocorr : bool
+        correct for the exposure (Use it if the period is comparable to the
+        length of the good time intervals). If True, GTIs have to be specified
+        via the ``gti`` keyword
+
+    gti : [[gti0_0, gti0_1], [gti1_0, gti1_1], ...]
+        Good time intervals
+
+    Returns
+    -------
+    (fgrid, stats) or (fgrid, fdgrid, stats), as follows:
+
+    fgrid : array-like
+        frequency grid of the epoch folding periodogram
+    fdgrid : array-like
+        frequency derivative grid. Only returned if fdots is an array.
+    stats : array-like
+        the epoch folding statistics corresponding to each frequency bin.
+    """
+
+    def stat_fun(t, f, fd=0, **kwargs):
+        bins, profile, _ = fold_events(t, f, fd, **kwargs, mode="pdm")
+        len_flux = len(kwargs["weights"])
+        sigma = np.var(kwargs["weights"]) * len_flux / (len_flux - 1)
+        return pdm_profile_stat(profile, sigma, len_flux)
+
+    return _folding_search(
+        stat_fun,
+        times,
+        frequencies,
+        segment_size=segment_size,
+        use_times=True,
+        expocorr=expocorr,
+        weights=flux,
+        gti=gti,
+        nbin=nbin,
         fdots=fdots,
     )
 
@@ -299,14 +376,11 @@ def search_best_peaks(x, stat, threshold):
     >>> best_x, best_stat = search_best_peaks(x, stat, 0.5)
     >>> len(best_x)
     2
-    >>> best_x[0]
-    7.0
-    >>> best_x[1]
-    2.0
+    >>> assert np.isclose(best_x[0], 7.0)
+    >>> assert np.isclose(best_x[1], 2.0)
     >>> stat = [0, 0, 2.5, 0, 0, 1, 1, 2, 1, 0]
     >>> best_x, best_stat = search_best_peaks(x, stat, 0.5)
-    >>> best_x[0]
-    2.0
+    >>> assert np.isclose(best_x[0], 2.0)
     >>> # Test no peak above threshold
     >>> x = np.arange(10)
     >>> stat = [0, 0, 0.4, 0, 0, 0, 0, 0, 0, 0]

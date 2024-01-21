@@ -5,7 +5,6 @@
 
 import os
 
-from astropy.tests.helper import enable_deprecations_as_exceptions  # noqa
 from astropy.version import version as astropy_version
 
 
@@ -36,7 +35,6 @@ def pytest_configure(config):
         TESTED_VERSIONS[packagename] = __version__
 
 
-enable_deprecations_as_exceptions()
 # Uncomment the last two lines in this block to treat all DeprecationWarnings as
 # exceptions. For Astropy v2.0 or later, there are 2 additional keywords,
 # as follow (although default should work for most cases).

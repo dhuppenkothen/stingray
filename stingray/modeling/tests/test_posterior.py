@@ -2,7 +2,7 @@ import numpy as np
 import scipy.stats
 import copy
 
-from astropy.tests.helper import pytest
+import pytest
 from astropy.modeling import models
 from scipy.special import gammaln as scipy_gammaln
 

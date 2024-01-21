@@ -119,7 +119,7 @@ def ccf_error(
         seg_ci_lc = Lightcurve(seg_times, seg_ci_counts[i], dt=dt)  # CoI light curve
         seg_ref_lc = Lightcurve(seg_times, seg_ref_counts[i], dt=dt)  # reference band light curve
         seg_cs = Crossspectrum(
-            lc2=seg_ci_lc, lc1=seg_ref_lc, norm="leahy", power_type="absolute"
+            data2=seg_ci_lc, data1=seg_ref_lc, norm="leahy", power_type="absolute"
         )  # cross spectrum
         seg_cs = seg_cs.rebin_log(rebin_log_factor)  # cross spectrum rebinning
 
