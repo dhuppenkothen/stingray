@@ -392,10 +392,11 @@ def test_compute_rms():
     with pytest.raises(ValueError):
         spec.compute_rms(cs, model, criteria="filter")
 
+
 def test_get_mean_phase_difference():
     counts = [10, 20, 30, 20, 10, 20, 30, 20]
     dt = 0.1
-    lc = Lightcurve(time=np.arange(len(counts))*dt, counts=counts, dt=dt)
+    lc = Lightcurve(time=np.arange(len(counts)) * dt, counts=counts, dt=dt)
 
     cs = Crossspectrum(lc, lc)
     model = models.Lorentz1D(x_0=2.0) + models.Lorentz1D(x_0=4.0)
@@ -405,10 +406,11 @@ def test_get_mean_phase_difference():
     assert np.isclose(avg_psi, 0.0, tol)
     assert np.isclose(stddev, 0.0, tol)
 
+
 def test_get_phase_lag():
     counts = [10, 20, 30, 20, 10, 20, 30, 20]
     dt = 0.1
-    lc = Lightcurve(time=np.arange(len(counts))*dt, counts=counts, dt=dt)
+    lc = Lightcurve(time=np.arange(len(counts)) * dt, counts=counts, dt=dt)
 
     cs = Crossspectrum(lc, lc)
     model = models.Lorentz1D(x_0=2.0) + models.Lorentz1D(x_0=4.0)
