@@ -134,7 +134,7 @@ For development work, you will need the following extra libraries:
 + pytest
 + pytest-astropy
 + tox
-+ jinja2<=3.0.0
++ jinja2==3.1.3
 + docutils
 + sphinx-astropy
 + nbsphinx>=0.8.3,!=0.8.8
@@ -271,15 +271,31 @@ the stingray source directory.
 Using Stingray
 ===============
 
-Getting started
----------------
+A Spectral timing exploration
+-----------------------------
 
+In this Tutorial, we will show an example spectral timing exploration of a
+black hole binary using NICER data. The tutorial includes a hardness-intensity
+diagram, the modeling of the power density spectrum, power colors, lag-frequency,
+lag-energy, and rms/covariance spectra.
+
+.. toctree::
+   :maxdepth: 1
+
+   notebooks/Spectral Timing/Spectral Timing Exploration.ipynb
+
+
+Stingray fundamentals
+---------------------
 .. toctree::
    :maxdepth: 2
 
    core
    dataexplo
    pulsar
+   modeling
+   simulator
+   deadtime
 
 Advanced
 --------
@@ -288,9 +304,6 @@ Advanced
    :maxdepth: 2
 
    timeseries
-   modeling
-   simulator
-   deadtime
    api
 
 Additional information

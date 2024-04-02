@@ -75,7 +75,8 @@ class TestIO(object):
             evdata = load_events_and_gtis(fname)
         fname_unsrt = os.path.join(datadir, "monol_testA_calib_unsrt.evt")
         with pytest.warns(UserWarning, match="not sorted. Sorting them for you"):
-            evdata_unsrt = load_events_and_gtis(fname_unsrt)
+            with pytest.warns(AstropyUserWarning, match="No valid GTI extensions"):
+                evdata_unsrt = load_events_and_gtis(fname_unsrt)
 
         for attr in "ev_list", "energy_list", "pi_list":
             assert np.allclose(getattr(evdata, attr), getattr(evdata_unsrt, attr))
@@ -181,3 +182,19 @@ class TestFileFormats(object):
         plt.plot([1, 2, 3])
         savefig("test.png")
         os.unlink("test.png")
+
+
+class TestCalibrate(object):
+    @classmethod
+    def setup_class(cls):
+        curdir = os.path.abspath(os.path.dirname(__file__))
+        cls.datadir = os.path.join(curdir, "data")
+
+        cls.rmf = os.path.join(cls.datadir, "test.rmf")
+
+    def test_calibrate_spectrum(self):
+        from ..io import pi_to_energy
+
+        pis = np.array([1, 2, 3])
+        energies = pi_to_energy(pis, self.rmf)
+        assert np.allclose(energies, [1.66, 1.70, 1.74])

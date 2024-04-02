@@ -6,22 +6,21 @@ import numpy as np
 import scipy
 import scipy.optimize
 import scipy.stats
-from astropy import log
 import matplotlib.pyplot as plt
 
 from stingray.exceptions import StingrayError
-from stingray.gti import bin_intervals_from_gtis, check_gtis, cross_two_gtis
 from stingray.utils import rebin_data, rebin_data_log, simon
 
 from .base import StingrayObject
 from .events import EventList
 from .gti import cross_two_gtis, time_intervals_from_gtis
 from .lightcurve import Lightcurve
-from .utils import show_progress
 from .fourier import avg_cs_from_iterables, error_on_averaged_cross_spectrum
-from .fourier import avg_cs_from_events, poisson_level
-from .fourier import fftfreq, fft, normalize_periodograms, raw_coherence
-from .fourier import get_flux_iterable_from_segments, power_color
+from .fourier import avg_cs_from_timeseries, poisson_level
+from .fourier import normalize_periodograms, raw_coherence
+from .fourier import get_flux_iterable_from_segments
+from .fourier import get_rms_from_unnorm_periodogram
+from .power_colors import power_color
 
 from scipy.special import factorial
 
@@ -853,7 +852,7 @@ class Crossspectrum(StingrayObject):
 
         for attr in ["power", "power_err"]:
             unnorm_attr = "unnorm_" + attr
-            if not hasattr(self, unnorm_attr):
+            if not hasattr(self, unnorm_attr) or getattr(self, unnorm_attr) is None:
                 continue
             power = normalize_periodograms(
                 getattr(self, unnorm_attr),
@@ -1568,6 +1567,27 @@ class Crossspectrum(StingrayObject):
         ``crossspectrum_from_XXXX`` function, and initialize ``self`` with
         the correct attributes.
         """
+        if segment_size is None and isinstance(data1, StingrayObject):
+            common_gti = cross_two_gtis(data1.gti, data2.gti)
+            data1.gti = common_gti
+            data2.gti = common_gti
+            data1 = data1.apply_gtis(inplace=False)
+            data2 = data2.apply_gtis(inplace=False)
+
+            data1_is_binned = (
+                "counts" in data1.array_attrs() or "_counts" in data1.internal_array_attrs()
+            )
+            data2_is_binned = (
+                "counts" in data2.array_attrs() or "_counts" in data2.internal_array_attrs()
+            )
+
+            if data1_is_binned and data2_is_binned:
+                assert data2.time.size == data1.time.size and np.allclose(
+                    data2.time - data1.time, 0
+                ), "Time arrays are not the same"
+            elif data1_is_binned or data2_is_binned:
+                raise ValueError("Please use input data of the same kind")
+
         if isinstance(data1, EventList):
             spec = crossspectrum_from_events(
                 data1,
@@ -2356,36 +2376,33 @@ class DynamicalCrossspectrum(AveragedCrossspectrum):
             The error on the fractional rms amplitude.
 
         """
-        from .fourier import rms_calculation
-
         dyn_ps_unnorm = self.dyn_ps / self.unnorm_conversion
         poisson_noise_unnrom = poisson_noise_level / self.unnorm_conversion
         if not hasattr(self, "nphots"):
             nphots = (self.nphots1 * self.nphots2) ** 0.5
         else:
             nphots = self.nphots
-        T = self.dt * self.m
-        M_freqs = self.m
-        K_freqs = 1
-        minind = self.freq.searchsorted(min_freq)
-        maxind = self.freq.searchsorted(max_freq)
-        min_freq = self.freq[minind]
-        freq_bins = maxind - minind
+
+        good = (self.freq >= min_freq) & (self.freq <= max_freq)
+
+        M_freq = self.m
+        if isinstance(self.m, Iterable):
+            M_freq = self.m[good]
+
         rmss = []
         rms_errs = []
+
         for unnorm_powers in dyn_ps_unnorm.T:
-            r, re = rms_calculation(
-                unnorm_powers[minind:maxind],
-                min_freq,
-                max_freq,
+            r, re = get_rms_from_unnorm_periodogram(
+                unnorm_powers[good],
                 nphots,
-                T,
-                M_freqs,
-                K_freqs,
-                freq_bins,
-                poisson_noise_unnrom,
-                deadtime=0.0,
+                self.df,
+                M=M_freq,
+                poisson_noise_unnorm=poisson_noise_unnrom,
+                segment_size=self.segment_size,
+                kind="frac",
             )
+
             rmss.append(r)
             rms_errs.append(re)
         return rmss, rms_errs
@@ -2449,7 +2466,7 @@ def crossspectrum_from_time_array(
     force_averaged = segment_size is not None
     # Suppress progress bar for single periodogram
     silent = silent or (segment_size is None)
-    results = avg_cs_from_events(
+    results = avg_cs_from_timeseries(
         times1,
         times2,
         gti,
@@ -2689,7 +2706,7 @@ def crossspectrum_from_timeseries(
         err1 = getattr(ts1, error_flux_attr)
         err2 = getattr(ts2, error_flux_attr)
 
-    results = avg_cs_from_events(
+    results = avg_cs_from_timeseries(
         ts1.time,
         ts2.time,
         gti,

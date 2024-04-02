@@ -1,4 +1,3 @@
-import copy
 import warnings
 from collections.abc import Generator, Iterable
 
@@ -15,16 +14,10 @@ from .gti import cross_two_gtis, time_intervals_from_gtis
 
 from .lightcurve import Lightcurve
 from .fourier import avg_pds_from_iterable, unnormalize_periodograms
-from .fourier import avg_pds_from_events
+from .fourier import avg_pds_from_timeseries
 from .fourier import get_flux_iterable_from_segments
-from .fourier import rms_calculation, poisson_level
-
-try:
-    from tqdm import tqdm as show_progress
-except ImportError:
-
-    def show_progress(a, **kwargs):
-        return a
+from .fourier import poisson_level
+from .fourier import get_rms_from_unnorm_periodogram
 
 
 __all__ = ["Powerspectrum", "AveragedPowerspectrum", "DynamicalPowerspectrum"]
@@ -83,6 +76,12 @@ class Powerspectrum(Crossspectrum):
         binning, or averaging power spectra of segments of a light curve).
         Note that for a single realization (``m=1``) the error is equal to the
         power.
+
+    unnorm_power: numpy.ndarray
+        The array of unnormalized powers
+
+    unnorm_power_err: numpy.ndarray
+        The uncertainties of ``unnorm_power``.
 
     df: float
         The frequency resolution.
@@ -147,9 +146,7 @@ class Powerspectrum(Crossspectrum):
 
         return bin_ps
 
-    def compute_rms(
-        self, min_freq, max_freq, poisson_noise_level=None, white_noise_offset=None, deadtime=0.0
-    ):
+    def compute_rms(self, min_freq, max_freq, poisson_noise_level=None):
         """
         Compute the fractional rms amplitude in the power spectrum
         between two frequencies.
@@ -174,12 +171,6 @@ class Powerspectrum(Crossspectrum):
             this function using the same normalisation of the PDS
             and it will get subtracted from powers here.
 
-        white_noise_offset : float, default None
-            This is the white noise level, in Leahy normalization. In the ideal
-            case, this is 2. Dead time and other instrumental effects can alter
-            it. The user can fit the white noise level outside this function
-            and it will get subtracted from powers here.
-
         Returns
         -------
         rms: float
@@ -190,67 +181,36 @@ class Powerspectrum(Crossspectrum):
             The error on the fractional rms amplitude.
 
         """
-        minind = self.freq.searchsorted(min_freq)
-        maxind = self.freq.searchsorted(max_freq)
-        min_freq = self.freq[minind]
 
-        # To avoid corner case of searchsorted, where maxind goes out of the array
-        if maxind >= len(self.freq) - 1:
-            max_freq = self.freq[maxind - 1]
-        else:
-            max_freq = self.freq[maxind]
+        good = (self.freq >= min_freq) & (self.freq <= max_freq)
 
-        nphots = self.nphots
-        # distinguish the rebinned and non-rebinned case
+        M_freq = self.m
+        K_freq = self.k
+
+        if isinstance(self.k, Iterable):
+            K_freq = self.k[good]
+
         if isinstance(self.m, Iterable):
-            M_freq = self.m[minind:maxind]
-            K_freq = self.k[minind:maxind]
-            freq_bins = 1
+            M_freq = self.m[good]
+
+        if poisson_noise_level is None:
+            poisson_noise_unnorm = poisson_level("none", n_ph=self.nphots)
         else:
-            M_freq = self.m
-            K_freq = self.k
-            freq_bins = maxind - minind
-
-        T = self.dt * self.n * 2
-
-        if white_noise_offset is not None:
-            powers = self.power[minind:maxind]
-            warnings.warn(
-                "the option white_noise_offset now deprecated and will be "
-                "removed in the next major release. The routine"
-                "is correct only with non-rebinned power-spectra.",
-                DeprecationWarning,
+            poisson_noise_unnorm = unnormalize_periodograms(
+                poisson_noise_level, self.dt, self.n, self.nphots, norm=self.norm
             )
 
-            if self.norm.lower() == "leahy":
-                powers_leahy = powers.copy()
-            else:
-                powers_leahy = self.unnorm_power[minind:maxind].real * 2 / nphots
+        rms, rmse = get_rms_from_unnorm_periodogram(
+            self.unnorm_power[good],
+            self.nphots,
+            self.df * K_freq,
+            M=M_freq,
+            poisson_noise_unnorm=poisson_noise_unnorm,
+            segment_size=self.segment_size,
+            kind="frac",
+        )
 
-            rms = np.sqrt(np.sum(powers_leahy - white_noise_offset) / nphots)
-            rms_err = self._rms_error(powers_leahy)
-            return rms, rms_err
-
-        else:
-            if poisson_noise_level is None:
-                poisson_noise_unnorm = poisson_level("none", n_ph=self.nphots)
-            else:
-                poisson_noise_unnorm = unnormalize_periodograms(
-                    poisson_noise_level, self.dt, self.n, self.nphots, norm=self.norm
-                )
-
-            return rms_calculation(
-                self.unnorm_power[minind:maxind],
-                min_freq,
-                max_freq,
-                self.nphots,
-                T,
-                M_freq,
-                K_freq,
-                freq_bins,
-                poisson_noise_unnorm,
-                deadtime,
-            )
+        return rms, rmse
 
     def _rms_error(self, powers):
         r"""
@@ -504,7 +464,14 @@ class Powerspectrum(Crossspectrum):
 
     @staticmethod
     def from_events(
-        events, dt, segment_size=None, gti=None, norm="frac", silent=False, use_common_mean=True
+        events,
+        dt,
+        segment_size=None,
+        gti=None,
+        norm="frac",
+        silent=False,
+        use_common_mean=True,
+        save_all=False,
     ):
         """
         Calculate an average power spectrum from an event list.
@@ -540,6 +507,8 @@ class Powerspectrum(Crossspectrum):
             to calculate it on a per-segment basis.
         silent : bool, default False
             Silence the progress bars.
+        save_all : bool, default False
+            Save all intermediate PDSs used for the final average.
         """
         if gti is None:
             gti = events.gti
@@ -551,6 +520,7 @@ class Powerspectrum(Crossspectrum):
             norm=norm,
             silent=silent,
             use_common_mean=use_common_mean,
+            save_all=save_all,
         )
 
     @staticmethod
@@ -563,6 +533,7 @@ class Powerspectrum(Crossspectrum):
         silent=False,
         use_common_mean=True,
         gti=None,
+        save_all=False,
     ):
         """Calculate AveragedPowerspectrum from a time series.
 
@@ -598,6 +569,8 @@ class Powerspectrum(Crossspectrum):
             input object GTIs! If you're getting errors regarding your GTIs,
             don't  use this and only give GTIs to the input objects before
             making the cross spectrum.
+        save_all : bool, default False
+            Save all intermediate PDSs used for the final average.
         """
         return powerspectrum_from_timeseries(
             ts,
@@ -608,11 +581,18 @@ class Powerspectrum(Crossspectrum):
             silent=silent,
             use_common_mean=use_common_mean,
             gti=gti,
+            save_all=save_all,
         )
 
     @staticmethod
     def from_lightcurve(
-        lc, segment_size=None, gti=None, norm="frac", silent=False, use_common_mean=True
+        lc,
+        segment_size=None,
+        gti=None,
+        norm="frac",
+        silent=False,
+        use_common_mean=True,
+        save_all=False,
     ):
         """
         Calculate a power spectrum from a light curve.
@@ -648,6 +628,8 @@ class Powerspectrum(Crossspectrum):
             to calculate it on a per-segment basis.
         silent : bool, default False
             Silence the progress bars.
+        save_all : bool, default False
+            Save all intermediate PDSs used for the final average.
         """
         if gti is None:
             gti = lc.gti
@@ -658,11 +640,19 @@ class Powerspectrum(Crossspectrum):
             norm=norm,
             silent=silent,
             use_common_mean=use_common_mean,
+            save_all=save_all,
         )
 
     @staticmethod
     def from_lc_iterable(
-        iter_lc, dt, segment_size=None, gti=None, norm="frac", silent=False, use_common_mean=True
+        iter_lc,
+        dt,
+        segment_size=None,
+        gti=None,
+        norm="frac",
+        silent=False,
+        use_common_mean=True,
+        save_all=False,
     ):
         """
         Calculate the average power spectrum of an iterable collection of
@@ -699,6 +689,8 @@ class Powerspectrum(Crossspectrum):
             to calculate it on a per-segment basis.
         silent : bool, default False
             Silence the progress bars.
+        save_all : bool, default False
+            Save all intermediate PDSs used for the final average.
         """
 
         return powerspectrum_from_lc_iterable(
@@ -709,6 +701,7 @@ class Powerspectrum(Crossspectrum):
             norm=norm,
             silent=silent,
             use_common_mean=use_common_mean,
+            save_all=save_all,
         )
 
     def _initialize_from_any_input(
@@ -847,8 +840,7 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
         The array of mid-bin frequencies that the Fourier transform samples.
 
     power: numpy.ndarray
-        The array of normalized squared absolute values of Fourier
-        amplitudes.
+        The array of normalized powers
 
     power_err: numpy.ndarray
         The uncertainties of ``power``.
@@ -857,6 +849,12 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
         binning, or averaging power spectra of segments of a light curve).
         Note that for a single realization (``m=1``) the error is equal to the
         power.
+
+    unnorm_power: numpy.ndarray
+        The array of unnormalized powers
+
+    unnorm_power_err: numpy.ndarray
+        The uncertainties of ``unnorm_power``.
 
     df: float
         The frequency resolution.
@@ -870,6 +868,8 @@ class AveragedPowerspectrum(AveragedCrossspectrum, Powerspectrum):
     nphots: float
         The total number of photons in the light curve.
 
+    cs_all: list of :class:`Powerspectrum` objects
+        The list of all periodograms used to calculate the average periodogram.
     """
 
     def __init__(
@@ -1180,7 +1180,7 @@ def powerspectrum_from_time_array(
     force_averaged = segment_size is not None
     # Suppress progress bar for single periodogram
     silent = silent or (segment_size is None)
-    table = avg_pds_from_events(
+    table = avg_pds_from_timeseries(
         times,
         gti,
         segment_size,
@@ -1313,7 +1313,7 @@ def powerspectrum_from_lightcurve(
     if gti is None:
         gti = lc.gti
 
-    table = avg_pds_from_events(
+    table = avg_pds_from_timeseries(
         lc.time,
         gti,
         segment_size,
@@ -1393,7 +1393,7 @@ def powerspectrum_from_timeseries(
     if error_flux_attr is not None:
         err = getattr(ts, error_flux_attr)
 
-    results = avg_pds_from_events(
+    results = avg_pds_from_timeseries(
         ts.time,
         gti,
         segment_size,

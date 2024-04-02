@@ -14,6 +14,9 @@ import scipy
 from numpy import histogram as histogram_np
 from numpy import histogram2d as histogram2d_np
 from numpy import histogramdd as histogramdd_np
+from .loggingconfig import setup_logger
+
+logger = setup_logger()
 
 try:
     import pyfftw
@@ -32,8 +35,8 @@ try:
 
     pyfftw.interfaces.cache.enable()
     HAS_PYFFTW = True
+    logger.info("Using PyFFTW")
 except ImportError:
-    warnings.warn("pyfftw not installed. Using standard scipy fft")
     from numpy.fft import ifft, fft, fftfreq, fftn, ifftn, fftshift, fft2, ifftshift, rfft, rfftfreq
 
     HAS_PYFFTW = False
@@ -968,6 +971,51 @@ def _als(y, lam, p, niter=10):
         z = sparse.linalg.spsolve(Z, w * y)
         w = p * (y > z) + (1 - p) * (y < z)
     return z
+
+
+def fix_segment_size_to_integer_samples(segment_size, dt, tolerance=0.01):
+    """Fix segment size to an integer number of bins.
+
+    In the most common case, it will be reduced to an integer number of bins,
+    approximating to the lower integer. However, when it is close to the next
+    integer, it will be approximated to the higher integer.
+
+    Parameters
+    ----------
+    segment_size : float
+        The segment size in seconds
+    dt : float
+        The sample time in seconds
+
+    Other Parameters
+    ----------------
+    tolerance : float
+        The tolerance to consider when approximating to the higher integer
+
+    Returns
+    -------
+    segment_size : float
+        The segment size in seconds, fixed to an integer number of bins
+    n_bin : int
+        The number of bins in the segment
+
+    Examples
+    --------
+    >>> seg, n = fix_segment_size_to_integer_samples(1.0, 0.1)
+    >>> assert seg == 1.0, n == 10
+    >>> seg, n = fix_segment_size_to_integer_samples(0.999, 0.1)
+    >>> assert seg == 1.0, n == 10
+    """
+    n_bin_float = segment_size / dt
+    n_bin_down = np.floor(segment_size / dt)
+    n_bin_up = np.ceil(segment_size / dt)
+    n_bin = n_bin_down
+
+    if n_bin_up - n_bin_float < tolerance:
+        n_bin = n_bin_up
+
+    segment_size = n_bin * dt
+    return segment_size, int(n_bin)
 
 
 def baseline_als(x, y, lam=None, p=None, niter=10, return_baseline=False, offset_correction=False):

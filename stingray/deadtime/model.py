@@ -1,11 +1,13 @@
 from stingray.utils import njit, prange
+from stingray.loggingconfig import setup_logger
 import numpy as np
 import matplotlib.pyplot as plt
-from astropy import log
 from scipy.special import factorial
 
 
 __FACTORIALS = factorial(np.arange(160))
+
+logger = setup_logger()
 
 
 def r_in(td, r_0):
@@ -188,7 +190,7 @@ def pds_model_zhang(N, rate, td, tb, limit_k=60):
     tau = 1 / rate
     r0 = r_det(td, rate)
     # Nph = N / tau
-    log.info("Calculating PDS model (update)")
+    logger.info("Calculating PDS model (update)")
     P = _inner_loop_pds_zhang(N, tau, r0, td, tb, limit_k=limit_k)
 
     maxf = 0.5 / tb

@@ -12,7 +12,15 @@ from .gti import (
     generate_indices_of_segment_boundaries_binned,
     generate_indices_of_segment_boundaries_unbinned,
 )
-from .utils import fft, fftfreq, histogram, show_progress, sum_if_not_none_or_initialize
+
+from .utils import (
+    fft,
+    fftfreq,
+    histogram,
+    show_progress,
+    sum_if_not_none_or_initialize,
+    fix_segment_size_to_integer_samples,
+)
 
 
 def integrate_power_in_frequency_range(
@@ -96,226 +104,6 @@ def integrate_power_in_frequency_range(
     power_integrated = np.sum((powers_to_integrate - poisson_power) * dfs_to_integrate)
     power_err_integrated = np.sqrt(np.sum((power_err_to_integrate * dfs_to_integrate) ** 2))
     return power_integrated, power_err_integrated
-
-
-def power_color(
-    frequency,
-    power,
-    power_err=None,
-    freq_edges=[1 / 256, 1 / 32, 0.25, 2.0, 16.0],
-    df=None,
-    m=1,
-    freqs_to_exclude=None,
-    poisson_power=0,
-    return_log=False,
-):
-    """
-    Calculate two power colors from a power spectrum.
-
-    Power colors are an alternative to spectral colors to understand the spectral state of an
-    accreting source. They are defined as the ratio of the power in two frequency ranges,
-    analogously to the colors calculated from electromagnetic spectra.
-
-    This function calculates two power colors, using the four frequency ranges contained
-    between the five frequency edges in ``freq_edges``. Given [f0, f1, f2, f3, f4], the
-    two power colors are calculated as the following ratios of the integrated power
-    (which are variances):
-
-    + PC0 = Var([f0, f1]) / Var([f2, f3])
-
-    + PC1 = Var([f1, f2]) / Var([f3, f4])
-
-    Errors are calculated using simple error propagation from the integrated power errors.
-
-    See Heil et al. 2015, MNRAS, 448, 3348
-
-    Parameters
-    ----------
-    frequency : iterable
-        The frequencies of the power spectrum
-    power : iterable
-        The power at each frequency
-
-    Other Parameters
-    ----------------
-    power_err : iterable
-        The power error bar at each frequency
-    freq_edges : iterable, optional, default ``[0.0039, 0.031, 0.25, 2.0, 16.0]``
-        The five edges defining the four frequency intervals to use to calculate the power color.
-        If empty, the power color is calculated using the frequencies from Heil et al. 2015.
-    df : float or float iterable, optional, default None
-        The frequency resolution of the input data. If None, it is calculated
-        from the median difference of input frequencies.
-    m : int, optional, default 1
-        The number of segments and/or contiguous frequency bins averaged to obtain power
-    freqs_to_exclude : 1-d or 2-d iterable, optional, default None
-        The ranges of frequencies to exclude from the calculation of the power color.
-        For example, the frequencies containing strong QPOs.
-        A 1-d iterable should contain two values for the edges of a single range. (E.g.
-        ``[0.1, 0.2]``). ``[[0.1, 0.2], [3, 4]]`` will exclude the ranges 0.1-0.2 Hz and 3-4 Hz.
-    poisson_power : float or iterable, optional, default 0
-        The Poisson noise level of the power spectrum. If iterable, it should have the same
-        length as ``frequency``. (This might apply to the case of a power spectrum with a
-        strong dead time distortion
-    return_log : bool, optional, default False
-        Return the base-10 logarithm of the power color and the errors
-
-    Returns
-    -------
-    PC0 : float
-        The first power color
-    PC0_err : float
-        The error on the first power color
-    PC1 : float
-        The second power color
-    PC1_err : float
-        The error on the second power color
-    """
-    freq_edges = np.asarray(freq_edges)
-    if len(freq_edges) != 5:
-        raise ValueError("freq_edges must have 5 elements")
-
-    frequency = np.asarray(frequency)
-    power = np.asarray(power)
-
-    if df is None:
-        df = np.median(np.diff(frequency))
-    input_frequency_low_edges = frequency - df / 2
-    input_frequency_high_edges = frequency + df / 2
-
-    if freq_edges.min() < input_frequency_low_edges[0]:
-        raise ValueError("The minimum frequency is larger than the first frequency edge")
-    if freq_edges.max() > input_frequency_high_edges[-1]:
-        raise ValueError("The maximum frequency is lower than the last frequency edge")
-
-    if power_err is None:
-        power_err = power / np.sqrt(m)
-    else:
-        power_err = np.asarray(power_err)
-
-    if freqs_to_exclude is not None:
-        if len(np.shape(freqs_to_exclude)) == 1:
-            freqs_to_exclude = [freqs_to_exclude]
-
-        if (
-            not isinstance(freqs_to_exclude, Iterable)
-            or len(np.shape(freqs_to_exclude)) != 2
-            or np.shape(freqs_to_exclude)[1] != 2
-        ):
-            raise ValueError("freqs_to_exclude must be of format [[f0, f1], [f2, f3], ...]")
-        for f0, f1 in freqs_to_exclude:
-            frequency_mask = (input_frequency_low_edges > f0) & (input_frequency_high_edges < f1)
-            idx0, idx1 = np.searchsorted(frequency, [f0, f1])
-            power[frequency_mask] = np.mean([power[idx0], power[idx1]])
-
-    var00, var00_err = integrate_power_in_frequency_range(
-        frequency,
-        power,
-        freq_edges[:2],
-        power_err=power_err,
-        df=df,
-        m=m,
-        poisson_power=poisson_power,
-    )
-    var01, var01_err = integrate_power_in_frequency_range(
-        frequency,
-        power,
-        freq_edges[2:4],
-        power_err=power_err,
-        df=df,
-        m=m,
-        poisson_power=poisson_power,
-    )
-    var10, var10_err = integrate_power_in_frequency_range(
-        frequency,
-        power,
-        freq_edges[1:3],
-        power_err=power_err,
-        df=df,
-        m=m,
-        poisson_power=poisson_power,
-    )
-    var11, var11_err = integrate_power_in_frequency_range(
-        frequency,
-        power,
-        freq_edges[3:5],
-        power_err=power_err,
-        df=df,
-        m=m,
-        poisson_power=poisson_power,
-    )
-    pc0 = var00 / var01
-    pc1 = var10 / var11
-    pc0_err = pc0 * (var00_err / var00 + var01_err / var01)
-    pc1_err = pc1 * (var10_err / var10 + var11_err / var11)
-    if return_log:
-        pc0_err = 1 / pc0 * pc0_err
-        pc1_err = 1 / pc1 * pc1_err
-        pc0 = np.log10(pc0)
-        pc1 = np.log10(pc1)
-    return pc0, pc0_err, pc1, pc1_err
-
-
-def hue_from_power_color(pc0, pc1, center=[4.51920, 0.453724]):
-    """Measure the angle of a point in the log-power color diagram wrt the center.
-
-    Angles are measured in radians, **in the clockwise direction**, with respect to a line oriented
-    at -45 degrees wrt the horizontal axis.
-
-    See Heil et al. 2015, MNRAS, 448, 3348
-
-    Parameters
-    ----------
-    pc0 : float
-        The (linear, not log!) power color in the first frequency range
-    pc1 : float
-        The (linear, not log!) power color in the second frequency range
-
-    Other Parameters
-    ----------------
-    center : iterable, optional, default [4.51920, 0.453724]
-        The coordinates of the center of the power color diagram
-
-    Returns
-    -------
-    hue : float
-        The angle of the point wrt the center, in radians
-    """
-    pc0 = np.log10(pc0)
-    pc1 = np.log10(pc1)
-
-    center = np.log10(np.asarray(center))
-
-    return hue_from_logpower_color(pc0, pc1, center=center)
-
-
-def hue_from_logpower_color(log10pc0, log10pc1, center=(np.log10(4.51920), np.log10(0.453724))):
-    """Measure the angle of a point in the log-power color diagram wrt the center.
-
-    Angles are measured in radians, **in the clockwise direction**, with respect to a line oriented
-    at -45 degrees wrt the horizontal axis.
-
-    See Heil et al. 2015, MNRAS, 448, 3348
-
-    Parameters
-    ----------
-    log10pc0 : float
-        The log10 power color in the first frequency range
-    log10pc1 : float
-        The log10 power color in the second frequency range
-
-    Other Parameters
-    ----------------
-    center : iterable, optional, default ``log10([4.51920, 0.453724])``
-        The coordinates of the center of the power color diagram
-
-    Returns
-    -------
-    hue : float
-        The angle of the point wrt the center, in radians
-    """
-    hue = 3 / 4 * np.pi - np.arctan2(log10pc1 - center[1], log10pc0 - center[0])
-    return hue
 
 
 def positive_fft_bins(n_bin, include_zero=False):
@@ -1050,6 +838,163 @@ def estimate_intrinsic_coherence(cross_power, power1, power2, power1_noise, powe
     return new_coherence
 
 
+def get_rms_from_rms_norm_periodogram(power_sqrms, poisson_noise_sqrms, df, M, low_M_buffer_size=4):
+    r"""Calculate integrated rms spectrum (frac or abs).
+
+    If M=1, it starts by rebinning the powers slightly in order to get a slightly
+    better approximation for the error bars.
+
+    Parameters
+    ----------
+    power_sqrms: array-like
+        Powers, in units of fractional rms ($(rms/mean)^2 Hz{-1}$)
+    poisson_noise_sqrms: float
+        Poisson noise level, in units of fractional rms ($(rms/mean)^2 Hz{-1}$
+    df: float or ``np.array``, same dimension of ``power_sqrms``
+        The frequency resolution of each power
+    M: int or ``np.array``, same dimension of ``power_sqrms``
+        The number of powers averaged to obtain each value of power.
+
+    Other Parameters
+    ----------------
+    low_M_buffer_size : int, default 4
+        If M=1, the powers are rebinned to have a minimum of ``low_M_buffer_size`` powers
+        in each bin. This is done to get a better estimate of the error bars.
+    """
+    from stingray.utils import rebin_data
+
+    m_is_iterable = isinstance(M, Iterable)
+    df_is_iterable = isinstance(df, Iterable)
+
+    # if M is an iterable but all values are the same, let's simplify
+    if m_is_iterable and len(list(set(M))) == 1:
+        M = M[0]
+        m_is_iterable = False
+    # the same with df
+    if df_is_iterable and len(list(set(df))) == 1:
+        df = df[0]
+        df_is_iterable = False
+
+    low_M_values = M < 30
+
+    if np.any(M < 30):
+        quantity = "Some"
+        if not m_is_iterable or np.count_nonzero(low_M_values) == M.size:
+            quantity = "All"
+        warnings.warn(
+            f"{quantity} power spectral bins have M<30. The error bars on the rms might be wrong. "
+            "In some cases one might try to increase the number of segments, for example by "
+            "reducing the segment size, in order to obtain at least 30 segments."
+        )
+    # But they cannot be of different kind. There would be something wrong with the data
+    if m_is_iterable != df_is_iterable:
+        raise ValueError("M and df must be either both constant, or none of them.")
+
+    # If powers are not rebinned and M=1, we rebin them slightly. The error on the power is tricky,
+    # because powers follow a non-central chi squared distribution. If we combine powers with
+    # very different underlying signal level, the error bars will be completely wrong. But
+    # nearby powers have a higher chance of having similar values, and so, by combining them,
+    # we have a higher chance of obtaining sensible quasi-Gaussian error bars, easier to
+    # propagate through standard quadrature summation
+    if not m_is_iterable and M == 1 and power_sqrms.size > low_M_buffer_size:
+        _, local_power_sqrms, _, local_M = rebin_data(
+            np.arange(power_sqrms.size) * df,
+            power_sqrms,
+            df * low_M_buffer_size,
+            yerr=None,
+            method="average",
+            dx=df,
+        )
+        local_df = df * local_M
+        total_local_powers = local_M * local_power_sqrms.size
+        total_power_err = np.sqrt(np.sum(local_power_sqrms**2 * local_df**2 / local_M))
+        total_power_err *= power_sqrms.size / total_local_powers
+    else:
+        total_power_err = np.sqrt(np.sum(power_sqrms**2 * df**2 / M))
+
+    powers_sub = power_sqrms - poisson_noise_sqrms
+
+    total_power_sub = np.sum(powers_sub * df)
+
+    if total_power_sub < 0:
+        # By the definition, it makes no sense to define an error bar here.
+        warnings.warn("Poisson-subtracted power is below 0")
+        return 0.0, 0.0
+
+    rms = np.sqrt(total_power_sub)
+
+    high_snr_err = 0.5 / rms * total_power_err
+
+    return rms, high_snr_err
+
+
+def get_rms_from_unnorm_periodogram(
+    unnorm_powers,
+    nphots_per_segment,
+    df,
+    M=1,
+    poisson_noise_unnorm=None,
+    segment_size=None,
+    kind="frac",
+):
+    """Calculate the fractional rms amplitude from unnormalized powers.
+
+    We assume the powers come from an unnormalized Bartlett periodogram.
+    If so, the Poisson noise level is ``nphots_per_segment``, but the user
+    can specify otherwise (e.g. if the Poisson noise level is altered by dead time).
+    The ``segment_size`` and ``nphots_per_segment`` parameters refer to the length
+    and averaged counts of each segment of data used for the Bartlett periodogram.
+
+    Parameters
+    ----------
+    unnorm_powers : np.ndarray
+        The unnormalized power spectrum
+    nphots_per_segment : float
+        The averaged number of photons per segment of the data used for the Bartlett periodogram
+    df : float
+        The frequency resolution of the periodogram
+
+    Other parameters
+    ----------------
+    poisson_noise_unnorm : float
+        The unnormalized Poisson noise level
+    segment_size : float
+        The size of the segment, in seconds
+    M : int
+        The number of segments averaged to obtain the periodogram
+    kind : str
+        One of "frac" or "abs"
+    """
+    if segment_size is None:
+        segment_size = 1 / np.min(df)
+
+    if poisson_noise_unnorm is None:
+        poisson_noise_unnorm = nphots_per_segment
+
+    meanrate = nphots_per_segment / segment_size
+
+    def to_leahy(powers):
+        return powers * 2.0 / nphots_per_segment
+
+    def to_frac(powers):
+        return to_leahy(powers) / meanrate
+
+    def to_abs(powers):
+        return to_leahy(powers) * meanrate
+
+    if kind.startswith("frac"):
+        to_norm = to_frac
+    elif kind.startswith("abs"):
+        to_norm = to_abs
+    else:
+        raise ValueError("Only 'frac' or 'abs' rms are supported.")
+
+    poisson = to_norm(poisson_noise_unnorm)
+    powers = to_norm(unnorm_powers)
+
+    return get_rms_from_rms_norm_periodogram(powers, poisson, df, M)
+
+
 def rms_calculation(
     unnorm_powers,
     min_freq,
@@ -1059,7 +1004,7 @@ def rms_calculation(
     M_freqs,
     K_freqs,
     freq_bins,
-    poisson_noise_unnrom,
+    poisson_noise_unnorm,
     deadtime=0.0,
 ):
     """
@@ -1069,7 +1014,7 @@ def rms_calculation(
 
     Parameters
     ----------
-    unnrom_powers: array of float
+    unnorm_powers: array of float
         unnormalised power or cross spectrum, the array has already been
         filtered for the given frequency range
 
@@ -1100,7 +1045,7 @@ def rms_calculation(
         if it NOT rebinned freq_bins is the number of frequency bins
         in the given frequency range.
 
-    poisson_noise_unnrom : float
+    poisson_noise_unnorm : float
         This is the Poisson noise level unnormalised.
 
     Other parameters
@@ -1118,25 +1063,18 @@ def rms_calculation(
         The error on the fractional rms amplitude.
 
     """
-    rms_squared = (
-        np.sum((unnorm_powers - poisson_noise_unnrom) * 1 / T * K_freqs) * 2 * T / nphots**2
+    warnings.warn(
+        "The rms_calculation function is deprecated. Use get_rms_from_unnorm_periodogram instead.",
+        DeprecationWarning,
     )
+    rms_norm_powers = unnorm_powers * 2 * T / nphots**2
+    rms_poisson_noise = poisson_noise_unnorm * 2 * T / nphots**2
 
-    if rms_squared < 0.0:
-        rms_err = np.sqrt(
-            np.var((unnorm_powers - poisson_noise_unnrom) * 1 / T * K_freqs) * 2 * T / nphots**2
-        )
-        return 0.0, rms_err
-    rms = np.sqrt(rms_squared)
+    df = 1 / T * K_freqs
 
-    rms_noise_squared = (
-        poisson_noise_unnrom * (max_freq - min_freq) * 2 * T / nphots**2
-    )  # rms of the noise
-    rms_err_squared = (2 * rms_squared * rms_noise_squared + rms_noise_squared**2) / (
-        2 * np.sum(M_freqs) * freq_bins * rms_squared
+    rms, rms_err = get_rms_from_rms_norm_periodogram(
+        rms_norm_powers, rms_poisson_noise, df, M_freqs
     )
-    rms_err = np.sqrt(rms_err_squared)
-
     return rms, rms_err
 
 
@@ -1262,6 +1200,15 @@ def _which_segment_idx_fun(binned=False, dt=None):
     # Make function interface equal (fluxes gets ignored)
     if not binned:
         fun = generate_indices_of_segment_boundaries_unbinned
+
+        # Define a new function, make sure that, by default, the sort check
+        # is disabled.
+        def fun(*args, **kwargs):
+            check_sorted = kwargs.pop("check_sorted", False)
+            return generate_indices_of_segment_boundaries_unbinned(
+                *args, check_sorted=check_sorted, **kwargs
+            )
+
     else:
         # Define a new function, so that we can pass the correct dt as an
         # argument.
@@ -1347,7 +1294,7 @@ def get_flux_iterable_from_segments(
     gti : [[gti00, gti01], [gti10, gti11], ...]
         good time intervals
     segment_size : float
-        length of segments
+        length of segments. If ``None``, the full light curve is used.
 
     Other parameters
     ----------------
@@ -1377,23 +1324,30 @@ def get_flux_iterable_from_segments(
     cast_kind = float
     if dt is None and binned:
         dt = np.median(np.diff(times[:100]))
+
     if binned:
         fluxes = np.asarray(fluxes)
         if np.iscomplexobj(fluxes):
             cast_kind = complex
 
-    fun = _which_segment_idx_fun(binned, dt)
+    if segment_size is None:
+        segment_size = gti[-1, 1] - gti[0, 0]
+
+        def fun(times, gti, segment_size):
+            return [[gti[0, 0], gti[-1, 1], 0, times.size]]
+
+    else:
+        fun = _which_segment_idx_fun(binned, dt)
 
     for s, e, idx0, idx1 in fun(times, gti, segment_size):
         if idx1 - idx0 < 2:
             yield None
             continue
         if not binned:
-            event_times = times[idx0:idx1]
             # astype here serves to avoid integer rounding issues in Windows,
             # where long is a 32-bit integer.
             cts = histogram(
-                (event_times - s).astype(float), bins=n_bin, range=[0, segment_size]
+                (times[idx0:idx1] - s).astype(float), bins=n_bin, range=[0, segment_size]
             ).astype(float)
             cts = np.array(cts)
         else:
@@ -1641,7 +1595,7 @@ def avg_cs_from_iterables_quick(flux_iterable1, flux_iterable2, dt, norm="frac")
 
     """
     # Initialize stuff
-    unnorm_cross = unnorm_pds1 = unnorm_pds2 = None
+    unnorm_cross = None
     n_ave = 0
 
     sum_of_photons1 = sum_of_photons2 = 0
@@ -2078,7 +2032,15 @@ def avg_cs_from_iterables(
     return results
 
 
-def avg_pds_from_events(
+def avg_pds_from_events(*args, **kwargs):
+    warnings.warn(
+        "avg_pds_from_events is deprecated, use avg_cs_from_timeseries instead", DeprecationWarning
+    )
+
+    return avg_pds_from_timeseries(*args, **kwargs)
+
+
+def avg_pds_from_timeseries(
     times,
     gti,
     segment_size,
@@ -2106,7 +2068,7 @@ def avg_pds_from_events(
     gti : [[gti00, gti01], [gti10, gti11], ...]
         Good time intervals.
     segment_size : float
-        Length of segments.
+        Length of segments. If ``None``, the full light curve is used.
     dt : float
         Time resolution of the light curves used to produce periodograms.
 
@@ -2144,13 +2106,14 @@ def avg_pds_from_events(
     mean : float
         the mean flux
     """
-    if segment_size is None:
-        segment_size = gti.max() - gti.min()
-    n_bin = int(segment_size / dt)
-    if fluxes is None:
-        dt = segment_size / n_bin
+    binned = fluxes is not None
+    if segment_size is not None:
+        segment_size, n_bin = fix_segment_size_to_integer_samples(segment_size, dt)
+    elif binned and segment_size is None:
+        n_bin = fluxes.size
     else:
-        segment_size = n_bin * dt
+        _, n_bin = fix_segment_size_to_integer_samples(gti.max() - gti.min(), dt)
+
     flux_iterable = get_flux_iterable_from_segments(
         times, gti, segment_size, n_bin, dt=dt, fluxes=fluxes, errors=errors
     )
@@ -2167,7 +2130,14 @@ def avg_pds_from_events(
     return cross
 
 
-def avg_cs_from_events(
+def avg_cs_from_events(*args, **kwargs):
+    warnings.warn(
+        "avg_cs_from_events is deprecated, use avg_cs_from_timeseries instead", DeprecationWarning
+    )
+    return avg_cs_from_timeseries(*args, **kwargs)
+
+
+def avg_cs_from_timeseries(
     times1,
     times2,
     gti,
@@ -2203,7 +2173,7 @@ def avg_cs_from_events(
     gti : [[gti00, gti01], [gti10, gti11], ...]
         common good time intervals
     segment_size : float
-        length of segments
+        length of segments. If ``None``, the full light curve is used.
     dt : float
         Time resolution of the light curves used to produce periodograms
 
@@ -2248,20 +2218,21 @@ def avg_cs_from_events(
     n_ave : int
         the number of averaged periodograms
     """
-    if segment_size is None:
-        segment_size = gti.max() - gti.min()
-    n_bin = int(segment_size / dt)
-    # adjust dt
-    # dt = segment_size / n_bin
-    if fluxes1 is None and fluxes2 is None:
-        dt = segment_size / n_bin
+
+    binned = fluxes1 is not None and fluxes2 is not None
+
+    if segment_size is not None:
+        segment_size, n_bin = fix_segment_size_to_integer_samples(segment_size, dt)
+    elif binned and segment_size is None:
+        n_bin = fluxes1.size
     else:
-        segment_size = n_bin * dt
+        _, n_bin = fix_segment_size_to_integer_samples(gti.max() - gti.min(), dt)
+
     flux_iterable1 = get_flux_iterable_from_segments(
-        times1, gti, segment_size, n_bin, dt=dt, fluxes=fluxes1, errors=errors1
+        times1, gti, segment_size, n_bin=n_bin, dt=dt, fluxes=fluxes1, errors=errors1
     )
     flux_iterable2 = get_flux_iterable_from_segments(
-        times2, gti, segment_size, n_bin, dt=dt, fluxes=fluxes2, errors=errors2
+        times2, gti, segment_size, n_bin=n_bin, dt=dt, fluxes=fluxes2, errors=errors2
     )
 
     is_events = np.all([val is None for val in (fluxes1, fluxes2, errors1, errors2)])

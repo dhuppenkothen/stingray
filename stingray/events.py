@@ -4,22 +4,24 @@ Definition of :class:`EventList`.
 :class:`EventList` is used to handle photon arrival times.
 """
 
-import logging
 import warnings
 
 import numpy as np
 
 from stingray.utils import _int_sum_non_zero
+from stingray.loggingconfig import setup_logger
 
 from .base import StingrayTimeseries
 from .filters import get_deadtime_mask
 from .gti import generate_indices_of_boundaries
-from .io import load_events_and_gtis
+from .io import load_events_and_gtis, pi_to_energy
 from .lightcurve import Lightcurve
 from .utils import simon, njit
 from .utils import histogram
 
 __all__ = ["EventList"]
+
+logger = setup_logger()
 
 
 @njit
@@ -140,6 +142,12 @@ class EventList(StingrayTimeseries):
     ephem : str
         The JPL ephemeris used to barycenter the data, if any (e.g. DE430)
 
+    rmf_file : str, default None
+        The file name of the RMF file to use for calibration.
+
+    skip_checks : bool, default False
+        Skip checks for the validity of the event list. Use with caution.
+
     **other_kw :
         Used internally. Any other keyword arguments will be ignored
 
@@ -205,6 +213,8 @@ class EventList(StingrayTimeseries):
         ephem=None,
         timeref=None,
         timesys=None,
+        rmf_file=None,
+        skip_checks=False,
         **other_kw,
     ):
         if ncounts is not None:
@@ -212,6 +222,12 @@ class EventList(StingrayTimeseries):
                 "The ncounts keyword does nothing, and is maintained for backwards compatibility.",
                 DeprecationWarning,
             )
+
+        if rmf_file is not None:
+            if pi is None:
+                warnings.warn("PI channels must be provided to calibrate the energy")
+            else:
+                energy = pi_to_energy(pi, rmf_file)
 
         StingrayTimeseries.__init__(
             self,
@@ -230,6 +246,8 @@ class EventList(StingrayTimeseries):
             ephem=ephem,
             timeref=timeref,
             timesys=timesys,
+            rmf_file=rmf_file,
+            skip_checks=skip_checks,
             **other_kw,
         )
 
@@ -309,7 +327,7 @@ class EventList(StingrayTimeseries):
 
         for attr in array_attrs:
             if getattr(self, attr, None) is not None:
-                logging.info(f"Creating the {attr} array")
+                logger.info(f"Creating the {attr} array")
 
                 attr_dict[attr] = histogram(
                     self.time, bins=nbins, weights=getattr(self, attr), range=ranges
@@ -489,7 +507,8 @@ class EventList(StingrayTimeseries):
 
         Examples
         --------
-        >>> events = EventList(time=[0, 2, 1], energy=[0.3, 2, 0.5], pi=[3, 20, 5])
+        >>> events = EventList(time=[0, 2, 1], energy=[0.3, 2, 0.5], pi=[3, 20, 5],
+        ...                    skip_checks=True)
         >>> e1 = events.sort()
         >>> assert np.allclose(e1.time, [0, 1, 2])
         >>> assert np.allclose(e1.energy, [0.3, 0.5, 2])
@@ -557,7 +576,7 @@ class EventList(StingrayTimeseries):
         return self._join_timeseries(other, strategy=strategy, ignore_meta=["header", "ncounts"])
 
     @classmethod
-    def read(cls, filename, fmt=None, **kwargs):
+    def read(cls, filename, fmt=None, rmf_file=None, **kwargs):
         r"""Read a :class:`EventList` object from file.
 
         Currently supported formats are
@@ -587,6 +606,11 @@ class EventList(StingrayTimeseries):
 
         Other parameters
         ----------------
+        rmf_file : str, default None
+            The file name of the RMF file to use for energy calibration. Defaults to
+            None, which implies no channel->energy conversion at this stage (or a default
+            calibration applied to selected missions).
+
         kwargs : dict
             Any further keyword arguments to be passed to `load_events_and_gtis`
             for reading in event lists in OGIP/HEASOFT format
@@ -618,9 +642,25 @@ class EventList(StingrayTimeseries):
                 for key in evtdata.additional_data:
                     if not hasattr(evt, key.lower()):
                         setattr(evt, key.lower(), evtdata.additional_data[key])
+            if rmf_file is not None:
+                evt.convert_pi_to_energy(rmf_file)
             return evt
 
         return super().read(filename=filename, fmt=fmt)
+
+    def convert_pi_to_energy(self, rmf_file):
+        """Calibrate the energy column of the event list.
+
+        Defines the ``energy`` attribute of the event list by converting the
+        PI channels to energy using the provided RMF file.
+
+        Parameters
+        ----------
+        rmf_file : str
+            The file name of the RMF file to use for calibration.
+        """
+
+        self.energy = pi_to_energy(self.pi, rmf_file)
 
     def get_energy_mask(self, energy_range, use_pi=False):
         """Get a mask corresponding to events with a given energy range.
