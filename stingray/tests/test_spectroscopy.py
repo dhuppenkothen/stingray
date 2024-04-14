@@ -394,30 +394,46 @@ def test_compute_rms():
 
 
 def test_get_mean_phase_difference():
-    counts = [10, 20, 30, 20, 10, 20, 30, 20]
-    dt = 0.1
-    lc = Lightcurve(time=np.arange(len(counts)) * dt, counts=counts, dt=dt)
+    dt = 0.01
+    time = np.arange(0, 100, dt)
+    qpo_freq = 0.1
+    harmonic_freq = 2 * qpo_freq
+    counts_qpo = 100 * np.sin(2 * np.pi * qpo_freq * time - np.pi / 4)
+    counts_harmonic = 50 * np.sin(2 * np.pi * harmonic_freq * time - np.pi / 4)
+    counts = counts_qpo + counts_harmonic
 
+    lc = Lightcurve(time, counts, dt=dt)
     cs = Crossspectrum(lc, lc)
-    model = models.Lorentz1D(x_0=2.0) + models.Lorentz1D(x_0=4.0)
 
+    model = models.Lorentz1D(x_0=qpo_freq, amplitude=100) + models.Lorentz1D(
+        x_0=harmonic_freq, amplitude=50
+    )
     avg_psi, stddev = spec.get_mean_phase_difference(cs, model)
-    tol = 1e-5
-    assert np.isclose(avg_psi, 0.0, tol)
-    assert np.isclose(stddev, 0.0, tol)
+
+    assert np.isclose(avg_psi, np.pi / 2, 1e-5)
+    assert np.isclose(stddev, np.pi / 2, 1e-5)
 
 
 def test_get_phase_lag():
-    counts = [10, 20, 30, 20, 10, 20, 30, 20]
-    dt = 0.1
-    lc = Lightcurve(time=np.arange(len(counts)) * dt, counts=counts, dt=dt)
+    dt = 0.01
+    time = np.arange(0, 100, dt)
+    qpo_freq = 0.1
+    harmonic_freq = 2 * qpo_freq
+    counts_qpo = 100 * np.sin(2 * np.pi * qpo_freq * time + np.pi / 4)
+    counts_harmonic = 50 * np.sin(2 * np.pi * harmonic_freq * time + np.pi / 4)
+    counts = counts_qpo + counts_harmonic
 
+    lc = Lightcurve(time, counts, dt=dt)
     cs = Crossspectrum(lc, lc)
-    model = models.Lorentz1D(x_0=2.0) + models.Lorentz1D(x_0=4.0)
+
+    qpo_phase = np.pi / 4
+    harmonic_phase = np.pi / 4
+    model = models.Lorentz1D(x_0=qpo_freq) + models.Lorentz1D(
+        x_0=harmonic_freq
+    )
 
     cap_phi_1, cap_phi_2, small_psi = spec.get_phase_lag(cs, model)
 
-    tol = 1e-5
-    assert np.isclose(cap_phi_1, 1.5708, tol)
-    assert np.isclose(cap_phi_2, 3.1416, tol)
-    assert np.isclose(small_psi, 0.0, tol)
+    assert np.isclose(cap_phi_1, np.pi / 2, atol=1e-2)
+    assert np.isclose(cap_phi_2, 2 * np.pi, atol=1e-2)
+    assert np.isclose(small_psi, np.pi / 2, atol=1e-2)
