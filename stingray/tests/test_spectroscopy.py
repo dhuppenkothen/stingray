@@ -428,9 +428,7 @@ def test_get_phase_lag():
 
     qpo_phase = np.pi / 4
     harmonic_phase = np.pi / 4
-    model = models.Lorentz1D(x_0=qpo_freq) + models.Lorentz1D(
-        x_0=harmonic_freq
-    )
+    model = models.Lorentz1D(x_0=qpo_freq) + models.Lorentz1D(x_0=harmonic_freq)
 
     cap_phi_1, cap_phi_2, small_psi = spec.get_phase_lag(cs, model)
 
