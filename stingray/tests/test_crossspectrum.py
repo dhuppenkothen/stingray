@@ -9,12 +9,14 @@ from astropy.io import fits
 from stingray import Lightcurve
 from stingray import Crossspectrum, AveragedCrossspectrum, DynamicalCrossspectrum
 from stingray import AveragedPowerspectrum
-from stingray.crossspectrum import cospectra_pvalue
+from stingray.crossspectrum import cospectra_pvalue, crossspectrum_from_time_array
 from stingray.crossspectrum import normalize_crossspectrum, normalize_crossspectrum_gauss
 from stingray.crossspectrum import coherence, time_lag
 from stingray import StingrayError
+from stingray.utils import HAS_NUMBA
 from stingray.simulator import Simulator
 from stingray.fourier import poisson_level
+from stingray.filters import filter_for_deadtime
 
 from stingray.events import EventList
 import copy
@@ -1248,6 +1250,33 @@ class TestAveragedCrossspectrum(object):
             cs = AveragedCrossspectrum(test_lc1, test_lc2, segment_size=10, norm="leahy")
         maxpower = np.max(cs.power)
         assert np.all(np.isfinite(cs.classical_significances(threshold=maxpower / 2.0)))
+
+    @pytest.mark.skipif("not HAS_NUMBA")
+    def test_deadtime_corr(self):
+        tmax = 100.0
+        segment_size = 1
+        events1 = np.sort(np.random.uniform(0, tmax, 10000))
+        events2 = np.sort(np.random.uniform(0, tmax, 10000))
+        events1_dt = filter_for_deadtime(events1, deadtime=0.0025)
+        events2_dt = filter_for_deadtime(events2, deadtime=0.0025)
+        cs_dt = crossspectrum_from_time_array(
+            events1_dt,
+            events2_dt,
+            gti=[[0, tmax]],
+            dt=0.001,
+            segment_size=segment_size,
+            save_all=True,
+            norm="leahy",
+        )
+        # Paralyzable is not implemented yet
+        with pytest.raises(NotImplementedError):
+            cs = cs_dt.deadtime_correct(
+                dead_time=0.0025, rate=np.size(events1_dt) / tmax, paralyzable=True
+            )
+
+        cs = cs_dt.deadtime_correct(dead_time=0.0025, rate=np.size(events1_dt) / tmax)
+        # Poisson noise has a scatter of sqrt(2/N) in the cospectrum
+        assert np.isclose(np.std(cs.power.real), np.sqrt(2 / (tmax / segment_size)), rtol=0.1)
 
 
 class TestCoherenceFunction(object):

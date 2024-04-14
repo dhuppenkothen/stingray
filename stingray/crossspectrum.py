@@ -1657,6 +1657,85 @@ class Crossspectrum(StingrayObject):
         self.k = 1
         return
 
+    def deadtime_correct(
+        self, dead_time, rate, background_rate=0, limit_k=200, n_approx=None, paralyzable=False
+    ):
+        """
+        Correct the power spectrum for dead time effects.
+
+        This correction is based on the formula given in Zhang et al. 2015, assuming
+        a constant dead time for all events.
+        For more advanced dead time corrections, see the FAD method from `stingray.deadtime.fad`
+
+        Parameters
+        ----------
+        dead_time: float
+            The dead time of the detector.
+        rate : float
+            Detected source count rate
+
+        Other Parameters
+        ----------------
+        background_rate : float, default 0
+            Detected background count rate. This is important to estimate when deadtime is given by the
+            combination of the source counts and background counts (e.g. in an imaging X-ray detector).
+        paralyzable: bool, default False
+            If True, the dead time correction is done assuming a paralyzable
+            dead time. If False, the correction is done assuming a non-paralyzable
+            (more common) dead time.
+        limit_k : int, default 200
+            Limit to this value the number of terms in the inner loops of
+            calculations. Check the plots returned by  the `check_B` and
+            `check_A` functions to test that this number is adequate.
+        n_approx : int, default None
+            Number of bins to calculate the model power spectrum. If None, it will use the size of
+            the input frequency array. Relatively simple models (e.g., low count rates compared to
+            dead time) can use a smaller number of bins to speed up the calculation, and the final
+            power values will be interpolated.
+
+        Returns
+        -------
+        spectrum: :class:`Crossspectrum` or derivative.
+            The dead-time corrected spectrum.
+        """
+        # I put it here to avoid circular imports
+        from stingray.deadtime import non_paralyzable_dead_time_model
+
+        if paralyzable:
+            raise NotImplementedError("Paralyzable dead time correction is not implemented yet.")
+
+        model = non_paralyzable_dead_time_model(
+            self.freq,
+            dead_time,
+            rate,
+            bin_time=self.dt,
+            limit_k=limit_k,
+            background_rate=background_rate,
+            n_approx=n_approx,
+        )
+        correction = 2 / model
+        new_spec = copy.deepcopy(self)
+        new_spec.power *= correction
+
+        # Now correct internal attributes for both the spectrum and its possible
+        # sub-spectra (PDSs from single channels, dynamical spectra, etc.)
+        objects = [new_spec]
+        if hasattr(new_spec, "pds1"):
+            objects += [new_spec.pds1, new_spec.pds2]
+
+        for obj in objects:
+            for attr in ["unnorm_power", "power_err", "unnorm_power_err"]:
+                if hasattr(obj, attr):
+                    setattr(obj, attr, getattr(obj, attr) * correction)
+
+        for attr in ["cs_all", "unnorm_cs_all"]:
+            if hasattr(new_spec, attr):
+                dynsp = getattr(new_spec, attr)
+                for i, power in enumerate(dynsp):
+                    dynsp[i] = power * correction
+
+        return new_spec
+
 
 class AveragedCrossspectrum(Crossspectrum):
     type = "crossspectrum"

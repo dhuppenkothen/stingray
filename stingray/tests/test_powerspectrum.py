@@ -9,8 +9,11 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 from stingray import Lightcurve
 from stingray.events import EventList
+from stingray.utils import HAS_NUMBA
 from stingray import Powerspectrum, AveragedPowerspectrum, DynamicalPowerspectrum
+from stingray.powerspectrum import powerspectrum_from_time_array
 from astropy.modeling.models import Lorentz1D
+from stingray.filters import filter_for_deadtime
 
 _HAS_XARRAY = importlib.util.find_spec("xarray") is not None
 _HAS_PANDAS = importlib.util.find_spec("pandas") is not None
@@ -340,6 +343,25 @@ class TestAveragedPowerspectrumEvents(object):
         assert np.isclose(np.mean(ps.power), 2.0, atol=1e-2, rtol=1e-2)
         assert np.isclose(np.std(ps.power), 2.0 / np.sqrt(ps.m), atol=0.1, rtol=0.1)
 
+    @pytest.mark.skipif("not HAS_NUMBA")
+    def test_deadtime_corr(self):
+        tmax = 100.0
+        segment_size = 1
+        events = np.sort(np.random.uniform(0, tmax, 10000))
+        events_dt = filter_for_deadtime(events, deadtime=0.0025)
+        pds_dt = powerspectrum_from_time_array(
+            events_dt,
+            gti=[[0, tmax]],
+            dt=0.001,
+            segment_size=segment_size,
+            save_all=True,
+            norm="leahy",
+        )
+
+        pds = pds_dt.deadtime_correct(dead_time=0.0025, rate=np.size(events_dt) / tmax)
+        assert np.isclose(np.mean(pds.power), 2, rtol=0.1)
+        assert np.isclose(np.std(pds.power), 2 / np.sqrt(tmax / segment_size), rtol=0.1)
+
 
 class TestPowerspectrum(object):
     @classmethod
@@ -481,9 +503,7 @@ class TestPowerspectrum(object):
         square of the number of data points in the light curve
         """
         ps = Powerspectrum(self.lc, norm="Leahy")
-        ps_var = (np.sum(self.lc.counts) / ps.n**2.0) * (
-            np.sum(ps.power[:-1]) + ps.power[-1] / 2.0
-        )
+        ps_var = (np.sum(self.lc.counts) / ps.n**2) * (np.sum(ps.power[:-1]) + ps.power[-1] / 2.0)
 
         assert np.isclose(ps_var, np.var(self.lc.counts), atol=0.01)
 
