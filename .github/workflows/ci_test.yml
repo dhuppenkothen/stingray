@@ -179,5 +179,7 @@ jobs:
     - name: Upload coverage to codecov
       if: "endsWith(matrix.tox_env, '-cov')"
       uses: codecov/codecov-action@v3
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
         file: ./coverage.xml
