@@ -213,8 +213,8 @@ class TestLombScargleCrossspectrum:
             func()
 
     def test_no_dt(self):
-        el1 = EventList(self.lc1.counts, self.lc1.time, dt=None)
-        el2 = EventList(self.lc2.counts, self.lc2.time, dt=None)
+        el1 = EventList(self.lc1.time, self.lc1.counts, dt=None)
+        el2 = EventList(self.lc2.time, self.lc2.counts, dt=None)
         with pytest.raises(ValueError):
             lscs = LombScargleCrossspectrum(el1, el2)
 

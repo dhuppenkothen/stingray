@@ -4,6 +4,7 @@ import copy
 import pytest
 import numpy as np
 import matplotlib.pyplot as plt
+from astropy.table import Table
 from stingray.base import StingrayObject, StingrayTimeseries
 
 _HAS_XARRAY = importlib.util.find_spec("xarray") is not None
@@ -850,9 +851,10 @@ class TestStingrayTimeseries:
         bleh = [4, 1, 2, 0.5]
         mjdref = 57000
 
-        lc = StingrayTimeseries(
-            times, array_attrs={"blah": blah, "_bleh": bleh}, dt=1, mjdref=mjdref
-        )
+        with pytest.warns(UserWarning, match="The time array is not sorted."):
+            lc = StingrayTimeseries(
+                times, array_attrs={"blah": blah, "_bleh": bleh}, dt=1, mjdref=mjdref
+            )
 
         lc_new = lc.sort()
 
@@ -877,6 +879,14 @@ class TestStingrayTimeseries:
         ts = so.to_astropy_table()
         new_so = StingrayTimeseries.from_astropy_table(ts)
         assert so == new_so
+
+    def test_setting_property_fails(self):
+        ts = Table(dict(time=[1, 2, 3]))
+        ts.meta["exposure"] = 10
+        with pytest.warns(
+            UserWarning, match=r".*protected attribute\(s\) of StingrayTimeseries: exposure"
+        ):
+            StingrayTimeseries.from_astropy_table(ts)
 
     @pytest.mark.parametrize("highprec", [True, False])
     def test_astropy_ts_roundtrip(self, highprec):
@@ -1223,12 +1233,14 @@ class TestJoinEvents:
 
     def test_overlapping_join_infer(self):
         """Join two non-overlapping event lists."""
-        ts = StingrayTimeseries(
-            time=[1, 1.1, 10, 6, 5], energy=[10, 6, 3, 11, 2], gti=[[1, 3], [5, 6]]
-        )
-        ts_other = StingrayTimeseries(
-            time=[5.1, 7, 6.1, 6.11, 10.1], energy=[2, 3, 8, 1, 2], gti=[[5, 7], [8, 10]]
-        )
+        with pytest.warns(UserWarning, match="The time array is not sorted."):
+            ts = StingrayTimeseries(
+                time=[1, 1.1, 10, 6, 5], energy=[10, 6, 3, 11, 2], gti=[[1, 3], [5, 6]]
+            )
+        with pytest.warns(UserWarning, match="The time array is not sorted."):
+            ts_other = StingrayTimeseries(
+                time=[5.1, 7, 6.1, 6.11, 10.1], energy=[2, 3, 8, 1, 2], gti=[[5, 7], [8, 10]]
+            )
         ts_new = ts.join(ts_other, strategy="infer")
 
         assert (ts_new.time == np.array([1, 1.1, 5, 5.1, 6, 6.1, 6.11, 7, 10, 10.1])).all()
@@ -1237,15 +1249,20 @@ class TestJoinEvents:
 
     def test_overlapping_join_change_mjdref(self):
         """Join two non-overlapping event lists."""
-        ts = StingrayTimeseries(
-            time=[1, 1.1, 10, 6, 5], energy=[10, 6, 3, 11, 2], gti=[[1, 3], [5, 6]], mjdref=57001
-        )
-        ts_other = StingrayTimeseries(
-            time=np.asarray([5.1, 7, 6.1, 6.11, 10.1]) + 86400,
-            energy=[2, 3, 8, 1, 2],
-            gti=np.asarray([[5, 7], [8, 10]]) + 86400,
-            mjdref=57000,
-        )
+        with pytest.warns(UserWarning, match="The time array is not sorted."):
+            ts = StingrayTimeseries(
+                time=[1, 1.1, 10, 6, 5],
+                energy=[10, 6, 3, 11, 2],
+                gti=[[1, 3], [5, 6]],
+                mjdref=57001,
+            )
+        with pytest.warns(UserWarning, match="The time array is not sorted."):
+            ts_other = StingrayTimeseries(
+                time=np.asarray([5.1, 7, 6.1, 6.11, 10.1]) + 86400,
+                energy=[2, 3, 8, 1, 2],
+                gti=np.asarray([[5, 7], [8, 10]]) + 86400,
+                mjdref=57000,
+            )
         with pytest.warns(UserWarning, match="Attribute mjdref is different"):
             ts_new = ts.join(ts_other, strategy="intersection")
 
@@ -1326,6 +1343,18 @@ class TestFillBTI(object):
         new_masked, filt_masked = ev_new.apply_gtis(), ev_like_filt.apply_gtis()
         for attr in ["time", "energy", "blablas"]:
             assert np.allclose(getattr(new_masked, attr), getattr(filt_masked, attr))
+
+    def test_no_counts_in_buffer(self):
+        ev_like_filt = copy.deepcopy(self.ev_like)
+        # I introduce a small gap in the GTIs
+        ev_like_filt.gti = np.asarray([[0, 490], [491, 498], [500, 505], [510, 520], [522, 700]])
+
+        # I empty out two GTIs
+        bad = (ev_like_filt.time > 490) & (ev_like_filt.time < 510)
+        ev_like_filt = ev_like_filt.apply_mask(~bad)
+
+        with pytest.warns(UserWarning, match="simulate the time series in interval 498-500"):
+            ev_like_filt.fill_bad_time_intervals(max_length=3, buffer_size=2)
 
     def test_lc_like(self):
         lc_like_filt = copy.deepcopy(self.lc_like)

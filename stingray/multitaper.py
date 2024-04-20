@@ -171,6 +171,7 @@ class Multitaper(Powerspectrum):
             self.nphots = None
             self.k = 1
             self.jk_var_deg_freedom = None
+            self.segment_size = None
             return
         elif not isinstance(data, EventList):
             lc = data
@@ -182,6 +183,7 @@ class Multitaper(Powerspectrum):
         self.power_type = "real"
         self.fullspec = False
         self.k = 1
+        self.segment_size = None
 
         self._make_multitaper_periodogram(
             lc,
@@ -683,23 +685,6 @@ class Multitaper(Powerspectrum):
         bin_mtp.m = np.rint(step_size * self.m)
 
         return bin_mtp
-
-    def compute_rms(
-        self, min_freq, max_freq, poisson_noise_level=None, white_noise_offset=None, deadtime=0.0
-    ):
-        return Powerspectrum.compute_rms(
-            self,
-            min_freq,
-            max_freq,
-            poisson_noise_level=poisson_noise_level,
-            white_noise_offset=white_noise_offset,
-            deadtime=deadtime,
-        )
-
-    def classical_significances(self, threshold, trial_correction):
-        return Powerspectrum.classical_significances(
-            self, threshold=threshold, trial_correction=trial_correction
-        )
 
     def _fourier_multitaper_lomb_scargle(self, lc, NW=4, low_bias=True):
         """Compute the multitaper lomb-scargle spectral estimate.

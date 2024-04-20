@@ -7,9 +7,11 @@ import numpy as np
 import scipy
 from scipy import special
 import scipy.signal
-from astropy import log
 from astropy.table import Table
 import matplotlib.pyplot as plt
+from stingray.loggingconfig import setup_logger
+
+logger = setup_logger()
 
 try:
     from tqdm import tqdm as show_progress
@@ -93,7 +95,7 @@ def _create_responses(range_z):
         List of arrays describing the shape of the response function
         corresponding to each value of ``range_z``.
     """
-    log.info("Creating responses")
+    logger.info("Creating responses")
     responses = []
     for j, z in enumerate(show_progress(range_z)):
         # fdot = z / T**2
@@ -237,7 +239,7 @@ def _calculate_all_convolutions(
     candidate_powers: array of float
         Power of candidates
     """
-    log.info("Convolving FFT with responses...")
+    logger.info("Convolving FFT with responses...")
     candidate_powers = [0.0]
     candidate_rs = [1]
 
@@ -351,7 +353,12 @@ def accelsearch(
         signal = np.asarray(signal)
 
     dt = times[1] - times[0]
-    if gti is not None:
+    n_photons = np.sum(signal)
+    if gti is not None and isinstance(gti, Iterable) and len(gti) > 1:
+        warnings.warn(
+            "Data contain multiple GTIs. Bad time intervals will be "
+            "filled with the mean of the signal."
+        )
         gti = np.asarray(gti)
         # Fill in the data with a constant outside GTIs
         gti_mask = create_gti_mask(times, gti)
@@ -365,7 +372,6 @@ def accelsearch(
         expo_fraction = 1
         gti = np.array([[times[0] - dt / 2, times[-1] + dt / 2]])
 
-    n_photons = np.sum(signal)
     spectr = fft(signal) * np.sqrt(2 / n_photons)
     freq = fftfreq(len(spectr), dt)
 
@@ -378,7 +384,7 @@ def accelsearch(
         plt.loglog()
 
     if fft_rescale is not None:
-        log.info("Applying initial filters...")
+        logger.info("Applying initial filters...")
         spectr = fft_rescale(spectr)
 
     if debug:
@@ -396,13 +402,11 @@ def accelsearch(
     T = times[-1] - times[0] + dt
 
     freq_intv_to_search = (freq >= fmin) & (freq < fmax)
-    log.info("Starting search over full plane...")
+    logger.info("Starting search over full plane...")
     start_z = -zmax
     end_z = zmax
     range_z = np.arange(start_z, end_z, delta_z)
-    log.info(
-        "min and max possible r_dot: {}--{}".format(delta_z / T**2, np.max(range_z) / T**2)
-    )
+    logger.info("min and max r_dot: {}--{}".format(delta_z / T**2, np.max(range_z) / T**2))
     freqs_to_search = freq[freq_intv_to_search]
 
     candidate_table = Table(

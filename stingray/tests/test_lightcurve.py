@@ -758,8 +758,9 @@ class TestLightcurve(object):
         lc1 = Lightcurve(self.times, self.counts)
         lc2 = Lightcurve(_times, _counts)
 
-        with pytest.warns(UserWarning, match="different bin widths") as w:
+        with pytest.warns(UserWarning) as record:
             lc1.join(lc2)
+        assert np.any(["different bin widths" in str(r.message) for r in record])
 
     def test_join_with_different_mjdref(self):
         shift = 86400.0  # day
@@ -809,8 +810,9 @@ class TestLightcurve(object):
         gti1 = [[4.5, 9.5]]
         lc0 = Lightcurve(time0, counts=count0, err=np.asarray(count0) / 2, dt=1, gti=gti0)
         lc1 = Lightcurve(time1, counts=count1, dt=1, gti=gti1)
-        with pytest.warns(UserWarning, match="The _counts_err array is empty in one of the"):
+        with pytest.warns(UserWarning) as record:
             lc = lc0.concatenate(lc1)
+        assert np.any(["The _counts_err array" in str(r.message) for r in record])
         assert np.allclose(lc.counts, count0 + count1)
         # Errors have been defined inside
         assert len(lc.counts_err) == len(lc.counts)
@@ -867,8 +869,9 @@ class TestLightcurve(object):
             warnings.simplefilter("ignore", category=UserWarning)
             lc2 = Lightcurve(_times, _counts, err_dist="gauss")
 
-        with pytest.warns(UserWarning, match="We are setting the errors to zero."):
+        with pytest.warns(UserWarning) as record:
             lc3 = lc1.join(lc2)
+            assert np.any(["We are setting the errors to zero." in str(r.message) for r in record])
         assert np.allclose(lc3.counts_err, np.zeros_like(lc3.time))
 
     def test_truncate_by_index(self):
@@ -1640,10 +1643,7 @@ class TestBexvar(object):
     @pytest.mark.skipif("not _HAS_ULTRANEST")
     def test_bexvar_with_dt_as_array(self):
         # create lightcurve with ``dt`` as an array
-        with pytest.warns(
-            UserWarning,
-            match="Some functionalities of Stingray Lightcurve will not work when `dt` is Iterable",
-        ):
+        with pytest.warns(UserWarning) as record:
             lc = Lightcurve(
                 time=self.time,
                 counts=self.src_counts,
@@ -1652,8 +1652,15 @@ class TestBexvar(object):
                 bg_counts=self.bg_counts,
                 bg_ratio=self.bg_ratio,
                 frac_exp=self.frac_exp,
+                skip_checks=True,
             )
-
+        assert np.any(
+            [
+                "Some functionalities of Stingray Lightcurve will not work when `dt` is Iterable"
+                in str(r.message)
+                for r in record
+            ]
+        )
         # provide time intervals externally to find bexvar
         log_cr_sigma_from_method = lc.bexvar()
         log_cr_sigma_result = np.load(self.fname_result, allow_pickle=True)[1]
@@ -1690,11 +1697,8 @@ class TestArraydt(object):
         bg_ratio = np.array([1, 1, 0.5, 1])
         frac_exp = np.array([1, 1, 1, 1])
         gti = np.array([[0.5, 4.5]])
-        with pytest.warns(
-            UserWarning,
-            match="Some functionalities of Stingray Lightcurve will not work when `dt` is Iterable",
-        ):
-            lc = Lightcurve(
+        with pytest.warns(UserWarning) as record:
+            Lightcurve(
                 time=times,
                 counts=counts,
                 dt=dt,
@@ -1704,15 +1708,19 @@ class TestArraydt(object):
                 bg_ratio=bg_ratio,
                 frac_exp=frac_exp,
             )
+            assert np.any(
+                [
+                    "Some functionalities of Stingray Lightcurve will not work when `dt` is Iterable"
+                    in str(r.message)
+                    for r in record
+                ]
+            )
 
         # demonstrate that we can create a Lightcurve object with dt being an array of floats
         # and without explicitly providing gtis.
 
-        with pytest.warns(
-            UserWarning,
-            match="Some functionalities of Stingray Lightcurve will not work when `dt` is Iterable",
-        ):
-            lc = Lightcurve(
+        with pytest.warns(UserWarning) as record:
+            Lightcurve(
                 time=times,
                 counts=counts,
                 dt=dt,
@@ -1721,13 +1729,24 @@ class TestArraydt(object):
                 bg_ratio=bg_ratio,
                 frac_exp=frac_exp,
             )
+            assert np.any(
+                [
+                    "Some functionalities of Stingray Lightcurve will not work when `dt` is Iterable"
+                    in str(r.message)
+                    for r in record
+                ]
+            )
 
     def test_warning_when_dt_is_array(self):
-        with pytest.warns(
-            UserWarning,
-            match="Some functionalities of Stingray Lightcurve will not work when `dt` is Iterable",
-        ):
+        with pytest.warns(UserWarning) as record:
             _ = Lightcurve(time=self.times, counts=self.counts, dt=self.dt)
+        assert np.any(
+            [
+                "Some functionalities of Stingray Lightcurve will not work when `dt` is Iterable"
+                in str(r.message)
+                for r in record
+            ]
+        )
 
     def test_truncate_by_index_when_dt_is_array(self):
         """

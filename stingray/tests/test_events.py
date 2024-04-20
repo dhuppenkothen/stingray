@@ -212,7 +212,21 @@ class TestEvents(object):
         assert np.allclose(ev.time, self.time)
         os.remove("ev.fits")
 
-    def test_fits_with_standard_file(self):
+    def test_calibrate_directly_warns(self):
+        rmf_file = os.path.join(datadir, "test.rmf")
+        with pytest.warns(UserWarning, match="PI channels must be provided"):
+            EventList(time=self.time, mjdref=54000, rmf_file=rmf_file)
+
+    def test_calibrate_directly(self):
+        rmf_file = os.path.join(datadir, "test.rmf")
+        pis = np.random.randint(0, 1000, np.size(self.time))
+        ev1 = EventList(time=self.time, pi=pis, mjdref=54000, rmf_file=rmf_file)
+        ev2 = EventList(time=self.time, pi=pis, mjdref=54000)
+        ev2.convert_pi_to_energy(rmf_file)
+
+        assert np.array_equal(ev1.energy, ev2.energy)
+
+    def test_fits_standard(self):
         """Test that fits works with a standard event list
         file.
         """
@@ -220,6 +234,17 @@ class TestEvents(object):
         ev = EventList()
         ev = ev.read(fname, fmt="hea")
         assert np.isclose(ev.mjdref, 55197.00076601852)
+
+    def test_fits_with_standard_file_and_calibrate_directly(self):
+        """Test that fits works and calibration works."""
+        fname = os.path.join(datadir, "monol_testA.evt")
+        rmf_file = os.path.join(datadir, "test.rmf")
+        ev1 = EventList()
+        ev1 = ev1.read(fname, fmt="hea")
+        ev2 = EventList()
+        ev2 = ev2.read(fname, fmt="hea", rmf_file=rmf_file)
+        ev1.convert_pi_to_energy(rmf_file)
+        assert np.array_equal(ev1.energy, ev2.energy)
 
     def test_fits_with_additional(self):
         """Test that fits works with a standard event list
@@ -463,10 +488,12 @@ class TestJoinEvents:
 
     def test_overlapping_join_infer(self):
         """Join two non-overlapping event lists."""
-        ev = EventList(time=[1, 1.1, 10, 6, 5], energy=[10, 6, 3, 11, 2], gti=[[1, 3], [5, 6]])
-        ev_other = EventList(
-            time=[5.1, 7, 6.1, 6.11, 10.1], energy=[2, 3, 8, 1, 2], gti=[[5, 7], [8, 10]]
-        )
+        with pytest.warns(UserWarning, match="The time array is not sorted."):
+            ev = EventList(time=[1, 1.1, 10, 6, 5], energy=[10, 6, 3, 11, 2], gti=[[1, 3], [5, 6]])
+        with pytest.warns(UserWarning, match="The time array is not sorted."):
+            ev_other = EventList(
+                time=[5.1, 7, 6.1, 6.11, 10.1], energy=[2, 3, 8, 1, 2], gti=[[5, 7], [8, 10]]
+            )
         ev_new = ev.join(ev_other, strategy="infer")
 
         assert (ev_new.time == np.array([1, 1.1, 5, 5.1, 6, 6.1, 6.11, 7, 10, 10.1])).all()
@@ -475,15 +502,20 @@ class TestJoinEvents:
 
     def test_overlapping_join_change_mjdref(self):
         """Join two non-overlapping event lists."""
-        ev = EventList(
-            time=[1, 1.1, 10, 6, 5], energy=[10, 6, 3, 11, 2], gti=[[1, 3], [5, 6]], mjdref=57001
-        )
-        ev_other = EventList(
-            time=np.asarray([5.1, 7, 6.1, 6.11, 10.1]) + 86400,
-            energy=[2, 3, 8, 1, 2],
-            gti=np.asarray([[5, 7], [8, 10]]) + 86400,
-            mjdref=57000,
-        )
+        with pytest.warns(UserWarning, match="The time array is not sorted."):
+            ev = EventList(
+                time=[1, 1.1, 10, 6, 5],
+                energy=[10, 6, 3, 11, 2],
+                gti=[[1, 3], [5, 6]],
+                mjdref=57001,
+            )
+        with pytest.warns(UserWarning, match="The time array is not sorted."):
+            ev_other = EventList(
+                time=np.asarray([5.1, 7, 6.1, 6.11, 10.1]) + 86400,
+                energy=[2, 3, 8, 1, 2],
+                gti=np.asarray([[5, 7], [8, 10]]) + 86400,
+                mjdref=57000,
+            )
         with pytest.warns(UserWarning, match="Attribute mjdref is different"):
             ev_new = ev.join(ev_other, strategy="intersection")
 

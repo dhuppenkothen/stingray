@@ -1,4 +1,5 @@
 """Base classes"""
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -7,12 +8,12 @@ from collections import OrderedDict
 import pickle
 import warnings
 import copy
-import logging
 
 import numpy as np
 from astropy.table import Table
 from astropy.time import Time, TimeDelta
 from astropy.units import Quantity
+from stingray.loggingconfig import setup_logger
 
 from .io import _can_save_longdouble, _can_serialize_meta
 from .utils import (
@@ -36,7 +37,6 @@ from .gti import (
     bin_intervals_from_gtis,
     time_intervals_from_gtis,
 )
-
 from typing import TYPE_CHECKING, Type, TypeVar, Union
 
 if TYPE_CHECKING:
@@ -57,6 +57,8 @@ __all__ = [
     "StingrayObject",
     "StingrayTimeseries",
 ]
+
+logger = setup_logger()
 
 
 def convert_table_attrs_to_lowercase(table: Table) -> Table:
@@ -419,9 +421,25 @@ class StingrayObject(object):
                 continue
             setattr(cls, attr.lower(), np.array(ts[attr]))
 
+        attributes_left_unchanged = []
         for key, val in ts.meta.items():
-            setattr(cls, key.lower(), val)
+            if (
+                isinstance(getattr(cls.__class__, key.lower(), None), property)
+                and getattr(cls.__class__, key.lower(), None).fset is None
+            ):
+                attributes_left_unchanged.append(key)
+                continue
 
+            setattr(cls, key.lower(), val)
+        if len(attributes_left_unchanged) > 0:
+            # Only warn once, if multiple properties are affected.
+            attrs = ",".join(attributes_left_unchanged)
+            warnings.warn(
+                f"The input table contains protected attribute(s) of StingrayTimeseries: {attrs}. "
+                "These values are set internally by the class, and cannot be overwritten. "
+                "This issue is common when reading from FITS files using `fmt='fits'`."
+                " If this is the case, please consider using `fmt='ogip'` instead."
+            )
         return cls
 
     def to_xarray(self) -> Dataset:
@@ -1125,6 +1143,10 @@ class StingrayTimeseries(StingrayObject):
     ephem : str
         The JPL ephemeris used to barycenter the data, if any (e.g. DE430)
 
+    skip_checks : bool
+        Skip checks on the time array. Useful when the user is reasonably sure that the
+        input data are valid.
+
     **other_kw :
         Used internally. Any other keyword arguments will be set as attributes of the object.
 
@@ -1174,6 +1196,7 @@ class StingrayTimeseries(StingrayObject):
         ephem: str = None,
         timeref: str = None,
         timesys: str = None,
+        skip_checks: bool = False,
         **other_kw,
     ):
         StingrayObject.__init__(self)
@@ -1196,6 +1219,12 @@ class StingrayTimeseries(StingrayObject):
             if self.time.shape[0] != new_arr.shape[0]:
                 raise ValueError(f"Lengths of time and {kw} must be equal.")
             setattr(self, kw, new_arr)
+        from .utils import is_sorted
+
+        if not skip_checks:
+            if self.time is not None and not is_sorted(self.time):
+                warnings.warn("The time array is not sorted. Sorting it now.")
+                self.sort(inplace=True)
 
     @property
     def time(self):
@@ -1971,7 +2000,7 @@ class StingrayTimeseries(StingrayObject):
                 all_meta_attrs.remove(attr)
 
         for attr in ignore_meta:
-            logging.info(f"The {attr} attribute will be removed from the output ")
+            logger.info(f"The {attr} attribute will be removed from the output ")
             if attr in all_meta_attrs:
                 all_meta_attrs.remove(attr)
 
@@ -2149,7 +2178,7 @@ class StingrayTimeseries(StingrayObject):
         --------
         >>> time = [2, 1, 3]
         >>> count = [200, 100, 300]
-        >>> ts = StingrayTimeseries(time, array_attrs={"counts": count}, dt=1)
+        >>> ts = StingrayTimeseries(time, array_attrs={"counts": count}, dt=1, skip_checks=True)
         >>> ts_new = ts.sort()
         >>> ts_new.time
         array([1, 2, 3])
@@ -2242,7 +2271,7 @@ class StingrayTimeseries(StingrayObject):
 
         btis = get_btis(self.gti, self.time[0], self.time[-1])
         if len(btis) == 0:
-            logging.info("No bad time intervals to fill")
+            logger.info("No bad time intervals to fill")
             return copy.deepcopy(self)
         filtered_times = self.time[self.mask]
 
@@ -2255,7 +2284,7 @@ class StingrayTimeseries(StingrayObject):
             even_sampling = False
             if self.dt > 0 and np.isclose(mean_data_separation, self.dt, rtol=0.01):
                 even_sampling = True
-            logging.info(f"Data are {'not' if not even_sampling else ''} evenly sampled")
+            logger.info(f"Data are {'not' if not even_sampling else ''} evenly sampled")
 
         if even_sampling:
             est_samples_in_gap = int(max_length / self.dt)
@@ -2272,7 +2301,7 @@ class StingrayTimeseries(StingrayObject):
             length = bti[1] - bti[0]
             if length > max_length:
                 continue
-            logging.info(f"Filling bad time interval {bti} ({length:.4f} s)")
+            logger.info(f"Filling bad time interval {bti} ({length:.4f} s)")
             epsilon = 1e-5 * length
             added_gtis.append([bti[0] - epsilon, bti[1] + epsilon])
             filt_low_t, filt_low_idx = find_nearest(filtered_times, bti[0])
@@ -2282,12 +2311,27 @@ class StingrayTimeseries(StingrayObject):
                 nevents = local_new_times.size
             else:
                 low_time_arr = filtered_times[max(filt_low_idx - buffer_size, 0) : filt_low_idx]
+                low_time_arr = low_time_arr[low_time_arr > bti[0] - buffer_size]
                 high_time_arr = filtered_times[filt_hig_idx : buffer_size + filt_hig_idx]
+                high_time_arr = high_time_arr[high_time_arr < bti[1] + buffer_size]
 
-                ctrate = (
-                    np.count_nonzero(low_time_arr) / (filt_low_t - low_time_arr[0])
-                    + np.count_nonzero(high_time_arr) / (high_time_arr[-1] - filt_hig_t)
-                ) / 2
+                if len(low_time_arr) > 0 and (filt_low_t - low_time_arr[0]) > 0:
+                    ctrate_low = np.count_nonzero(low_time_arr) / (filt_low_t - low_time_arr[0])
+                else:
+                    ctrate_low = np.nan
+                if len(high_time_arr) > 0 and (high_time_arr[-1] - filt_hig_t) > 0:
+                    ctrate_high = np.count_nonzero(high_time_arr) / (high_time_arr[-1] - filt_hig_t)
+                else:
+                    ctrate_high = np.nan
+
+                if not np.isfinite(ctrate_low) and not np.isfinite(ctrate_high):
+                    warnings.warn(
+                        f"No valid data around to simulate the time series in interval "
+                        f"{bti[0]:g}-{bti[1]:g}. Skipping. Please check that the buffer size is "
+                        f"adequate."
+                    )
+                    continue
+                ctrate = np.nanmean([ctrate_low, ctrate_high])
                 nevents = rs.poisson(ctrate * (bti[1] - bti[0]))
                 local_new_times = rs.uniform(bti[0], bti[1], nevents)
             new_times.append(local_new_times)
@@ -2307,7 +2351,7 @@ class StingrayTimeseries(StingrayObject):
                     new_attrs[attr].append(np.zeros(nevents) + np.nan)
             total_filled_time += length
 
-        logging.info(f"A total of {total_filled_time} s of data were simulated")
+        logger.info(f"A total of {total_filled_time} s of data were simulated")
 
         new_gtis = join_gtis(self.gti, added_gtis)
         new_times = np.concatenate(new_times)
@@ -2497,7 +2541,7 @@ class StingrayTimeseries(StingrayObject):
                 and np.isclose(mean_data_separation, self.dt, rtol=0.01)
             ):
                 even_sampling = True
-            logging.info(f"Data are {'not' if not even_sampling else ''} evenly sampled")
+            logger.info(f"Data are {'not' if not even_sampling else ''} evenly sampled")
 
         if min_counts is None:
             if even_sampling and hasattr(self, "counts"):

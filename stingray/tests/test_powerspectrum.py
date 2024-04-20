@@ -2,33 +2,22 @@ import os
 import numpy as np
 import copy
 import warnings
+import importlib
 
 import pytest
 import matplotlib.pyplot as plt
 from astropy.io import fits
-from astropy.table import Table
 from stingray import Lightcurve
 from stingray.events import EventList
+from stingray.utils import HAS_NUMBA
 from stingray import Powerspectrum, AveragedPowerspectrum, DynamicalPowerspectrum
+from stingray.powerspectrum import powerspectrum_from_time_array
+from astropy.modeling.models import Lorentz1D
+from stingray.filters import filter_for_deadtime
 
-_HAS_XARRAY = _HAS_PANDAS = _HAS_H5PY = True
-
-try:
-    import xarray
-    from xarray import Dataset
-except ImportError:
-    _HAS_XARRAY = False
-
-try:
-    import pandas
-    from pandas import DataFrame
-except ImportError:
-    _HAS_PANDAS = False
-
-try:
-    import h5py
-except ImportError:
-    _HAS_H5PY = False
+_HAS_XARRAY = importlib.util.find_spec("xarray") is not None
+_HAS_PANDAS = importlib.util.find_spec("pandas") is not None
+_HAS_H5PY = importlib.util.find_spec("h5py") is not None
 
 
 def clear_all_figs():
@@ -37,7 +26,8 @@ def clear_all_figs():
         plt.close(fig)
 
 
-np.random.seed(20150907)
+rng = np.random.RandomState(20150907)
+
 curdir = os.path.abspath(os.path.dirname(__file__))
 datadir = os.path.join(curdir, "data")
 
@@ -50,7 +40,7 @@ class TestAveragedPowerspectrumEvents(object):
         cls.dt = 0.0001
         cls.segment_size = tend - tstart
 
-        times = np.sort(np.random.uniform(tstart, tend, 1000))
+        times = np.sort(rng.uniform(tstart, tend, 1000))
         gti = np.array([[tstart, tend]])
 
         cls.events = EventList(times, gti=gti)
@@ -343,7 +333,7 @@ class TestAveragedPowerspectrumEvents(object):
         lc_all = []
         for i in range(n):
             time = np.arange(0.0, 10.0, 10.0 / 10000)
-            counts = np.random.poisson(1000, size=time.shape[0])
+            counts = rng.poisson(1000, size=time.shape[0])
             lc = Lightcurve(time, counts)
             lc_all.append(lc)
 
@@ -352,6 +342,25 @@ class TestAveragedPowerspectrumEvents(object):
         assert ps.m == 100
         assert np.isclose(np.mean(ps.power), 2.0, atol=1e-2, rtol=1e-2)
         assert np.isclose(np.std(ps.power), 2.0 / np.sqrt(ps.m), atol=0.1, rtol=0.1)
+
+    @pytest.mark.skipif("not HAS_NUMBA")
+    def test_deadtime_corr(self):
+        tmax = 100.0
+        segment_size = 1
+        events = np.sort(np.random.uniform(0, tmax, 10000))
+        events_dt = filter_for_deadtime(events, deadtime=0.0025)
+        pds_dt = powerspectrum_from_time_array(
+            events_dt,
+            gti=[[0, tmax]],
+            dt=0.001,
+            segment_size=segment_size,
+            save_all=True,
+            norm="leahy",
+        )
+
+        pds = pds_dt.deadtime_correct(dead_time=0.0025, rate=np.size(events_dt) / tmax)
+        assert np.isclose(np.mean(pds.power), 2, rtol=0.1)
+        assert np.isclose(np.std(pds.power), 2 / np.sqrt(tmax / segment_size), rtol=0.1)
 
 
 class TestPowerspectrum(object):
@@ -366,9 +375,20 @@ class TestPowerspectrum(object):
         mean_count_rate = 100.0
         mean_counts = mean_count_rate * dt
 
-        poisson_counts = np.random.poisson(mean_counts, size=time.shape[0])
+        poisson_counts = rng.poisson(mean_counts, size=time.shape[0])
 
         cls.lc = Lightcurve(time, counts=poisson_counts, dt=dt, gti=[[tstart, tend]])
+
+    def test_single_ps_of_lc_with_tight_gtis_does_not_crash(self):
+        tstart = 1.0
+        tend = 10.0
+        gti = [[1.0, 9.0]]
+
+        time = np.linspace(tstart, tend, 10000)
+        counts = np.random.poisson(10, size=time.shape[0])
+
+        lc = Lightcurve(time, counts, gti=gti)
+        Powerspectrum(lc, norm="leahy")
 
     @pytest.mark.parametrize("skip_checks", [True, False])
     def test_initialize_empty(self, skip_checks):
@@ -463,156 +483,13 @@ class TestPowerspectrum(object):
         std_lc = np.var(self.lc.counts) / np.mean(self.lc.counts) ** 2
         assert np.isclose(ps_int, std_lc, atol=0.01, rtol=0.01)
 
-    def test_compute_rms_wrong_norm(self):
-        ps = Powerspectrum(self.lc)
-        ps.norm = "gibberish"
-        # This will now pass, due to changes on 2022-10-10
-        ps.compute_rms(0, 10)
-
-    def test_compute_rms_rebinning_is_consistent(self):
-        time = np.arange(0, 100, 1) + 0.5
-
-        poisson_counts = np.random.poisson(100.0, size=time.shape[0])
-
-        lc = Lightcurve(time, counts=poisson_counts, dt=1, gti=[[0, 100]])
-        ps = Powerspectrum(lc, norm="leahy")
-        ps_rebinned = ps.rebin_log()
-        rms, err_rms = ps.compute_rms(
-            min_freq=ps.freq[1], max_freq=ps.freq[-2], poisson_noise_level=0
-        )
-        rms_reb, err_rms_reb = ps_rebinned.compute_rms(
-            min_freq=ps.freq[1], max_freq=ps.freq[-2], poisson_noise_level=0
-        )
-        assert np.isclose(rms, rms_reb, atol=0.01, rtol=0.01)
-
-    def test_fractional_rms_in_frac_norm_is_consistent(self):
-        time = np.arange(0, 100, 1) + 0.5
-
-        poisson_counts = np.random.poisson(100.0, size=time.shape[0])
-
-        lc = Lightcurve(time, counts=poisson_counts, dt=1, gti=[[0, 100]])
-        ps = Powerspectrum(lc, norm="leahy")
-        rms_ps_l, rms_err_l = ps.compute_rms(
-            min_freq=ps.freq[1], max_freq=ps.freq[-1], poisson_noise_level=0
-        )
-
-        ps = Powerspectrum(lc, norm="frac")
-        rms_ps, rms_err = ps.compute_rms(
-            min_freq=ps.freq[1], max_freq=ps.freq[-1], poisson_noise_level=0
-        )
-        assert np.allclose(rms_ps, rms_ps_l, atol=0.01)
-        assert np.allclose(rms_err, rms_err_l, atol=0.01)
-
-    def test_fractional_rms_in_frac_norm_is_consistent_old(self):
-        with pytest.warns(DeprecationWarning, match="the option white_noise_offset"):
-            time = np.arange(0, 100, 1) + 0.5
-
-            poisson_counts = np.random.poisson(100.0, size=time.shape[0])
-
-            lc = Lightcurve(time, counts=poisson_counts, dt=1, gti=[[0, 100]])
-            ps = Powerspectrum(lc, norm="leahy")
-            rms_ps_l, rms_err_l = ps.compute_rms(
-                min_freq=ps.freq[1], max_freq=ps.freq[-1], white_noise_offset=0
-            )
-
-            ps = Powerspectrum(lc, norm="frac")
-            rms_ps, rms_err = ps.compute_rms(
-                min_freq=ps.freq[1], max_freq=ps.freq[-1], white_noise_offset=0
-            )
-            assert np.allclose(rms_ps, rms_ps_l, atol=0.01)
-            assert np.allclose(rms_err, rms_err_l, atol=0.01)
-
-    @pytest.mark.parametrize("norm", ["frac", "abs", "none"])
-    def test_fractional_rms_in_frac_norm_is_consistent_averaged_noPnoise(self, norm):
-        time = np.arange(0, 400, 1) + 0.5
-
-        poisson_counts = np.random.poisson(100.0, size=time.shape[0])
-
-        lc = Lightcurve(time, counts=poisson_counts, dt=1, gti=[[0, 400]])
-        ps = AveragedPowerspectrum(lc, norm="leahy", segment_size=100, silent=True)
-        rms_ps_l, rms_err_l = ps.compute_rms(
-            min_freq=ps.freq[1], max_freq=ps.freq[-1], poisson_noise_level=0
-        )
-
-        ps = AveragedPowerspectrum(lc, norm=norm, segment_size=100)
-        rms_ps, rms_err = ps.compute_rms(
-            min_freq=ps.freq[1], max_freq=ps.freq[-1], poisson_noise_level=0
-        )
-        assert np.allclose(rms_ps, rms_ps_l, atol=0.01)
-        assert np.allclose(rms_err, rms_err_l, atol=0.01)
-
-    @pytest.mark.parametrize("norm", ["frac", "abs", "none"])
-    def test_fractional_rms_in_frac_norm_is_consistent_averaged(self, norm):
-        time = np.arange(0, 400, 1) + 0.5
-
-        data = Table.read(os.path.join(datadir, "sample_variable_series.fits"))["data"][:400] * 1000
-        poisson_counts = np.random.poisson(data)
-
-        lc = Lightcurve(time, counts=poisson_counts, dt=1, gti=[[0, 400]])
-        ps = AveragedPowerspectrum(lc, norm="leahy", segment_size=100, silent=True)
-        rms_ps_l, rms_err_l = ps.compute_rms(min_freq=ps.freq[1], max_freq=ps.freq[-1])
-
-        ps = AveragedPowerspectrum(lc, norm=norm, segment_size=100)
-        rms_ps, rms_err = ps.compute_rms(min_freq=ps.freq[1], max_freq=ps.freq[-1])
-        assert np.allclose(rms_ps, rms_ps_l, atol=0.01)
-        assert np.allclose(rms_err, rms_err_l, atol=0.01)
-
-    @pytest.mark.parametrize("norm", ["frac", "abs", "none"])
-    def test_fractional_rms_in_frac_norm_is_consistent_averaged_freq_range(self, norm):
-        time = np.arange(0, 400, 1) + 0.5
-
-        data = Table.read(os.path.join(datadir, "sample_variable_series.fits"))["data"][:400] * 1000
-        poisson_counts = np.random.poisson(data)
-
-        lc = Lightcurve(time, counts=poisson_counts, dt=1, gti=[[0, 400]])
-        ps = AveragedPowerspectrum(lc, norm="leahy", segment_size=100, silent=True)
-        rms_ps_l, rms_err_l = ps.compute_rms(min_freq=ps.freq[5], max_freq=ps.freq[-5])
-
-        ps = AveragedPowerspectrum(lc, norm=norm, segment_size=100)
-        rms_ps, rms_err = ps.compute_rms(min_freq=ps.freq[5], max_freq=ps.freq[-5])
-        assert np.allclose(rms_ps, rms_ps_l, atol=0.01)
-        assert np.allclose(rms_err, rms_err_l, atol=0.01)
-
-    def test_fractional_rms_in_frac_norm_is_consistent_averaged_old(self):
-        with pytest.warns(DeprecationWarning, match="the option white_noise_offset"):
-            time = np.arange(0, 400, 1) + 0.5
-
-            poisson_counts = np.random.poisson(100.0, size=time.shape[0])
-
-            lc = Lightcurve(time, counts=poisson_counts, dt=1, gti=[[0, 400]])
-            ps = AveragedPowerspectrum(lc, norm="leahy", segment_size=100, silent=True)
-            rms_ps_l, rms_err_l = ps.compute_rms(
-                min_freq=ps.freq[1], max_freq=ps.freq[-1], white_noise_offset=0
-            )
-
-            ps = AveragedPowerspectrum(lc, norm="frac", segment_size=100)
-            rms_ps, rms_err = ps.compute_rms(
-                min_freq=ps.freq[1], max_freq=ps.freq[-1], white_noise_offset=0
-            )
-            assert np.allclose(rms_ps, rms_ps_l, atol=0.01)
-            assert np.allclose(rms_err, rms_err_l, atol=0.01)
-
-    def test_fractional_rms_in_frac_norm(self):
-        with pytest.warns(DeprecationWarning, match="the option white_noise_offset"):
-            time = np.arange(0, 400, 1) + 0.5
-
-            poisson_counts = np.random.poisson(100.0, size=time.shape[0])
-
-            lc = Lightcurve(time, counts=poisson_counts, dt=1, gti=[[0, 400]])
-            ps = AveragedPowerspectrum(lc, norm="frac", segment_size=100)
-            rms_ps, rms_err = ps.compute_rms(
-                min_freq=ps.freq[1], max_freq=ps.freq[-1], white_noise_offset=0
-            )
-            rms_lc = np.std(lc.counts) / np.mean(lc.counts)
-            assert np.isclose(rms_ps, rms_lc, atol=0.01)
-
     def test_leahy_norm_Poisson_noise(self):
         """
         In Leahy normalization, the poisson noise level (so, in the absence of
         a signal, the average power) should be equal to 2.
         """
         time = np.linspace(0, 10.0, 10**5)
-        counts = np.random.poisson(1000, size=time.shape[0])
+        counts = rng.poisson(1000, size=time.shape[0])
 
         lc = Lightcurve(time, counts)
         ps = Powerspectrum(lc, norm="leahy")
@@ -626,26 +503,9 @@ class TestPowerspectrum(object):
         square of the number of data points in the light curve
         """
         ps = Powerspectrum(self.lc, norm="Leahy")
-        ps_var = (np.sum(self.lc.counts) / ps.n**2.0) * (
-            np.sum(ps.power[:-1]) + ps.power[-1] / 2.0
-        )
+        ps_var = (np.sum(self.lc.counts) / ps.n**2) * (np.sum(ps.power[:-1]) + ps.power[-1] / 2.0)
 
         assert np.isclose(ps_var, np.var(self.lc.counts), atol=0.01)
-
-    def test_fractional_rms_in_leahy_norm(self):
-        """
-        fractional rms should only be *approximately* equal the standard
-        deviation divided by the mean of the light curve. Therefore, we allow
-        for a larger tolerance in np.isclose()
-        """
-        with pytest.warns(DeprecationWarning):
-            ps = Powerspectrum(self.lc, norm="Leahy")
-            rms_ps, rms_err = ps.compute_rms(
-                min_freq=ps.freq[0], max_freq=ps.freq[-1], white_noise_offset=0
-            )
-
-            rms_lc = np.std(self.lc.counts) / np.mean(self.lc.counts)
-            assert np.isclose(rms_ps, rms_lc, atol=0.01)
 
     def test_abs_norm_Poisson_noise(self):
         """
@@ -653,10 +513,9 @@ class TestPowerspectrum(object):
         normalization should be approximately 2 * the mean count rate of the
         light curve.
         """
-        np.random.seed(101)
 
         time = np.linspace(0, 1.0, 10**4)
-        counts = np.random.poisson(0.01, size=time.shape[0])
+        counts = rng.poisson(0.01, size=time.shape[0])
 
         lc = Lightcurve(time, counts)
         ps = Powerspectrum(lc, norm="abs")
@@ -787,7 +646,7 @@ class TestAveragedPowerspectrum(object):
         mean_count_rate = 1000.0
         mean_counts = mean_count_rate * dt
 
-        poisson_counts = np.random.poisson(mean_counts, size=time.shape[0])
+        poisson_counts = rng.poisson(mean_counts, size=time.shape[0])
 
         cls.lc = Lightcurve(time, counts=poisson_counts, gti=[[tstart, tend]], dt=dt)
 
@@ -870,7 +729,7 @@ class TestAveragedPowerspectrum(object):
 
         lc_all = []
         for n in range(n_lcs):
-            poisson_counts = np.random.poisson(mean_counts, size=len(time))
+            poisson_counts = rng.poisson(mean_counts, size=len(time))
 
             lc = Lightcurve(time, counts=poisson_counts, gti=[[tstart, tend]], dt=dt)
             lc_all.append(lc)
@@ -881,7 +740,7 @@ class TestAveragedPowerspectrum(object):
     def test_with_zero_counts(self):
         nbins = 100
         x = np.linspace(0, 10, nbins)
-        y0 = np.random.normal(loc=10, scale=0.5, size=int(0.4 * nbins))
+        y0 = rng.normal(loc=10, scale=0.5, size=int(0.4 * nbins))
         y1 = np.zeros(int(0.6 * nbins))
         y = np.hstack([y0, y1])
 
@@ -969,7 +828,7 @@ class TestAveragedPowerspectrum(object):
 
         lc_all = []
         for n in range(n_lcs):
-            poisson_counts = np.random.poisson(mean_counts, size=len(time))
+            poisson_counts = rng.poisson(mean_counts, size=len(time))
 
             lc = Lightcurve(time, counts=poisson_counts)
             lc_all.append(lc)
@@ -986,7 +845,7 @@ class TestAveragedPowerspectrum(object):
         lc_all = []
         for i in range(n):
             time = np.arange(0.0, 10.0, 10.0 / 10000)
-            counts = np.random.poisson(1000, size=time.shape[0])
+            counts = rng.poisson(1000, size=time.shape[0])
             lc = Lightcurve(time, counts)
             lc_all.append(lc)
 
@@ -1035,28 +894,6 @@ class TestDynamicalPowerspectrum(object):
         dps_ev = DynamicalPowerspectrum(ev, segment_size=10, sample_time=self.lc.dt)
         assert np.allclose(dps.dyn_ps, dps_ev.dyn_ps)
         dps_ev.power_colors(freq_edges=[1 / 5, 1 / 2, 1, 2.0, 16.0])
-
-    def test_rms_is_correct(self):
-        lc = copy.deepcopy(self.lc)
-        lc.counts = np.random.poisson(lc.counts)
-        dps = DynamicalPowerspectrum(lc, segment_size=10, norm="leahy")
-        rms, rmse = dps.compute_rms(1 / 5, 16.0, poisson_noise_level=2)
-        from stingray.powerspectrum import AveragedPowerspectrum
-
-        ps = AveragedPowerspectrum()
-        ps.freq = dps.freq
-        ps.power = dps.dyn_ps.T[0]
-        ps.unnorm_power = ps.power / dps.unnorm_conversion
-        ps.df = dps.df
-        ps.m = dps.m
-        ps.n = dps.freq.size
-        ps.dt = lc.dt
-        ps.norm = dps.norm
-        ps.k = 1
-        ps.nphots = dps.nphots
-        rms2, rmse2 = ps.compute_rms(1 / 5, 16.0, poisson_noise_level=2)
-        assert np.isclose(rms[0], rms2)
-        assert np.isclose(rmse[0], rmse2, rtol=0.01)
 
     def test_with_long_seg_size(self):
         with pytest.raises(ValueError):
@@ -1190,7 +1027,7 @@ class TestRoundTrip:
     def setup_class(cls):
         cls.cs = AveragedPowerspectrum()
         cls.cs.freq = np.arange(10)
-        cls.cs.power = np.random.uniform(0, 10, 10)
+        cls.cs.power = rng.uniform(0, 10, 10)
         cls.cs.m = 2
         cls.cs.nphots1 = 34
 
@@ -1252,3 +1089,64 @@ class TestRoundTrip:
         os.unlink(fname)
 
         self._check_equal(so, new_so)
+
+
+class TestRMS(object):
+    @classmethod
+    def setup_class(cls):
+        fwhm = 0.23456
+        cls.segment_size = 256
+        cls.df = 1 / cls.segment_size
+
+        cls.freqs = np.arange(cls.df, 1, cls.df)
+        dt = 0.5 / cls.freqs.max()
+
+        pds_shape_func = Lorentz1D(x_0=0, fwhm=fwhm)
+        cls.pds_shape_raw = pds_shape_func(cls.freqs)
+        cls.M = 1000
+        cls.nphots = 1_000_000
+        cls.rms = 0.5
+        meanrate = cls.nphots / cls.segment_size
+        cls.poisson_noise_rms = 2 / meanrate
+        pds_shape_rms = cls.pds_shape_raw / np.sum(cls.pds_shape_raw * cls.df) * cls.rms**2
+        pds_shape_rms += cls.poisson_noise_rms
+
+        random_part = rng.chisquare(2 * cls.M, size=cls.pds_shape_raw.size) / 2 / cls.M
+        pds_rms_noisy = random_part * pds_shape_rms
+
+        pds_unnorm = pds_rms_noisy * meanrate / 2 * cls.nphots
+        cls.pds = AveragedPowerspectrum()
+        cls.pds.freq = cls.freqs
+        cls.pds.unnorm_power = pds_unnorm
+        cls.pds.power = pds_rms_noisy
+        cls.pds.df = cls.df
+        cls.pds.m = cls.M
+        cls.pds.nphots = cls.nphots
+        cls.pds.norm = "frac"
+        cls.pds.dt = dt
+        cls.pds.n = cls.pds.freq.size
+
+    @pytest.mark.parametrize("norm", ["none", "frac", "leahy", "abs"])
+    def test_rms(self, norm):
+        pds = self.pds.to_norm(norm)
+        rms_from_ps, rmse_from_ps = pds.compute_rms(self.freqs.min(), self.freqs.max())
+        assert np.isclose(rms_from_ps, self.rms, atol=3 * rmse_from_ps)
+
+    def test_rms_M_low(self):
+        """Test that the warning is raised when M is low."""
+
+        pds = copy.deepcopy(self.pds)
+        pds.m = 23
+
+        with pytest.warns(UserWarning, match="All power spectral bins have M<30."):
+            pds.compute_rms(
+                self.freqs.min(), self.freqs.max(), poisson_noise_level=self.poisson_noise_rms
+            )
+
+    @pytest.mark.parametrize("norm", ["none", "frac", "leahy", "abs"])
+    def test_rms_rebinning(self, norm):
+        pds = self.pds.to_norm(norm)
+        pds = pds.rebin_log(0.04)
+        rms_from_ps, rmse_from_ps = pds.compute_rms(self.freqs.min(), self.freqs.max())
+
+        assert np.isclose(rms_from_ps, self.rms, atol=3 * rmse_from_ps)

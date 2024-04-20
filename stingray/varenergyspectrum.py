@@ -6,7 +6,12 @@ from stingray.gti import check_separate, cross_two_gtis
 from stingray.lightcurve import Lightcurve
 from stingray.utils import assign_value_if_none, simon, excess_variance, show_progress
 
-from stingray.fourier import avg_cs_from_events, avg_pds_from_events, fftfreq, get_average_ctrate
+from stingray.fourier import (
+    avg_cs_from_timeseries,
+    avg_pds_from_timeseries,
+    fftfreq,
+    get_average_ctrate,
+)
 from stingray.fourier import poisson_level, error_on_averaged_cross_spectrum, cross_to_covariance
 from abc import ABCMeta, abstractmethod
 
@@ -530,7 +535,7 @@ class RmsSpectrum(VarEnergySpectrum):
                 sub2_power_noise = poisson_level(norm="abs", meanrate=countrate_sub2)
 
                 # Calculate the cross spectrum
-                results = avg_cs_from_events(
+                results = avg_cs_from_timeseries(
                     sub_events,
                     sub_events2,
                     self.gti,
@@ -550,7 +555,7 @@ class RmsSpectrum(VarEnergySpectrum):
                     delta_nu_after_mean * np.sqrt(sub_power_noise * sub2_power_noise)
                 )
             else:
-                results = avg_pds_from_events(
+                results = avg_pds_from_timeseries(
                     sub_events, self.gti, self.segment_size, self.bin_time, silent=True, norm="abs"
                 )
                 if results is None:
@@ -804,7 +809,7 @@ class LagSpectrum(VarEnergySpectrum):
         ref_events = self._get_times_from_energy_range(self.events2, self.ref_band[0])
 
         # Calculate the PDS in the reference band. Needed to calculate errors.
-        results = avg_pds_from_events(
+        results = avg_pds_from_timeseries(
             ref_events, self.gti, self.segment_size, self.bin_time, silent=True, norm="none"
         )
 
@@ -827,7 +832,7 @@ class LagSpectrum(VarEnergySpectrum):
             # Extract the photon arrival times from the subject band
             sub_events = self._get_times_from_energy_range(self.events1, eint)
 
-            results_cross = avg_cs_from_events(
+            results_cross = avg_cs_from_timeseries(
                 sub_events,
                 ref_events,
                 self.gti,
@@ -837,7 +842,7 @@ class LagSpectrum(VarEnergySpectrum):
                 norm="none",
             )
 
-            results_ps = avg_pds_from_events(
+            results_ps = avg_pds_from_timeseries(
                 sub_events, self.gti, self.segment_size, self.bin_time, silent=True, norm="none"
             )
 
@@ -982,7 +987,7 @@ class ComplexCovarianceSpectrum(VarEnergySpectrum):
         countrate_ref = get_average_ctrate(ref_events, self.gti, self.segment_size)
         ref_power_noise = poisson_level(norm="abs", meanrate=countrate_ref)
 
-        results = avg_pds_from_events(
+        results = avg_pds_from_timeseries(
             ref_events, self.gti, self.segment_size, self.bin_time, silent=True, norm="abs"
         )
         freq = results["freq"]
@@ -1004,7 +1009,7 @@ class ComplexCovarianceSpectrum(VarEnergySpectrum):
             countrate_sub = get_average_ctrate(sub_events, self.gti, self.segment_size)
             sub_power_noise = poisson_level(norm="abs", meanrate=countrate_sub)
 
-            results_cross = avg_cs_from_events(
+            results_cross = avg_cs_from_timeseries(
                 sub_events,
                 ref_events,
                 self.gti,
@@ -1014,7 +1019,7 @@ class ComplexCovarianceSpectrum(VarEnergySpectrum):
                 norm="abs",
             )
 
-            results_ps = avg_pds_from_events(
+            results_ps = avg_pds_from_timeseries(
                 sub_events, self.gti, self.segment_size, self.bin_time, silent=True, norm="abs"
             )
 
