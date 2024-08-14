@@ -200,8 +200,8 @@ def plot_psd_ppc(f, psd_quantiles, psd_approx_quantiles, psd_noise_levels, f_min
         color=approx_color,
         alpha=0.15,
     )
-    ax.axvline(f_min, color=window_color, ls=":", label=r"f$_{\min}$")
-    ax.axvline(f_max, color=window_color, ls=":", label=r"f$_{\max}$")
+    ax.axvline(f_min, color=window_color, ls=":")
+    ax.axvline(f_max, color=window_color, ls=":")
     ax.update({"xlabel": r"Frequency $(d^{-1})$", "ylabel": "Power Spectral Density"})
     ax.set_xlim(np.min(f), np.max(f) / 10)
     ax.set_ylim(np.min(psd_noise_levels) / 10)
@@ -212,7 +212,9 @@ def plot_psd_ppc(f, psd_quantiles, psd_approx_quantiles, psd_noise_levels, f_min
         Line2D([0], [0], color=noise_color, lw=2, label="Noise level"),
         Patch(facecolor="k", edgecolor="k", alpha=0.1, label="95%"),
         Patch(facecolor="k", edgecolor="k", alpha=0.4, label="68%"),
-        Line2D([0], [0], color=window_color, lw=2, ls=":", label="$f_{\min}, f_{\max}$"),
+        Line2D(
+            [0], [0], color=window_color, lw=2, ls=":", label="$f_\mathrm{min}, f_\mathrm{max}$"
+        ),
     ]
 
     ax.legend(
@@ -285,7 +287,8 @@ def run_prior_checks(
     n_approx_components=20,
     approximate_with="SHO",
 ):
-    """Check the approximation of the power spectrum density. This function will plot various diagnostics on the residuals and the ratio of the PSD and the approximate PSD.
+    """Check the approximation of the power spectrum density.
+    This function will plot various diagnostics on the residuals and the ratio of the PSD and the approximate PSD.
 
     Parameters
     ----------
@@ -373,15 +376,16 @@ def plot_boxplot_psd_approx(residuals, ratios):
     ax[1].set_xticks([1, 2, 3, 4])
     ax[1].axhline(1, color="C2", lw=2, ls=":")
     ax[1].set_xticklabels(["mean", "median", "minimum", "maximum"])
-    ax[0].set_ylabel(r"$P_{\text{true}} - P_{\text{approx}} $")  # "Residual")
-    ax[1].set_ylabel(r"$P_{\text{approx}} / P_{\text{true}} $")  # "Ratio")
+    ax[0].set_ylabel(r"$P_{\text{true}} - P_{\text{approx}} $")
+    ax[1].set_ylabel(r"$P_{\text{approx}} / P_{\text{true}} $")
     fig.align_ylabels(ax)
     # fig.tight_layout()
     return fig, ax
 
 
 def plot_psd_approx_quantiles(f, f_min, f_max, residuals, ratios):
-    """Plot the quantiles of the residuals and the ratios of the PSD and the approximate PSD as a function of frequency."""
+    """Plot the quantiles of the residuals and the ratios of the PSD and
+    the approximate PSD as a function of frequency."""
     res_quantiles = jnp.percentile(residuals, jnp.asarray([2.5, 16, 50, 84, 97.5]), axis=0)
     rat_quantiles = jnp.percentile(ratios, jnp.asarray([2.5, 16, 50, 84, 97.5]), axis=0)
 
@@ -418,7 +422,7 @@ def plot_psd_approx_quantiles(f, f_min, f_max, residuals, ratios):
 
     legend_elements = [
         Line2D([0], [0], color=colors, lw=2, label="Median"),
-        Line2D([0], [0], color="k", lw=1, ls="--", label="$f_{\min}, f_{\max}$"),
+        Line2D([0], [0], color="k", lw=1, ls="--", label="$f_\mathrm{min}, f_\mathrm{max}$"),
         Patch(facecolor=colors, edgecolor=colors, alpha=0.25, label="95%"),
         Patch(facecolor=colors, edgecolor=colors, alpha=0.5, label="68%"),
     ]
@@ -449,7 +453,8 @@ def _get_coefficients_approximation(
     kernel_type, kernel_params, f_min, f_max, n_approx_components=20, approximate_with="SHO"
 ):
     """
-    Get the coefficients of the approximation of the power law kernel with a sum of SHO kernels or a sum of DRW+SHO kernels.
+    Get the coefficients of the approximation of the power law kernel 
+    with a sum of SHO kernels or a sum of DRW+SHO kernels.
 
     Parameters
     ----------
