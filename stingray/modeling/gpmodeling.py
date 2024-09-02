@@ -288,7 +288,7 @@ def run_prior_checks(
     approximate_with="SHO",
 ):
     """Check the approximation of the power spectrum density.
-    This function will plot various diagnostics on the residuals and the ratio 
+    This function will plot various diagnostics on the residuals and the ratio
     of the PSD and the approximate PSD.
 
     Parameters

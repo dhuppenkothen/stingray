@@ -3,6 +3,21 @@ import pytest
 import numpy as np
 import matplotlib.pyplot as plt
 
+from stingray.modeling.gpmodeling import (
+    get_kernel,
+    get_mean,
+    get_gp_params,
+    _psd_model,
+    get_psd_and_approx,
+    run_prior_checks,
+    _get_coefficients_approximation,
+    get_prior,
+    get_log_likelihood,
+    GPResult,
+    get_priors_samples,
+)
+from stingray import Lightcurve
+
 try:
     import jax
     import jax.numpy as jnp
@@ -22,20 +37,6 @@ try:
 except ImportError:
     _HAS_TINYGP = False
 
-from stingray.modeling.gpmodeling import (
-    get_kernel,
-    get_mean,
-    get_gp_params,
-    _psd_model,
-    get_psd_and_approx,
-    run_prior_checks,
-    _get_coefficients_approximation,
-    get_prior,
-    get_log_likelihood,
-    GPResult,
-    get_priors_samples,
-)
-from stingray import Lightcurve
 
 try:
     import tensorflow_probability.substrates.jax as tfp
