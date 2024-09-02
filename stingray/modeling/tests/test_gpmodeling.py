@@ -30,8 +30,11 @@ from stingray.modeling.gpmodeling import (
     get_psd_and_approx,
     run_prior_checks,
     _get_coefficients_approximation,
+    get_prior,
+    get_log_likelihood,
+    GPResult,
+    get_priors_samples,
 )
-from stingray.modeling.gpmodeling import get_prior, get_log_likelihood, GPResult, get_priors_samples
 from stingray import Lightcurve
 
 try:

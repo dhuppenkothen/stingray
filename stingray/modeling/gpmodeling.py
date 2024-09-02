@@ -213,7 +213,7 @@ def plot_psd_ppc(f, psd_quantiles, psd_approx_quantiles, psd_noise_levels, f_min
         Patch(facecolor="k", edgecolor="k", alpha=0.1, label="95%"),
         Patch(facecolor="k", edgecolor="k", alpha=0.4, label="68%"),
         Line2D(
-            [0], [0], color=window_color, lw=2, ls=":", label="$f_\mathrm{min}, f_\mathrm{max}$"
+            [0], [0], color=window_color, lw=2, ls=":", label=r"$f_\mathrm{min}, f_\mathrm{max}$"
         ),
     ]
 
@@ -288,7 +288,8 @@ def run_prior_checks(
     approximate_with="SHO",
 ):
     """Check the approximation of the power spectrum density.
-    This function will plot various diagnostics on the residuals and the ratio of the PSD and the approximate PSD.
+    This function will plot various diagnostics on the residuals and the ratio 
+    of the PSD and the approximate PSD.
 
     Parameters
     ----------
@@ -422,7 +423,7 @@ def plot_psd_approx_quantiles(f, f_min, f_max, residuals, ratios):
 
     legend_elements = [
         Line2D([0], [0], color=colors, lw=2, label="Median"),
-        Line2D([0], [0], color="k", lw=1, ls="--", label="$f_\mathrm{min}, f_\mathrm{max}$"),
+        Line2D([0], [0], color="k", lw=1, ls="--", label=r"$f_\mathrm{min}, f_\mathrm{max}$"),
         Patch(facecolor=colors, edgecolor=colors, alpha=0.25, label="95%"),
         Patch(facecolor=colors, edgecolor=colors, alpha=0.5, label="68%"),
     ]
