@@ -334,8 +334,7 @@ class Testget_gp_params(object):
 class TestPSDapprox(object):
     def setup_class(self):
         self.t = np.linspace(0, 1, 10)
-        self.y         # prior_samples = get_priors_samples(jax.random.PRNGKey(0),self.kernel_params,self.priors,self.loglike,10)
-= np.array([2.4, 3.5, 4.5, 5.6, 6.7, 7.8, 8.9, 9.0, 10.1, 11.2])
+        self.y = np.array([2.4, 3.5, 4.5, 5.6, 6.7, 7.8, 8.9, 9.0, 10.1, 11.2])
         self.yerr = np.array([0.1, 0.3, 0.2, 0.1, 0.2, 0.1, 0.3, 0.2, 0.1, 0.2])
 
         self.kernel_type = "PowL"

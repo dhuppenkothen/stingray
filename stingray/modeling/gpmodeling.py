@@ -453,7 +453,7 @@ def _get_coefficients_approximation(
     kernel_type, kernel_params, f_min, f_max, n_approx_components=20, approximate_with="SHO"
 ):
     """
-    Get the coefficients of the approximation of the power law kernel 
+    Get the coefficients of the approximation of the power law kernel
     with a sum of SHO kernels or a sum of DRW+SHO kernels.
 
     Parameters
