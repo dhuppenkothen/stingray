@@ -15,7 +15,7 @@ from astropy.time import Time, TimeDelta
 from astropy.units import Quantity
 from stingray.loggingconfig import setup_logger
 
-from .io import _can_save_longdouble, _can_serialize_meta
+from .io import _can_save_longdouble, _can_serialize_meta, DEFAULT_FORMAT
 from .utils import (
     sqsum,
     assign_value_if_none,
@@ -36,6 +36,7 @@ from .gti import (
     get_total_gti_length,
     bin_intervals_from_gtis,
     time_intervals_from_gtis,
+    split_gtis_by_exposure,
 )
 from typing import TYPE_CHECKING, Type, TypeVar, Union
 
@@ -1422,6 +1423,119 @@ class StingrayTimeseries(StingrayObject):
             list_of_tss.append(new_ts)
 
         return list_of_tss
+
+    def get_idx_from_time_range(self, start, stop):
+        lower_edge, upper_edge = np.searchsorted(self.time, [start, stop])
+        # Searchsorted will find the first number above stop. We want the last number below stop!
+        return lower_edge, upper_edge - 1
+
+    def stream_from_gti_lists(self, new_gti_lists, root_file_name=None, fmt=DEFAULT_FORMAT):
+        """Split the event list into different files, each with a different GTI.
+
+        Parameters
+        ----------
+        new_gti_lists : list of lists
+            A list of lists of GTIs. Each sublist should contain a list of GTIs
+            for a new file.
+
+        Other Parameters
+        ----------------
+        root_file_name : str, default None
+            The root name of the output files. The file name will be appended with
+            "_00", "_01", etc.
+            If None, a generator is returned instead of writing the files.
+        fmt : str
+            The format of the output files. Default is 'hdf5'.
+
+        Returns
+        -------
+        output_files : list of str
+            A list of the output file names.
+
+        """
+
+        if len(new_gti_lists[0]) == len(self.gti) and np.all(
+            np.abs(np.asanyarray(new_gti_lists[0]).flatten() - self.gti.flatten()) < 1e-3
+        ):
+            ev = self[:]
+            if root_file_name is None:
+                yield ev
+            else:
+                output_file = root_file_name + f"_00." + fmt.lstrip(".")
+                ev.write(output_file, fmt=fmt)
+                yield output_file
+
+        for i, gti in enumerate(new_gti_lists):
+            if len(gti) == 0:
+                continue
+
+            lower_edge, upper_edge = self.get_idx_from_time_range(gti[0, 0], gti[-1, 1])
+
+            ev = self[lower_edge : upper_edge + 1]
+            ev.gti = gti
+
+            if root_file_name is not None:
+                new_file = root_file_name + f"_{i:002d}." + fmt.lstrip(".")
+                logger.info(f"Writing {new_file}")
+                ev.write(new_file, fmt=fmt)
+                yield new_file
+            else:
+                yield ev
+
+    def stream_by_number_of_samples(self, nsamples, root_file_name=None, fmt=DEFAULT_FORMAT):
+        """Split the event list into different files, each with approx. the given no. of photons.
+
+        Parameters
+        ----------
+        nsamples : int
+            The number of photons in each output file.
+
+        Other Parameters
+        ----------------
+        root_file_name : str, default None
+            The root name of the output files. The file name will be appended with
+            "_00", "_01", etc.
+            If None, a generator is returned instead of writing the files.
+        fmt : str
+            The format of the output files. Default is 'hdf5'.
+
+        Returns
+        -------
+        output_files : list of str
+            A list of the output file names.
+        """
+        n_intervals = int(np.rint(self.n / nsamples))
+        exposure_per_interval = self.exposure / n_intervals
+        new_gti_lists = split_gtis_by_exposure(self.gti, exposure_per_interval)
+
+        return self.stream_from_gti_lists(new_gti_lists, root_file_name=root_file_name, fmt=fmt)
+
+    def stream_from_time_intervals(self, time_intervals, root_file_name=None, fmt=DEFAULT_FORMAT):
+        """Filter the event list at the given time intervals.
+
+        Parameters
+        ----------
+        time_intervals : 2-d float array
+            List of time intervals of the form ``[[time0_0, time0_1], [time1_0, time1_1], ...]``
+
+        Other Parameters
+        ----------------
+        root_file_name : str, default None
+            The root name of the output files. The file name will be appended with
+            "_00", "_01", etc.
+            If None, a generator is returned instead of writing the files.
+        fmt : str
+            The format of the output files. Default is 'hdf5'.
+
+        Returns
+        -------
+        output_files : list of str
+            A list of the output file names.
+        """
+        if len(np.shape(time_intervals)) == 1:
+            time_intervals = [time_intervals]
+        new_gti = [cross_two_gtis(self.gti, [t_int]) for t_int in time_intervals]
+        return self.stream_from_gti_lists(new_gti, root_file_name=root_file_name, fmt=fmt)
 
     def to_astropy_timeseries(self) -> TimeSeries:
         """Save the ``StingrayTimeseries`` to an ``Astropy`` timeseries.
