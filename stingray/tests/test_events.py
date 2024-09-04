@@ -7,6 +7,7 @@ from astropy.time import Time
 
 from ..events import EventList
 from ..lightcurve import Lightcurve
+from ..io import DEFAULT_FORMAT
 
 curdir = os.path.abspath(os.path.dirname(__file__))
 datadir = os.path.join(curdir, "data")
@@ -674,3 +675,53 @@ class TestColors(object):
         assert np.allclose(rate_errs, 0.003, atol=0.001)
         assert np.allclose(start, 0)
         assert np.allclose(stop, 100000)
+
+
+class TestStreaming(object):
+    @classmethod
+    def setup_class(cls):
+        curdir = os.path.abspath(os.path.dirname(__file__))
+        cls.datadir = os.path.join(curdir, "data")
+        cls.fname = os.path.join(cls.datadir, "monol_testA.evt")
+        cls.events = EventList.read(cls.fname, fmt="hea")
+
+    def test_read_fits_timeseries(self):
+        assert np.all((self.events.time > 80000000) & (self.events.time < 80001024))
+
+    def test_read_fits_timeseries_by_nsamples(self):
+        # Full slice
+        outfnames = list(self.events.stream_by_number_of_samples(500, root_file_name="test"))
+        assert len(outfnames) == 2
+        ev0 = EventList.read(outfnames[0], fmt=DEFAULT_FORMAT)
+        ev1 = EventList.read(outfnames[1], fmt=DEFAULT_FORMAT)
+        assert np.all(ev0.time < 80000512.5)
+        assert np.all(ev1.time > 80000512.5)
+        for fname in outfnames:
+            os.unlink(fname)
+
+    def test_read_fits_timeseries_by_time_intv(self):
+        # Full slice
+        outfnames = list(
+            self.events.stream_from_time_intervals([80000100, 80001100], root_file_name="test")
+        )
+        assert len(outfnames) == 1
+        ev0 = EventList.read(outfnames[0], fmt=DEFAULT_FORMAT)
+        assert np.all((ev0.time > 80000100) & (ev0.time < 80001100))
+        assert np.all((ev0.gti >= 80000100) & (ev0.gti < 80001100))
+        for fname in outfnames:
+            os.unlink(fname)
+
+    def test_read_fits_timeseries_by_nsamples_generator(self):
+        # Full slice
+        ev0, ev1 = list(self.events.stream_by_number_of_samples(500))
+
+        assert np.all(ev0.time < 80000512.5)
+        assert np.all(ev1.time > 80000512.5)
+
+    def test_read_fits_timeseries_by_time_intv_generator(self):
+        # Full slice
+        evs = list(self.events.stream_from_time_intervals([80000100, 80001100]))
+        assert len(evs) == 1
+        ev0 = evs[0]
+        assert np.all((ev0.time > 80000100) & (ev0.time < 80001100))
+        assert np.all((ev0.gti >= 80000100) & (ev0.gti < 80001100))
