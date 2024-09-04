@@ -1530,8 +1530,13 @@ class TestStreaming(object):
         curdir = os.path.abspath(os.path.dirname(__file__))
         cls.datadir = os.path.join(curdir, "data")
         cls.fname = os.path.join(cls.datadir, "monol_testA.evt")
+        times = 80000000 + np.sort(np.random.uniform(0, 1024, 1000))
+        energies = np.ones(1000)
+        energies[times < 80000512.5] = 0
+
         cls.events = StingrayTimeseries(
-            time=80000000 + np.sort(np.random.uniform(0, 1024, 1000)),
+            time=times,
+            energy=energies,
             gti=80000000 + np.asarray([[0, 1025]]),
         )
 
@@ -1575,3 +1580,26 @@ class TestStreaming(object):
         ev0 = evs[0]
         assert np.all((ev0.time > 80000100) & (ev0.time < 80001100))
         assert np.all((ev0.gti >= 80000100) & (ev0.gti < 80001100))
+
+    def test_read_fits_timeseries_by_nsamples_attrs(self):
+        # Full slice
+        ev0_attr, ev1_attr = list(
+            self.events.stream_by_number_of_samples(500, only_attrs=["time", "energy"])
+        )
+
+        assert np.all(ev0_attr[0] < 80000512.5)
+        assert np.all(ev1_attr[0] > 80000512.5)
+        assert np.all(ev0_attr[1] == 0)
+        assert np.all(ev1_attr[1] == 1)
+
+    def test_read_fits_timeseries_by_time_intv_attrs(self):
+        # Full slice
+        evs = list(
+            self.events.stream_from_time_intervals(
+                [80000100, 80000200], only_attrs=["time", "energy"]
+            )
+        )
+        assert len(evs) == 1
+        ev0_attr = evs[0]
+        assert np.all((ev0_attr[0] > 80000100) & (ev0_attr[0] < 80000200))
+        assert np.all(ev0_attr[1] == 0)

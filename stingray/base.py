@@ -1429,7 +1429,9 @@ class StingrayTimeseries(StingrayObject):
         # Searchsorted will find the first number above stop. We want the last number below stop!
         return lower_edge, upper_edge - 1
 
-    def stream_from_gti_lists(self, new_gti_lists, root_file_name=None, fmt=DEFAULT_FORMAT):
+    def stream_from_gti_lists(
+        self, new_gti_lists, root_file_name=None, fmt=DEFAULT_FORMAT, only_attrs=None
+    ):
         """Split the event list into different files, each with a different GTI.
 
         Parameters
@@ -1453,17 +1455,22 @@ class StingrayTimeseries(StingrayObject):
             A list of the output file names.
 
         """
+        if only_attrs is not None and root_file_name is not None:
+            raise ValueError("You can only use only_attrs with a generator.")
 
         if len(new_gti_lists[0]) == len(self.gti) and np.all(
             np.abs(np.asanyarray(new_gti_lists[0]).flatten() - self.gti.flatten()) < 1e-3
         ):
-            ev = self[:]
-            if root_file_name is None:
-                yield ev
+            if only_attrs is not None:
+                yield [copy.deepcopy(getattr(self, attr)) for attr in only_attrs]
             else:
-                output_file = root_file_name + f"_00." + fmt.lstrip(".")
-                ev.write(output_file, fmt=fmt)
-                yield output_file
+                ev = self[:]
+                if root_file_name is None:
+                    yield ev
+                else:
+                    output_file = root_file_name + f"_00." + fmt.lstrip(".")
+                    ev.write(output_file, fmt=fmt)
+                    yield output_file
 
         for i, gti in enumerate(new_gti_lists):
             if len(gti) == 0:
@@ -1471,18 +1478,26 @@ class StingrayTimeseries(StingrayObject):
 
             lower_edge, upper_edge = self.get_idx_from_time_range(gti[0, 0], gti[-1, 1])
 
-            ev = self[lower_edge : upper_edge + 1]
-            ev.gti = gti
-
-            if root_file_name is not None:
-                new_file = root_file_name + f"_{i:002d}." + fmt.lstrip(".")
-                logger.info(f"Writing {new_file}")
-                ev.write(new_file, fmt=fmt)
-                yield new_file
+            if only_attrs is not None:
+                yield [
+                    copy.deepcopy(getattr(self, attr)[lower_edge : upper_edge + 1])
+                    for attr in only_attrs
+                ]
             else:
-                yield ev
+                ev = self[lower_edge : upper_edge + 1]
+                ev.gti = gti
 
-    def stream_by_number_of_samples(self, nsamples, root_file_name=None, fmt=DEFAULT_FORMAT):
+                if root_file_name is not None:
+                    new_file = root_file_name + f"_{i:002d}." + fmt.lstrip(".")
+                    logger.info(f"Writing {new_file}")
+                    ev.write(new_file, fmt=fmt)
+                    yield new_file
+                else:
+                    yield ev
+
+    def stream_by_number_of_samples(
+        self, nsamples, root_file_name=None, fmt=DEFAULT_FORMAT, only_attrs=None
+    ):
         """Split the event list into different files, each with approx. the given no. of photons.
 
         Parameters
@@ -1508,9 +1523,13 @@ class StingrayTimeseries(StingrayObject):
         exposure_per_interval = self.exposure / n_intervals
         new_gti_lists = split_gtis_by_exposure(self.gti, exposure_per_interval)
 
-        return self.stream_from_gti_lists(new_gti_lists, root_file_name=root_file_name, fmt=fmt)
+        return self.stream_from_gti_lists(
+            new_gti_lists, root_file_name=root_file_name, fmt=fmt, only_attrs=only_attrs
+        )
 
-    def stream_from_time_intervals(self, time_intervals, root_file_name=None, fmt=DEFAULT_FORMAT):
+    def stream_from_time_intervals(
+        self, time_intervals, root_file_name=None, fmt=DEFAULT_FORMAT, only_attrs=None
+    ):
         """Filter the event list at the given time intervals.
 
         Parameters
@@ -1535,7 +1554,9 @@ class StingrayTimeseries(StingrayObject):
         if len(np.shape(time_intervals)) == 1:
             time_intervals = [time_intervals]
         new_gti = [cross_two_gtis(self.gti, [t_int]) for t_int in time_intervals]
-        return self.stream_from_gti_lists(new_gti, root_file_name=root_file_name, fmt=fmt)
+        return self.stream_from_gti_lists(
+            new_gti, root_file_name=root_file_name, fmt=fmt, only_attrs=only_attrs
+        )
 
     def to_astropy_timeseries(self) -> TimeSeries:
         """Save the ``StingrayTimeseries`` to an ``Astropy`` timeseries.
@@ -1821,9 +1842,13 @@ class StingrayTimeseries(StingrayObject):
         """
 
         new_ts = super().__getitem__(index)
-        step = 1
+
         if isinstance(index, slice):
+            if index.start is None and index.stop is None and index.step is None:
+                return copy.deepcopy(new_ts)
             step = assign_value_if_none(index.step, 1)
+        else:
+            step = 1
 
         dt = self.dt
         if np.isscalar(dt):

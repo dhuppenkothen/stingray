@@ -725,3 +725,26 @@ class TestStreaming(object):
         ev0 = evs[0]
         assert np.all((ev0.time > 80000100) & (ev0.time < 80001100))
         assert np.all((ev0.gti >= 80000100) & (ev0.gti < 80001100))
+
+    def test_read_fits_timeseries_by_nsamples_attrs(self):
+        # Full slice
+        ev0_attr, ev1_attr = list(
+            self.events.stream_by_number_of_samples(500, only_attrs=["time", "energy"])
+        )
+
+        assert np.all(ev0_attr[0] < 80000512.5)
+        assert np.all(ev1_attr[0] > 80000512.5)
+        assert ev0_attr[0].size == ev0_attr[1].size
+        assert ev1_attr[0].size == ev1_attr[1].size
+
+    def test_read_fits_timeseries_by_time_intv_attrs(self):
+        # Full slice
+        evs = list(
+            self.events.stream_from_time_intervals(
+                [80000100, 80000200], only_attrs=["time", "energy"]
+            )
+        )
+        assert len(evs) == 1
+        ev0_attr = evs[0]
+        assert np.all((ev0_attr[0] > 80000100) & (ev0_attr[0] < 80000200))
+        assert ev0_attr[0].size == ev0_attr[1].size
