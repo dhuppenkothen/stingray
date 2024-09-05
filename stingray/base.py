@@ -1403,26 +1403,7 @@ class StingrayTimeseries(StingrayObject):
         if gti is None:
             gti = self.gti
 
-        list_of_tss = []
-
-        start_bins, stop_bins = gti_border_bins(gti, self.time, self.dt)
-        for i in range(len(start_bins)):
-            start = start_bins[i]
-            stop = stop_bins[i]
-
-            if (stop - start) < min_points:
-                continue
-
-            new_gti = np.array([gti[i]])
-            mask = create_gti_mask(self.time, new_gti)
-
-            # Note: GTIs are consistent with default in this case!
-            new_ts = self.apply_mask(mask)
-            new_ts.gti = new_gti
-
-            list_of_tss.append(new_ts)
-
-        return list_of_tss
+        return list(self.stream_from_gti_lists([[g] for g in gti]))
 
     def get_idx_from_time_range(self, start, stop):
         lower_edge, upper_edge = np.searchsorted(self.time, [start, stop])
@@ -1457,7 +1438,7 @@ class StingrayTimeseries(StingrayObject):
         """
         if only_attrs is not None and root_file_name is not None:
             raise ValueError("You can only use only_attrs with a generator.")
-
+        new_gti_lists = np.asanyarray(new_gti_lists)
         if len(new_gti_lists[0]) == len(self.gti) and np.all(
             np.abs(np.asanyarray(new_gti_lists[0]).flatten() - self.gti.flatten()) < 1e-3
         ):
