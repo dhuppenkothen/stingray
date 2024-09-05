@@ -2718,6 +2718,36 @@ class StingrayTimeseries(StingrayObject):
 
         return segment_size
 
+    def get_segment_borders(self, segment_size=None, fraction_step=1):
+        """Get the start and stop times of the segments for segment-by-segment analysis.
+
+        Parameters
+        ----------
+        segment_size : float
+            Length in seconds of the light curve segments. If None, the full GTIs are considered
+            instead as segments.
+        fraction_step : float
+            If the step is not a full ``segment_size`` but less (e.g. a moving window),
+            this indicates the ratio between step step and ``segment_size`` (e.g.
+            0.5 means that the window shifts of half ``segment_size``)
+
+        Returns
+        -------
+        start_times : array
+            Lower time boundaries of all time segments.
+        stop_times : array
+            Upper time boundaries of all segments.
+
+        """
+        if segment_size is None:
+            start_times = self.gti[:, 0]
+            stop_times = self.gti[:, 1]
+        else:
+            start_times, stop_times = time_intervals_from_gtis(
+                self.gti, segment_size, fraction_step=fraction_step
+            )
+        return start_times, stop_times
+
     def analyze_segments(self, func, segment_size, fraction_step=1, **kwargs):
         """Analyze segments of the light curve with any function.
 
@@ -2770,39 +2800,19 @@ class StingrayTimeseries(StingrayObject):
         >>> np.allclose(res, 10)
         True
         """
-
-        if segment_size is None:
-            start_times = self.gti[:, 0]
-            stop_times = self.gti[:, 1]
-            start = np.searchsorted(self.time, start_times)
-            stop = np.searchsorted(self.time, stop_times)
-        elif self.dt > 0:
-            start, stop = bin_intervals_from_gtis(
-                self.gti, segment_size, self.time, fraction_step=fraction_step, dt=self.dt
-            )
-            start_times = self.time[start] - 0.5 * self.dt
-            # Remember that stop is one element above the last element, because
-            # it's defined to be used in intervals start:stop
-            stop_times = self.time[stop - 1] + self.dt * 1.5
-        else:
-            start_times, stop_times = time_intervals_from_gtis(
-                self.gti, segment_size, fraction_step=fraction_step
-            )
-            start = np.searchsorted(self.time, start_times)
-            stop = np.searchsorted(self.time, stop_times)
+        start_times, stop_times = self.get_segment_borders(segment_size, fraction_step)
 
         results = []
 
         n_outs = 1
-        for i, (st, sp, tst, tsp) in enumerate(zip(start, stop, start_times, stop_times)):
-            if sp - st <= 1:
+        for i, lc_filt in enumerate(
+            self.stream_from_time_intervals(list(zip(start_times, stop_times)))
+        ):
+            if lc_filt is None or len(lc_filt.time) <= 1:
                 warnings.warn(
-                    f"Segment {i} ({tst}--{tsp}) has one data point or less. Skipping it "
+                    f"Segment {i} ({start_times[i]}--{stop_times[i]}) has one data point or less. Skipping it "
                 )
-
                 continue
-            lc_filt = self[st:sp]
-            lc_filt.gti = np.asanyarray([[tst, tsp]])
 
             res = func(lc_filt, **kwargs)
             results.append(res)
