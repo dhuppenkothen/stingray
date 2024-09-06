@@ -1076,7 +1076,7 @@ class StingrayObject(object):
         for attr in self.meta_attrs():
             setattr(new_ts, attr, copy.deepcopy(getattr(self, attr)))
 
-        for attr in self.array_attrs() + [self.main_array_attr]:
+        for attr in self.array_attrs() + self.internal_array_attrs() + [self.main_array_attr]:
             setattr(new_ts, attr, getattr(self, attr)[start:stop:step])
 
         return new_ts
@@ -1403,7 +1403,13 @@ class StingrayTimeseries(StingrayObject):
         if gti is None:
             gti = self.gti
 
-        return list(self.stream_from_gti_lists([[g] for g in gti]))
+        slices = []
+
+        for s in self.stream_from_gti_lists([[g] for g in gti]):
+            if np.size(getattr(s, s.main_array_attr)) < min_points:
+                continue
+            slices.append(s)
+        return slices
 
     def get_idx_from_time_range(self, start, stop):
         lower_edge, upper_edge = np.searchsorted(self.time, [start, stop])
@@ -2794,7 +2800,6 @@ class StingrayTimeseries(StingrayObject):
                     f"Segment {i} ({start_times[i]}--{stop_times[i]}) has one data point or less. Skipping it "
                 )
                 continue
-
             res = func(lc_filt, **kwargs)
             results.append(res)
             if isinstance(res, Iterable) and not isinstance(res, str):
