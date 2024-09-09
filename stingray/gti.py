@@ -1,3 +1,4 @@
+import os
 import re
 import numpy as np
 import warnings
@@ -260,6 +261,8 @@ def get_gti_from_all_extensions(lchdulist, accepted_gtistrings=["GTI"], det_numb
 
     Examples
     --------
+    Prepare data:
+
     >>> from astropy.io import fits
     >>> s1 = fits.Column(name='START', array=[0, 100, 200], format='D')
     >>> s2 = fits.Column(name='STOP', array=[50, 150, 250], format='D')
@@ -267,11 +270,23 @@ def get_gti_from_all_extensions(lchdulist, accepted_gtistrings=["GTI"], det_numb
     >>> s1 = fits.Column(name='START', array=[200, 300], format='D')
     >>> s2 = fits.Column(name='STOP', array=[250, 350], format='D')
     >>> hdu2 = fits.TableHDU.from_columns([s1, s2], name='STDGTI05')
-    >>> lchdulist = fits.HDUList([hdu1, hdu2])
-    >>> gti = get_gti_from_all_extensions(
+    >>> lchdulist = fits.HDUList([fits.PrimaryHDU(), hdu1, hdu2])
+    >>> lchdulist.writeto("test_gti_ext.fits", overwrite=True)
+
+    Now, try to load from the HDU list, and test the result is correct:
+
+    >>> gti0 = get_gti_from_all_extensions(
     ...     lchdulist, accepted_gtistrings=['GTI0', 'STDGTI'],
     ...     det_numbers=[5])
-    >>> assert np.allclose(gti, [[200, 250]])
+    >>> assert np.allclose(gti0, [[200, 250]])
+
+    Do the same with an input file name:
+
+    >>> gti1 = get_gti_from_all_extensions(
+    ...     "test_gti_ext.fits", accepted_gtistrings=['GTI0', 'STDGTI'],
+    ...     det_numbers=[5])
+    >>> assert np.allclose(gti1, [[200, 250]])
+    >>> os.unlink("test_gti_ext.fits")
     """
     if isinstance(lchdulist, str):
         lchdulist = fits.open(lchdulist)
