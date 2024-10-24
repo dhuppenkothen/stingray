@@ -1,2 +1,0 @@
-implementation of the shift-and-add technique for QPOs and other varying power spectral features
-
