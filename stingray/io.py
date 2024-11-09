@@ -1127,6 +1127,46 @@ class FITSTimeseriesReader(object):
             A list of the output file names.
 
         """
+        for i, gti in enumerate(new_gti_lists):
+            if len(gti) == 0:
+                continue
+
+            lower_edge, upper_edge = self._get_idx_from_time_range(gti[0][0], gti[-1][1])
+
+            ev = self[lower_edge : upper_edge + 1]
+            if hasattr(ev, "gti"):
+                ev.gti = gti
+
+            if root_file_name is not None:
+                new_file = root_file_name + f"_{i:002d}." + fmt.lstrip(".")
+                logger.info(f"Writing {new_file}")
+                ev.write(new_file, fmt=fmt)
+                yield new_file
+            else:
+                yield ev
+        """Split the event list into different files, each with a different GTI.
+
+        Parameters
+        ----------
+        new_gti_lists : list of lists
+            A list of lists of GTIs. Each sublist should contain a list of GTIs
+            for a new file.
+
+        Other Parameters
+        ----------------
+        root_file_name : str, default None
+            The root name of the output files. The file name will be appended with
+            "_00", "_01", etc.
+            If None, a generator is returned instead of writing the files.
+        fmt : str
+            The format of the output files. Default is 'hdf5'.
+
+        Returns
+        -------
+        output_files : list of str
+            A list of the output file names.
+
+        """
 
         if len(new_gti_lists[0]) == len(self.gti) and np.all(
             np.abs(np.asanyarray(new_gti_lists[0]).flatten() - self.gti.flatten()) < 1e-3
