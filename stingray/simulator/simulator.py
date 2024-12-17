@@ -278,15 +278,24 @@ class Simulator(object):
         h_zeros = np.zeros(int(np.ceil((start / self.dt))))
         impulse_train = h_zeros
 
-        if start % self.dt == 0:
-            impulse_train = np.append(h_zeros, 0.5)
+        # First Bin
+        if start % self.dt:
+            impulse_train = np.append(h_zeros, (self.dt - (start % self.dt)) * intensity / self.dt)
 
         # Define constant impulse response
-        h_ones = np.ones(int((start % self.dt + width) / self.dt)) * intensity
+        h_ones = (
+            np.ones(
+                int((width - (self.dt - (start % self.dt) + (start + width) % self.dt)) / self.dt)
+            )
+            * intensity
+        )
         impulse_train = np.append(impulse_train, h_ones)
 
-        if (start + width) % self.dt == 0:
-            impulse_train[-1] = 0.5
+        # Last Bin
+        if (start + width) % self.dt:
+            impulse_train = np.append(
+                impulse_train, ((start + width) % self.dt) * intensity / self.dt
+            )
 
         return impulse_train
 
