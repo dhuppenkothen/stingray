@@ -283,12 +283,21 @@ class Simulator(object):
             impulse_train = np.append(h_zeros, (self.dt - (start % self.dt)) * intensity / self.dt)
 
         # Define constant impulse response
-        h_ones = (
-            np.ones(
-                int((width - (self.dt - (start % self.dt) + (start + width) % self.dt)) / self.dt)
+
+        if start % self.dt:
+            h_ones = (
+                np.ones(
+                    int(
+                        (width - (self.dt - (start % self.dt) + (start + width) % self.dt))
+                        / self.dt
+                    )
+                )
+                * intensity
             )
-            * intensity
-        )
+
+        else:
+            h_ones = np.ones(int((width - ((start + width) % self.dt)) / self.dt)) * intensity
+
         impulse_train = np.append(impulse_train, h_ones)
 
         # Last Bin
