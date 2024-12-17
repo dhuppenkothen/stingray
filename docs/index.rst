@@ -308,6 +308,7 @@ Advanced
    :maxdepth: 2
 
    timeseries
+   largedata
    api
 
 Additional information

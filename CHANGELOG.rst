@@ -1,3 +1,31 @@
+v2.2 (2024-10-22)
+-----------------
+
+New Features
+^^^^^^^^^^^^
+
+- Add a compute_rms function to LombScarglePowerspectrum (`#828 <https://github.com/StingraySoftware/stingray/pull/828>`__)
+- Introduced FITSReader class for lazy-loading of event lists (`#834 <https://github.com/StingraySoftware/stingray/pull/834>`__)
+- implementation of the shift-and-add technique for QPOs and other varying power spectral features (`#849 <https://github.com/StingraySoftware/stingray/pull/849>`__)
+
+
+Bug Fixes
+^^^^^^^^^
+
+- The ``fold_events`` function now checks if the keyword arguments (`kwargs`) are in the list of optional parameters.
+  If any unidentified keys are present, it raises a `ValueError`.
+  This fix ensures that the function only accepts valid optional parameters and provides a clear error message for unsupported keys. (`#837 <https://github.com/StingraySoftware/stingray/pull/837>`__)
+
+
+Internal Changes
+^^^^^^^^^^^^^^^^
+
+- Eliminated runtime dependency on setuptools (`#852 <https://github.com/StingraySoftware/stingray/pull/852>`__)
+- Moved configuration to pyproject.toml as recommended by PEP 621 (`#842 <https://github.com/StingraySoftware/stingray/pull/842>`__)
+- Added pre-commit hooks in ``pre-commit-config.yaml`` (`#847 <https://github.com/StingraySoftware/stingray/pull/847>`__)
+- Improved main page of the documentation (`#748 <https://github.com/StingraySoftware/stingray/pull/748>`__)
+
+
 v2.1 (2024-05-29)
 -----------------
 
