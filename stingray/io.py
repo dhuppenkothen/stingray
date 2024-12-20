@@ -949,6 +949,8 @@ class FITSTimeseriesReader(object):
         self._add_meta_attr("hduname", hduname)
 
         header = hdulist[hduname].header
+        if "OBS_ID" in header:
+            self._add_meta_attr("obsid", header["OBS_ID"])
 
         # self.header has to be a string, for backwards compatibility and... for convenience!
         # No need to cope with dicts working badly with Netcdf, for example. The header
@@ -1139,23 +1141,24 @@ class FITSTimeseriesReader(object):
                 ev.write(output_file, fmt=fmt)
                 yield output_file
 
-        for i, gti in enumerate(new_gti_lists):
-            if len(gti) == 0:
-                continue
+        else:
+            for i, gti in enumerate(new_gti_lists):
+                if len(gti) == 0:
+                    continue
+                gti = np.asarray(gti)
+                lower_edge, upper_edge = self._get_idx_from_time_range(gti[0, 0], gti[-1, 1])
 
-            lower_edge, upper_edge = self._get_idx_from_time_range(gti[0, 0], gti[-1, 1])
+                ev = self[lower_edge : upper_edge + 1]
+                if hasattr(ev, "gti"):
+                    ev.gti = gti
 
-            ev = self[lower_edge : upper_edge + 1]
-            if hasattr(ev, "gti"):
-                ev.gti = gti
-
-            if root_file_name is not None:
-                new_file = root_file_name + f"_{i:002d}." + fmt.lstrip(".")
-                logger.info(f"Writing {new_file}")
-                ev.write(new_file, fmt=fmt)
-                yield new_file
-            else:
-                yield ev
+                if root_file_name is not None:
+                    new_file = root_file_name + f"_{i:002d}." + fmt.lstrip(".")
+                    logger.info(f"Writing {new_file}")
+                    ev.write(new_file, fmt=fmt)
+                    yield new_file
+                else:
+                    yield ev
 
     def _trace_nphots_in_file(self, nedges=1001):
         """Trace the number of photons as time advances in the file.

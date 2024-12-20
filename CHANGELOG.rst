@@ -1,3 +1,20 @@
+v2.2.2 (2024-10-25)
+-------------------
+
+Docs
+^^^^
+
+- Add newly-accepted JOSS paper to docs, update citation information, and fresh new badges (`#829 <https://github.com/StingraySoftware/stingray/pull/829>`__)
+
+v2.2.1 (2024-10-23)
+-------------------
+
+Bug Fixes
+^^^^^^^^^
+
+- Fix issue with FITS headers, especially for RXTE data (`#853 <https://github.com/StingraySoftware/stingray/pull/853>`__)
+
+
 v2.2 (2024-10-22)
 -----------------
 

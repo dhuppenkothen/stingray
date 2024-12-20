@@ -1,0 +1,1 @@
+Implement filter by time interval in stingraytimeseries objects

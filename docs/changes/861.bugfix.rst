@@ -1,0 +1,1 @@
+Fix scipy futurewarning about the inputs to the Toeplitz matrix in bispectrum

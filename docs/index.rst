@@ -8,6 +8,16 @@ Stingray: Next-Generation Spectral Timing
    :alt: Stingray logo, outline of a stingray on top of a graph of the power spectrum of an X-ray binary
    :align: center
 
+.. csv-table::
+   :header: "Usage", "Release", "Development", "Community"
+   :widths: auto
+   :align: center
+
+   |Python version|, |GitHub release|, |Build Status Master|, |Slack|
+   |Docs|, |joss|, |Repo status|,  |pyOpenSci Peer-Reviewed|
+   |License|, |doi|, |Coverage Status Master|, " "
+
+
 Stingray is a Python library designed to perform times series analysis and related tasks on astronomical light curves.
 It supports a range of commonly-used Fourier analysis techniques, as well as extensions for analyzing pulsar data, simulating data sets, and statistical modelling.
 Stingray is designed to be easy to extend, and easy to incorporate into data analysis workflows and pipelines.
@@ -33,7 +43,7 @@ Current Capabilities
 * Good Time Interval operations
 * Filling gaps in light curves with statistically sound fake data
 
-1. Fourier methods
+2. Fourier methods
 ~~~~~~~~~~~~~~~~~~
 * power spectra and cross spectra in Leahy, rms normalization, absolute rms and no normalization
 * averaged power spectra and cross spectra
@@ -328,3 +338,27 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
+.. |Python version| image:: https://img.shields.io/python/required-version-toml?tomlFilePath=https://raw.githubusercontent.com/stingraysoftware/stingray/main/pyproject.toml
+   :alt: Python Version from PEP 621 TOML
+.. |Build Status Master| image:: https://github.com/StingraySoftware/stingray/workflows/CI%20Tests/badge.svg
+   :target: https://github.com/StingraySoftware/stingray/actions/
+.. |Docs| image:: https://img.shields.io/badge/docs-latest-brightgreen.svg?style=flat
+   :target: https://docs.stingray.science/
+.. |Slack| image:: https://img.shields.io/badge/Join%20Our%20Community-Slack-blue
+   :target: https://join.slack.com/t/stingraysoftware/shared_invite/zt-49kv4kba-mD1Y~s~rlrOOmvqM7mZugQ
+.. |Coverage Status Master| image:: https://codecov.io/gh/StingraySoftware/stingray/branch/master/graph/badge.svg?token=FjWeFfhU9F
+   :target: https://codecov.io/gh/StingraySoftware/stingray
+.. |GitHub release| image:: https://img.shields.io/github/v/release/StingraySoftware/stingray
+   :target: https://github.com/StingraySoftware/stingray/releases/latest
+.. |joss| image:: https://joss.theoj.org/papers/10.21105/joss.07389/status.svg
+   :target: https://doi.org/10.21105/joss.07389
+.. |doi| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.1490116.svg
+   :target: https://doi.org/10.5281/zenodo.1490116
+.. |Repo status| image:: https://www.repostatus.org/badges/latest/active.svg
+   :alt: Project Status: Active – The project has reached a stable, usable state and is being actively developed.
+   :target: https://www.repostatus.org/#active
+.. |License| image:: https://img.shields.io/badge/License-MIT-yellow.svg
+   :target: https://opensource.org/licenses/MIT
+.. |pyOpenSci Peer-Reviewed| image:: https://pyopensci.org/badges/peer-reviewed.svg
+   :target: https://github.com/pyOpenSci/software-review/issues/201

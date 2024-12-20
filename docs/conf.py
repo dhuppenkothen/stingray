@@ -164,6 +164,7 @@ linkcheck_ignore = [
     r"https://arxiv.org/",
     r"https://.*adsabs.harvard.edu/",
     r"https://zenodo.org/",
+    r"https://opensource.org/",
 ]
 
 # -- Options for the edit_on_github extension ---------------------------------
@@ -236,6 +237,8 @@ with open("_zenodo.rst", "w") as f:
         f.write("     - DOI\n")
         f.write("     - Citation\n")
         for r in sorted(releases, key=lambda r: r.version, reverse=True):
+            if "beta" in r.version or "rc" in r.version:
+                continue
             f.write(f"   * - `{r.version} <{r.github_url}>`__\n")
             f.write(f"     - `{r.doi} <{r.zenodo_url}>`__\n")
             f.write(f"     - `[Link to BibTeX] <{r.bibtex_url}>`__\n")

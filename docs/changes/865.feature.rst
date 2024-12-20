@@ -1,0 +1,1 @@
+Use the formulas from Ingram+2019 consistently when calculating cross spectral errors, including lags

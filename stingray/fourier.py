@@ -1084,7 +1084,14 @@ def error_on_averaged_cross_spectrum(
     cross_power, seg_power, ref_power, n_ave, seg_power_noise, ref_power_noise, common_ref=False
 ):
     """
-    Error on cross spectral quantities, From Ingram 2019.
+    Error on cross spectral quantities.
+
+    `Ingram 2019<https://ui.adsabs.harvard.edu/abs/2019MNRAS.489.3927I/abstract>`__ details
+    the derivation of the corrected formulas when the subject band is included in the reference
+    band (and photons are presents in both bands, so this does _not_ involve overlapping bands from
+    different detectors).
+    The keyword argument ``common_ref`` indicates if the reference band also contains the photons
+    of the subject band.
 
     Note: this is only valid for a very large number of averaged powers.
     Beware if n_ave < 50 or so.

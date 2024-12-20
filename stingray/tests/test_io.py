@@ -236,6 +236,40 @@ class TestFITSTimeseriesReader(object):
         all_ev = reader[:]
         assert np.all((all_ev.time > 80000000) & (all_ev.time < 80001024))
 
+    @pytest.mark.parametrize("root_file_name", [None, "test"])
+    @pytest.mark.parametrize("gti_kind", ["same", "one", "multiple"])
+    def test_read_apply_gti_lists(self, root_file_name, gti_kind):
+        reader = FITSTimeseriesReader(self.fname, output_class=EventList)
+        if gti_kind == "same":
+            gti_list = [reader.gti]
+        elif gti_kind == "one":
+            gti_list = [[[80000000, 80001024]]]
+        elif gti_kind == "multiple":
+            gti_list = [[[80000000, 80000512]], [[80000513, 80001024]]]
+
+        evs = list(reader.apply_gti_lists(gti_list, root_file_name=root_file_name))
+
+        # Check that the number of event lists is the same as the number of GTI lists we input
+        assert len(evs) == len(gti_list)
+
+        # If the root_file_name is not None, read the event lists and delete the file(s)
+        if root_file_name is not None:
+            ev_str = evs
+            evs = [EventList.read(ev, fmt=DEFAULT_FORMAT) for ev in ev_str]
+            for ev in ev_str:
+                os.unlink(ev)
+
+        for i, ev in enumerate(evs):
+            # Check that the gtis of the output event lists are the same we input
+            assert np.allclose(ev.gti, gti_list[i])
+
+    def test_read_apply_gti_lists_ignore_empty(self):
+        reader = FITSTimeseriesReader(self.fname, output_class=EventList)
+        gti_list = [[], [[80000000, 80000512]], [[80000513, 80001024]]]
+        evs = list(reader.apply_gti_lists(gti_list))
+        assert np.allclose(evs[0].gti, gti_list[1])
+        assert np.allclose(evs[1].gti, gti_list[2])
+
     def test_read_fits_timeseries_by_nsamples(self):
         reader = FITSTimeseriesReader(self.fname, output_class=EventList)
         # Full slice
