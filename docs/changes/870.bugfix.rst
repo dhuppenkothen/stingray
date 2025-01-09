@@ -1,0 +1,1 @@
+Fix problem with data types fed to scipy special functions
