@@ -158,8 +158,15 @@ latex_documents = [("index", project + ".tex", project + " Documentation", autho
 # (source start file, name, description, authors, manual section).
 man_pages = [("index", project.lower(), project + " Documentation", [author], 1)]
 
-# Trust the links from doi.org, even if they might have Client errors or other minor issues
-linkcheck_ignore = [r"https://doi.org/"]
+# Trust the links from these sites, even if they might have Client errors or other minor issues
+linkcheck_ignore = [
+    r"https://doi.org/",
+    r"https://arxiv.org/",
+    r"https://.*adsabs.harvard.edu/",
+    r"https://zenodo.org/",
+    r"https://opensource.org/",
+    r"https://www.mathworks.com/",
+]
 
 # -- Options for the edit_on_github extension ---------------------------------
 
@@ -197,7 +204,7 @@ class Release(object):
 
     @property
     def zenodo_url(self):
-        return f"https://zenodo.org/record/{self.doi.split('.')[-1]}"
+        return f"https://zenodo.org/records/{self.doi.split('.')[-1]}"
 
     @property
     def github_url(self):
@@ -231,6 +238,8 @@ with open("_zenodo.rst", "w") as f:
         f.write("     - DOI\n")
         f.write("     - Citation\n")
         for r in sorted(releases, key=lambda r: r.version, reverse=True):
+            if "beta" in r.version or "rc" in r.version:
+                continue
             f.write(f"   * - `{r.version} <{r.github_url}>`__\n")
             f.write(f"     - `{r.doi} <{r.zenodo_url}>`__\n")
             f.write(f"     - `[Link to BibTeX] <{r.bibtex_url}>`__\n")

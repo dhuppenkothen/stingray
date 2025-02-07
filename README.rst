@@ -89,8 +89,8 @@ The code is distributed under the MIT license; see `LICENSE.rst <LICENSE.rst>`_ 
    :target: https://codecov.io/gh/StingraySoftware/stingray
 .. |GitHub release| image:: https://img.shields.io/github/v/release/StingraySoftware/stingray
    :target: https://github.com/StingraySoftware/stingray/releases/latest
-.. |joss| image:: http://joss.theoj.org/papers/10.21105/joss.01393/status.svg
-   :target: https://doi.org/10.21105/joss.01393
+.. |joss| image:: https://joss.theoj.org/papers/10.21105/joss.07389/status.svg
+   :target: https://doi.org/10.21105/joss.07389
 .. |doi| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.1490116.svg
    :target: https://doi.org/10.5281/zenodo.1490116
 .. |Repo status| image:: https://www.repostatus.org/badges/latest/active.svg
@@ -98,8 +98,8 @@ The code is distributed under the MIT license; see `LICENSE.rst <LICENSE.rst>`_ 
    :target: https://www.repostatus.org/#active
 .. |License| image:: https://img.shields.io/badge/License-MIT-yellow.svg
    :target: https://opensource.org/licenses/MIT
-.. |pyOpenSci Peer-Reviewed| image:: https://pyopensci.org/badges/peer-reviewed.svg 
-   :target: https://github.com/pyOpenSci/software-review/issues/201
+.. |pyOpenSci Peer-Reviewed| image:: https://pyopensci.org/badges/peer-reviewed.svg
+   :target: https://github.com/pyOpenSci/software-submission/issues/201
 
 .. _Astropy: https://www.github.com/astropy/astropy
 .. _Issues: https://www.github.com/stingraysoftware/stingray/issues

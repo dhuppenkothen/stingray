@@ -1,3 +1,0 @@
-The ``fold_events`` function now checks if the keyword arguments (`kwargs`) are in the list of optional parameters.
-If any unidentified keys are present, it raises a `ValueError`. 
-This fix ensures that the function only accepts valid optional parameters and provides a clear error message for unsupported keys.

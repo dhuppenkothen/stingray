@@ -938,3 +938,29 @@ class TestRMS(object):
             M=M,
         )
         assert np.isclose(rms, rms_from_unnorm, atol=3 * rmse_from_unnorm)
+
+
+@pytest.mark.parametrize("ntimes", [100, 1000])
+def test_shift_and_add_orbit(ntimes):
+    # This time correct for orbital motion
+    from stingray.fourier import shift_and_add
+
+    fmid = 0.7
+    freqs = np.linspace(0.699, 0.701, 1001)
+    porb = 2.52 * 86400
+    asini = 22.5
+    t0 = porb / 2
+    times = np.linspace(0, porb, ntimes + 1)[:-1]
+    power_list = np.zeros((times.size, freqs.size))
+    omega = 2 * np.pi / porb
+    orbit_freqs = fmid * (1 - asini * omega * np.cos(omega * (times - t0)))
+
+    idx = np.searchsorted(freqs, orbit_freqs)
+    for i_t, power in zip(idx, power_list):
+        power[i_t] = 1
+
+    f, p, n = shift_and_add(freqs, power_list, orbit_freqs, nbins=5)
+    # If we corrected well, the power should be the average of all max powers in the
+    # original series
+    assert np.max(p) == 1
+    assert np.max(n) == times.size

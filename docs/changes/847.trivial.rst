@@ -1,1 +1,0 @@
-Added pre-commit hooks in ``pre-commit-config.yaml``  

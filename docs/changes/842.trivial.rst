@@ -1,1 +1,0 @@
-Moved configuration to pyproject.toml as recommended by PEP 621

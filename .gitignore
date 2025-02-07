@@ -32,10 +32,15 @@ MANIFEST
 cov.xml
 *coverage*
 release.*
+build/
+dist/
+stingray-*/
+joss/jats
 
 # Sphinx
 docs/api
 docs/_build
+
 
 # Environments
 .env
