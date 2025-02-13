@@ -319,15 +319,17 @@ class StingrayObject(object):
                 if not getattr(self, attr, None) == getattr(other_ts, attr, None):
                     return False
             else:
-                if not np.array_equal(getattr(self, attr, None), getattr(other_ts, attr, None)):
+                if not np.array_equal(
+                    getattr(self, attr, None), getattr(other_ts, attr, None), equal_nan=True
+                ):
                     return False
 
         for attr in self.array_attrs():
-            if not np.array_equal(getattr(self, attr), getattr(other_ts, attr)):
+            if not np.array_equal(getattr(self, attr), getattr(other_ts, attr), equal_nan=True):
                 return False
 
         for attr in self.internal_array_attrs():
-            if not np.array_equal(getattr(self, attr), getattr(other_ts, attr)):
+            if not np.array_equal(getattr(self, attr), getattr(other_ts, attr), equal_nan=True):
                 return False
 
         return True
@@ -2719,6 +2721,67 @@ class StingrayTimeseries(StingrayObject):
             The result of ``func`` for each segment of the light curve
         """
         return self.analyze_segments(func, segment_size=None, fraction_step=fraction_step, **kwargs)
+
+    def apply_gti_lists(self, new_gti_lists):
+        """Split the event list into different files, each with a different GTI.
+
+        Parameters
+        ----------
+        new_gti_lists : list of lists
+            A list of lists of GTIs. Each sublist should contain a list of GTIs
+            for a new file.
+
+        Returns
+        -------
+        output_files : list of str
+            A list of the output file names.
+
+        """
+
+        if len(new_gti_lists[0]) == len(self.gti) and np.all(
+            np.abs(np.asanyarray(new_gti_lists[0]).flatten() - self.gti.flatten()) < 1e-3
+        ):
+            ev = self[:]
+            yield ev
+
+        else:
+            for gti in new_gti_lists:
+                if len(gti) == 0:
+                    continue
+                gti = np.asarray(gti)
+                lower_edge = np.searchsorted(self.time, gti[0, 0])
+                upper_edge = np.searchsorted(self.time, gti[-1, 1])
+                if upper_edge == self.time.size:
+                    upper_edge -= 1
+                if self.time[upper_edge] > gti[-1, 1]:
+                    upper_edge -= 1
+                ev = self[lower_edge : upper_edge + 1]
+
+                if hasattr(ev, "gti"):
+                    ev.gti = gti
+
+                yield ev
+
+    def filter_at_time_intervals(self, time_intervals, check_gtis=True):
+        """Filter the event list at the given time intervals.
+
+        Parameters
+        ----------
+        time_intervals : 2-d float array
+            List of time intervals of the form ``[[time0_0, time0_1], [time1_0, time1_1], ...]``
+
+        Returns
+        -------
+        output_files : list of str
+            A list of the output file names.
+        """
+        if len(np.shape(time_intervals)) == 1:
+            time_intervals = [time_intervals]
+        if check_gtis:
+            new_gti = [cross_two_gtis(self.gti, [t_int]) for t_int in time_intervals]
+        else:
+            new_gti = [np.asarray([t_int]) for t_int in time_intervals]
+        return self.apply_gti_lists(new_gti)
 
 
 def interpret_times(time: TTime, mjdref: float = 0) -> tuple[npt.ArrayLike, float]:

@@ -286,7 +286,7 @@ def olsStep(
     rfftn=None,
     irfftn=None,
     mode="constant",
-    **kwargs
+    **kwargs,
 ):
     """Implements a single step of the overlap-save algorithm
 
@@ -469,6 +469,6 @@ def ols(x, h, size=None, nfft=None, out=None, rfftn=None, irfftn=None, mode="con
             rfftn=rfftn,
             irfftn=irfftn,
             mode=mode,
-            **kwargs
+            **kwargs,
         )
     return out

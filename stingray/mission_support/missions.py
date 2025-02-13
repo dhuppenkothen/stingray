@@ -144,6 +144,7 @@ SIMPLE_CONVERSION_FUNCTIONS = {
     "xmm": lambda pi: pi * 0.001,
     "nicer": lambda pi: pi * 0.01,
     "ixpe": lambda pi: pi / 375 * 15,
+    "axaf": lambda pi: (pi - 1) * 14.6e-3,
 }
 
 
@@ -181,14 +182,12 @@ def get_rough_conversion_function(mission, instrument=None, epoch=None):
 def mission_specific_event_interpretation(mission):
     """Get the mission-specific FITS interpretation function.
 
-    This function will read a FITS :class:`astropy.io.fits.HDUList` object and modify it
-    in place to make the read into Stingray easier.
+    This function will read a file name or a FITS :class:`astropy.io.fits.HDUList`
+    object and modify it (see, e.g., :func:`rxte_pca_event_file_interpretation` for an
+    example)
     """
 
     if mission.lower() == "xte":
         return rxte_pca_event_file_interpretation
 
-    def _empty(x):
-        return x
-
-    return _empty
+    return None

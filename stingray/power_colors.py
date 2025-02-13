@@ -151,7 +151,7 @@ def _trace_states(ax, configuration=DEFAULT_COLOR_CONFIGURATION, **kwargs):
                 ls=None,
                 lw=0,
                 color=color,
-                **kwargs
+                **kwargs,
             )
             ax.add_patch(t1)
             next_angle += 5.0

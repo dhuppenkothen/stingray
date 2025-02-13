@@ -37,11 +37,17 @@ except ImportError:
     print("ERROR: the documentation requires the sphinx-astropy package to be installed")
     sys.exit(1)
 
-# Get configuration information from setup.cfg
-conf = ConfigParser()
+try:
+    import tomllib
+except ImportError:
+    # Help users on older alphas
+    import tomli as tomllib
+from pathlib import Path
 
-conf.read([os.path.join(os.path.dirname(__file__), "..", "setup.cfg")])
-setup_cfg = dict(conf.items("metadata"))
+# Grab minversion from pyproject.toml
+with (Path(__file__).parents[1] / "pyproject.toml").open("rb") as f:
+    pyproject = tomllib.load(f)
+
 
 # -- General configuration ----------------------------------------------------
 
@@ -67,16 +73,16 @@ rst_epilog += """
 # -- Project information ------------------------------------------------------
 
 # This does not *have* to match the package name, but typically does
-project = setup_cfg["name"]
-author = setup_cfg["author"]
-copyright = "{0}, {1}".format(datetime.datetime.now().year, setup_cfg["author"])
+project = pyproject["project"]["name"]
+author = ",".join(pyproject["project"]["authors"][0]["name"])
+copyright = "{0}, {1}".format(datetime.datetime.now().year, pyproject["project"]["authors"])
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 
-import_module(setup_cfg["name"])
-package = sys.modules[setup_cfg["name"]]
+import_module(pyproject["project"]["name"])
+package = sys.modules[pyproject["project"]["name"]]
 
 # The short X.Y version.
 version = package.__version__.split("-", 1)[0]
@@ -152,22 +158,25 @@ latex_documents = [("index", project + ".tex", project + " Documentation", autho
 # (source start file, name, description, authors, manual section).
 man_pages = [("index", project.lower(), project + " Documentation", [author], 1)]
 
-# Trust the links from doi.org, even if they might have Client errors or other minor issues
-linkcheck_ignore = [r"https://doi.org/"]
+# Trust the links from these sites, even if they might have Client errors or other minor issues
+linkcheck_ignore = [
+    r"https://doi.org/",
+    r"https://arxiv.org/",
+    r"https://.*adsabs.harvard.edu/",
+    r"https://zenodo.org/",
+    r"https://opensource.org/",
+    r"https://www.mathworks.com/",
+]
 
 # -- Options for the edit_on_github extension ---------------------------------
 
-if setup_cfg.get("edit_on_github").lower() == "true":
-    extensions += ["sphinx_astropy.ext.edit_on_github"]
+edit_on_github_branch = "main"
 
-    edit_on_github_project = setup_cfg["github_project"]
-    edit_on_github_branch = "master"
-
-    edit_on_github_source_root = ""
-    edit_on_github_doc_root = "docs"
 
 # -- Resolving issue number to links in changelog -----------------------------
-github_issues_url = "https://github.com/{0}/issues/".format(setup_cfg["github_project"])
+github_issues_url = "https://github.com/{0}/issues/".format(
+    pyproject["project"]["urls"]["repository"]
+)
 
 # -- Configuration for nbsphinx -----------------------------------------------
 # disable notebook execution
@@ -195,7 +204,7 @@ class Release(object):
 
     @property
     def zenodo_url(self):
-        return f"https://zenodo.org/record/{self.doi.split('.')[-1]}"
+        return f"https://zenodo.org/records/{self.doi.split('.')[-1]}"
 
     @property
     def github_url(self):
@@ -229,6 +238,8 @@ with open("_zenodo.rst", "w") as f:
         f.write("     - DOI\n")
         f.write("     - Citation\n")
         for r in sorted(releases, key=lambda r: r.version, reverse=True):
+            if "beta" in r.version or "rc" in r.version:
+                continue
             f.write(f"   * - `{r.version} <{r.github_url}>`__\n")
             f.write(f"     - `{r.doi} <{r.zenodo_url}>`__\n")
             f.write(f"     - `[Link to BibTeX] <{r.bibtex_url}>`__\n")

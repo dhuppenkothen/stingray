@@ -1020,7 +1020,20 @@ class DynamicalPowerspectrum(DynamicalCrossspectrum):
         The number of averaged cross spectra.
     """
 
-    def __init__(self, lc, segment_size, norm="frac", gti=None, sample_time=None):
+    def __init__(self, lc=None, segment_size=None, norm="frac", gti=None, sample_time=None):
+        self.segment_size = segment_size
+        self.sample_time = sample_time
+        self.gti = gti
+        self.norm = norm
+
+        if segment_size is None and lc is None:
+            self._initialize_empty()
+            self.dyn_ps = None
+            return
+
+        if segment_size is None or lc is None:
+            raise TypeError("lc and segment_size must all be specified")
+
         if isinstance(lc, EventList) and sample_time is None:
             raise ValueError("To pass an input event lists, please specify sample_time")
         elif isinstance(lc, Lightcurve):
@@ -1033,12 +1046,58 @@ class DynamicalPowerspectrum(DynamicalCrossspectrum):
         if segment_size < 2 * sample_time:
             raise ValueError("Length of the segment is too short to form a light curve!")
 
-        self.segment_size = segment_size
-        self.sample_time = sample_time
-        self.gti = gti
-        self.norm = norm
-
         self._make_matrix(lc)
+
+    def shift_and_add(self, f0_list, nbins=100, rebin=None):
+        """Shift-and-add the dynamical power spectrum.
+
+        This is the basic operation for the shift-and-add operation used to track
+        kHz QPOs in X-ray binaries (e.g. Méndez et al. 1998, ApJ, 494, 65).
+
+        Parameters
+        ----------
+        freqs : np.array
+            Array of frequencies, the same for all powers. Must be sorted and on a uniform
+            grid.
+        power_list : list of np.array
+            List of power spectra. Each power spectrum must have the same length
+            as the frequency array.
+        f0_list : list of float
+            List of central frequencies
+
+        Other parameters
+        ----------------
+        nbins : int, default 100
+            Number of bins to extract
+        rebin : int, default None
+            Rebin the final spectrum by this factor. At the moment, the rebinning
+            is linear.
+
+        Returns
+        -------
+        output: :class:`AveragedPowerspectrum`
+            The final averaged power spectrum.
+
+        Examples
+        --------
+        >>> power_list = [[2, 5, 2, 2, 2], [1, 1, 5, 1, 1], [3, 3, 3, 5, 3]]
+        >>> power_list = np.array(power_list).T
+        >>> freqs = np.arange(5) * 0.1
+        >>> f0_list = [0.1, 0.2, 0.3, 0.4]
+        >>> dps = DynamicalPowerspectrum()
+        >>> dps.dyn_ps = power_list
+        >>> dps.freq = freqs
+        >>> dps.df = 0.1
+        >>> dps.m = 1
+        >>> output = dps.shift_and_add(f0_list, nbins=5)
+        >>> assert isinstance(output, AveragedPowerspectrum)
+        >>> assert np.array_equal(output.m, [2, 3, 3, 3, 2])
+        >>> assert np.array_equal(output.power, [2. , 2. , 5. , 2. , 1.5])
+        >>> assert np.allclose(output.freq, [0.05, 0.15, 0.25, 0.35, 0.45])
+        """
+        return super().shift_and_add(
+            f0_list, nbins=nbins, output_obj_type=AveragedPowerspectrum, rebin=rebin
+        )
 
     def _make_matrix(self, lc):
         """
@@ -1249,6 +1308,9 @@ def powerspectrum_from_events(
     """
     if gti is None:
         gti = events.gti
+
+    dt = events.suggest_compatible_dt(dt)
+
     return powerspectrum_from_time_array(
         events.time,
         dt,

@@ -51,7 +51,9 @@ try:
     from numba import njit, prange, vectorize, float32, float64, int32, int64
     from numba.core.errors import NumbaValueError, NumbaNotImplementedError, TypingError
 except ImportError:
-    warnings.warn("Numba not installed. Faking it")
+    warnings.warn(
+        "The recommended numba package is not installed. Some functionality might be slower."
+    )
     HAS_NUMBA = False
     NumbaValueError = NumbaNotImplementedError = TypingError = Exception
 

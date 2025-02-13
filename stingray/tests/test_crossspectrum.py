@@ -1232,10 +1232,8 @@ class TestAveragedCrossspectrum(object):
                 dt=dt,
             )
 
-        with pytest.warns(UserWarning) as w:
-            cs = AveragedCrossspectrum(test_lc1, test_lc2, segment_size=5, norm="none")
-
-            time_lag, time_lag_err = cs.time_lag()
+        cs = AveragedCrossspectrum(test_lc1, test_lc2, segment_size=5, norm="none")
+        time_lag, time_lag_err = cs.time_lag()
 
         # The actual measured time lag will be half that for AveragedCrosspectrum
         measured_lag = -dt
@@ -1246,8 +1244,7 @@ class TestAveragedCrossspectrum(object):
         np.random.seed(62)
         test_lc1 = Lightcurve(time, np.random.poisson(200, 10000))
         test_lc2 = Lightcurve(time, np.random.poisson(200, 10000))
-        with pytest.warns(UserWarning) as w:
-            cs = AveragedCrossspectrum(test_lc1, test_lc2, segment_size=10, norm="leahy")
+        cs = AveragedCrossspectrum(test_lc1, test_lc2, segment_size=10, norm="leahy")
         maxpower = np.max(cs.power)
         assert np.all(np.isfinite(cs.classical_significances(threshold=maxpower / 2.0)))
 
@@ -1429,6 +1426,10 @@ class TestDynamicalCrossspectrum(object):
         test_times = np.arange(16)
         test_counts = [2, 3, 1, 3, 1, 5, 2, 1, 4, 2, 2, 2, 3, 4, 1, 7]
         cls.lc_test = Lightcurve(test_times, test_counts)
+
+    def test_bad_args(self):
+        with pytest.raises(TypeError, match=".must all be specified"):
+            _ = DynamicalCrossspectrum(1)
 
     def test_with_short_seg_size(self):
         with pytest.raises(ValueError):
@@ -1660,3 +1661,201 @@ class TestDynamicalCrossspectrum(object):
         assert np.allclose(new_dps.freq, rebin_freq)
         assert np.allclose(new_dps.dyn_ps, rebin_dps, atol=0.00001)
         assert np.isclose(new_dps.df, df_new)
+
+    def test_shift_and_add(self):
+        power_list = [[2, 5, 2, 2, 2], [1, 1, 5, 1, 1], [3, 3, 3, 5, 3]]
+        power_list = np.array(power_list).T
+        freqs = np.arange(5) * 0.1
+        f0_list = [0.1, 0.2, 0.3, 0.4]
+        dps = DynamicalCrossspectrum()
+        dps.dyn_ps = power_list
+        dps.freq = freqs
+        dps.df = 0.1
+        dps.m = 1
+        output = dps.shift_and_add(f0_list, nbins=5)
+        assert np.array_equal(output.m, [2, 3, 3, 3, 2])
+        assert np.array_equal(output.power, [2.0, 2.0, 5.0, 2.0, 1.5])
+        assert np.allclose(output.freq, [0.05, 0.15, 0.25, 0.35, 0.45])
+
+
+class TestAveragedCrossspectrumOverlap(object):
+    def setup_class(self):
+        tstart = 0.0
+        tend = 1.0
+        dt = np.longdouble(0.0001)
+
+        time = np.arange(tstart + 0.5 * dt, tend + 0.5 * dt, dt)
+
+        counts1 = np.random.poisson(1, size=time.shape[0])
+        counts2 = np.random.poisson(1, size=time.shape[0]) + counts1
+
+        self.lc1 = Lightcurve(time, counts1, gti=[[tstart, tend]], dt=dt)
+        self.lc2 = Lightcurve(time, counts2, gti=[[tstart, tend]], dt=dt)
+
+        self.cs = AveragedCrossspectrum(
+            self.lc1, self.lc2, segment_size=1, save_all=True, channels_overlap=True
+        )
+
+    def test_save_all(self):
+        cs = AveragedCrossspectrum(
+            self.lc1, self.lc2, segment_size=1, save_all=True, channels_overlap=True
+        )
+        assert hasattr(self.cs, "cs_all")
+
+    def test_rebin_with_valid_type_attribute(self):
+        new_df = 2
+        aps = AveragedCrossspectrum(
+            self.lc1, self.lc2, segment_size=1, norm="leahy", channels_overlap=True
+        )
+
+        assert aps.rebin(df=new_df)
+
+    @pytest.mark.parametrize("err_dist", ["poisson", "gauss"])
+    def test_with_iterable_of_lightcurves(self, err_dist):
+        def iter_lc(lc, n):
+            "Generator of n parts of lc."
+            t0 = int(len(lc) / n)
+            t = t0
+            i = 0
+            while True:
+                lc_seg = lc[i:t]
+                yield lc_seg
+                if t + t0 > len(lc):
+                    break
+                else:
+                    i, t = t, t + t0
+
+        lc1 = copy.deepcopy(self.lc1)
+        lc2 = copy.deepcopy(self.lc2)
+        lc1.err_dist = lc2.err_dist = err_dist
+        with pytest.warns(UserWarning) as record:
+            cs = AveragedCrossspectrum(
+                iter_lc(self.lc1, 1), iter_lc(self.lc2, 1), segment_size=1, channels_overlap=True
+            )
+        message = "The averaged Cross spectrum from a generator "
+
+        assert np.any([message in r.message.args[0] for r in record])
+
+    def test_with_multiple_lightcurves_variable_length(self):
+        gti = [[0, 0.05], [0.05, 0.5], [0.555, 1.0]]
+        lc1 = copy.deepcopy(self.lc1)
+        lc1.gti = gti
+        lc2 = copy.deepcopy(self.lc2)
+        lc2.gti = gti
+
+        lc1_split = lc1.split_by_gti()
+        lc2_split = lc2.split_by_gti()
+
+        cs = AveragedCrossspectrum(
+            lc1_split,
+            lc2_split,
+            segment_size=0.05,
+            norm="leahy",
+            silent=True,
+            channels_overlap=True,
+        )
+
+    def test_coherence(self):
+        with pytest.warns(UserWarning) as w:
+            coh = self.cs.coherence()
+
+            assert len(coh[0]) == 4999
+            assert len(coh[1]) == 4999
+            assert issubclass(w[-1].category, UserWarning)
+
+    def test_normalize_crossspectrum(self):
+        cs1 = Crossspectrum(self.lc1, self.lc2, norm="leahy", channels_overlap=True)
+        cs2 = Crossspectrum(
+            self.lc1, self.lc2, norm="leahy", power_type="all", channels_overlap=True
+        )
+        cs3 = Crossspectrum(
+            self.lc1, self.lc2, norm="leahy", power_type="real", channels_overlap=True
+        )
+        cs4 = Crossspectrum(
+            self.lc1, self.lc2, norm="leahy", power_type="absolute", channels_overlap=True
+        )
+        assert np.allclose(cs1.power.real, cs3.power)
+        assert np.all(np.isclose(np.abs(cs2.power), cs4.power, atol=0.0001))
+
+    def test_normalize_crossspectrum_with_method_inplace(self):
+        cs1 = AveragedCrossspectrum.from_lightcurve(
+            self.lc1, self.lc2, segment_size=1, norm="abs", channels_overlap=True
+        )
+        cs2 = cs1.to_norm("leahy", inplace=True)
+        cs3 = cs1.to_norm("leahy", inplace=False)
+        assert cs3 is not cs1
+        assert cs2 is cs1
+
+    @pytest.mark.parametrize("norm1", ["leahy", "abs", "frac", "none"])
+    @pytest.mark.parametrize("norm2", ["leahy", "abs", "frac", "none"])
+    def test_normalize_crossspectrum_with_method(self, norm1, norm2):
+        cs1 = AveragedCrossspectrum.from_lightcurve(
+            self.lc1, self.lc2, segment_size=1, norm=norm1, channels_overlap=True
+        )
+        cs2 = AveragedCrossspectrum.from_lightcurve(
+            self.lc1, self.lc2, segment_size=1, norm=norm2, channels_overlap=True
+        )
+        cs3 = cs2.to_norm(norm1)
+        for attr in ["power", "power_err", "unnorm_power", "unnorm_power_err"]:
+            assert np.allclose(getattr(cs1, attr), getattr(cs3, attr))
+            assert np.allclose(getattr(cs1.pds1, attr), getattr(cs3.pds1, attr))
+            assert np.allclose(getattr(cs1.pds2, attr), getattr(cs3.pds2, attr))
+
+    @pytest.mark.parametrize("f", [None, 1.5])
+    @pytest.mark.parametrize("norm", ["leahy", "abs", "frac", "none"])
+    def test_rebin_factor_rebins_all_attrs(self, f, norm):
+        cs1 = AveragedCrossspectrum.from_lightcurve(
+            self.lc1, self.lc2, segment_size=1, norm=norm, channels_overlap=True
+        )
+        # N.B.: if f is not None, df gets ignored.
+        new_cs = cs1.rebin(df=1.5, f=f)
+        N = new_cs.freq.size
+        for attr in ["power", "power_err", "unnorm_power", "unnorm_power_err"]:
+            assert hasattr(new_cs, attr) and getattr(new_cs, attr).size == N
+            assert hasattr(new_cs.pds1, attr) and getattr(new_cs.pds1, attr).size == N
+            assert hasattr(new_cs.pds2, attr) and getattr(new_cs.pds2, attr).size == N
+
+        for attr in cs1.meta_attrs():
+            if attr not in ["df", "gti", "m"]:
+                assert getattr(cs1, attr) == getattr(new_cs, attr)
+
+    @pytest.mark.parametrize("norm", ["leahy", "abs", "frac", "none"])
+    def test_rebin_factor_log_rebins_all_attrs(self, norm):
+        cs1 = AveragedCrossspectrum.from_lightcurve(
+            self.lc1, self.lc2, segment_size=1, norm=norm, channels_overlap=True
+        )
+        new_cs = cs1.rebin_log(0.03)
+        N = new_cs.freq.size
+        for attr in ["power", "power_err", "unnorm_power", "unnorm_power_err"]:
+            assert hasattr(new_cs, attr) and getattr(new_cs, attr).size == N
+            assert hasattr(new_cs.pds1, attr) and getattr(new_cs.pds1, attr).size == N
+            assert hasattr(new_cs.pds2, attr) and getattr(new_cs.pds2, attr).size == N
+
+        for attr in cs1.meta_attrs():
+            if attr not in ["df", "gti", "m", "k"]:
+                assert np.all(getattr(cs1, attr) == getattr(new_cs, attr))
+
+    def test_rebin(self):
+        new_cs = self.cs.rebin(df=1.5)
+        assert hasattr(new_cs, "dt") and new_cs.dt is not None
+        assert new_cs.df == 1.5
+        new_cs.time_lag()
+
+    def test_rebin_factor(self):
+        new_cs = self.cs.rebin(f=1.5)
+        assert hasattr(new_cs, "dt") and new_cs.dt is not None
+        assert new_cs.df == self.cs.df * 1.5
+        new_cs.time_lag()
+
+    def test_rebin_log(self):
+        # For now, just verify that it doesn't crash
+        new_cs = self.cs.rebin_log(f=0.1)
+        assert hasattr(new_cs, "dt") and new_cs.dt is not None
+        assert isinstance(new_cs, type(self.cs))
+        new_cs.time_lag()
+
+    def test_rebin_log_returns_complex_values_and_errors(self):
+        # For now, just verify that it doesn't crash
+        new_cs = self.cs.rebin_log(f=0.1)
+        assert np.iscomplexobj(new_cs.power[0])
+        assert np.iscomplexobj(new_cs.power_err[0])

@@ -452,7 +452,7 @@ class ParameterEstimation(object):
                         args=args,
                         tol=1.0e-10,
                         bounds=bounds,
-                        **scipy_optimize_options
+                        **scipy_optimize_options,
                     )
 
                 else:
@@ -462,7 +462,7 @@ class ParameterEstimation(object):
                         method=self.fitmethod,
                         args=args,
                         tol=1.0e-10,
-                        **scipy_optimize_options
+                        **scipy_optimize_options,
                     )
 
             # if max_post is False, then do a Maximum Likelihood Fit
@@ -477,7 +477,7 @@ class ParameterEstimation(object):
                             args=args,
                             tol=1.0e-10,
                             bounds=bounds,
-                            **scipy_optimize_options
+                            **scipy_optimize_options,
                         )
                     else:
                         opt = scipy.optimize.minimize(
@@ -486,7 +486,7 @@ class ParameterEstimation(object):
                             method=self.fitmethod,
                             args=args,
                             tol=1.0e-10,
-                            **scipy_optimize_options
+                            **scipy_optimize_options,
                         )
 
                 elif isinstance(lpost, LogLikelihood):
@@ -501,7 +501,7 @@ class ParameterEstimation(object):
                             args=args,
                             tol=1.0e-10,
                             # bounds=bounds,
-                            **scipy_optimize_options
+                            **scipy_optimize_options,
                         )
 
                     else:
@@ -511,7 +511,7 @@ class ParameterEstimation(object):
                             method=self.fitmethod,
                             args=args,
                             tol=1.0e-10,
-                            **scipy_optimize_options
+                            **scipy_optimize_options,
                         )
 
             funcval = opt.fun

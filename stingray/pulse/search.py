@@ -510,7 +510,7 @@ def phaseogram(
     plot=False,
     phaseogram_ax=None,
     weights=None,
-    **plot_kwargs
+    **plot_kwargs,
 ):
     """
     Calculate and plot the phaseogram of a pulsar observation.

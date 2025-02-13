@@ -9,7 +9,8 @@ from ..io import split_numbers
 from ..io import ref_mjd
 from ..io import high_precision_keyword_read
 from ..io import load_events_and_gtis, read_mission_info
-from ..io import read_header_key
+from ..io import read_header_key, FITSTimeseriesReader, DEFAULT_FORMAT
+from ..events import EventList
 
 import warnings
 
@@ -123,6 +124,22 @@ class TestIO(object):
         assert np.allclose(data.energy_list.min(), 2.06)
         assert np.allclose(data.energy_list.max(), 117.86)
 
+    def test_event_file_read_chandra(self):
+        """Test event file reading."""
+        fname = os.path.join(datadir, "chandra_test.fits")
+        data = load_events_and_gtis(fname)
+        assert data.mission.lower() == "axaf"
+        assert hasattr(data, "energy_list")
+        assert data.energy_list.max() < 18
+
+    def test_event_file_read_chandra_noE(self):
+        """Test event file reading."""
+        fname = os.path.join(datadir, "chandra_noener_test.fits")
+        data = load_events_and_gtis(fname)
+        assert data.mission.lower() == "axaf"
+        assert hasattr(data, "energy_list")
+        assert data.energy_list.max() < 18
+
     def test_event_file_read_no_mission(self):
         """Test event file reading."""
         fname = os.path.join(datadir, "nomission.evt")
@@ -214,3 +231,99 @@ class TestCalibrate(object):
         pis = np.array([1, 2, 3])
         energies = pi_to_energy(pis, self.rmf)
         assert np.allclose(energies, [1.66, 1.70, 1.74])
+
+
+class TestFITSTimeseriesReader(object):
+    @classmethod
+    def setup_class(cls):
+        curdir = os.path.abspath(os.path.dirname(__file__))
+        cls.datadir = os.path.join(curdir, "data")
+        cls.fname = os.path.join(datadir, "monol_testA.evt")
+
+    def test_read_fits_timeseries_bad_kind(self):
+        with pytest.raises(
+            NotImplementedError, match="Only events are supported by FITSTimeseriesReader"
+        ):
+            FITSTimeseriesReader(self.fname, output_class="bubu", data_kind="BAD_KIND")
+
+    def test_read_fits_timeseries(self):
+        reader = FITSTimeseriesReader(self.fname, output_class=EventList)
+        # Full slice
+        all_ev = reader[:]
+        assert np.all((all_ev.time > 80000000) & (all_ev.time < 80001024))
+
+    @pytest.mark.parametrize("root_file_name", [None, "test"])
+    @pytest.mark.parametrize("gti_kind", ["same", "one", "multiple"])
+    def test_read_apply_gti_lists(self, root_file_name, gti_kind):
+        reader = FITSTimeseriesReader(self.fname, output_class=EventList)
+        if gti_kind == "same":
+            gti_list = [reader.gti]
+        elif gti_kind == "one":
+            gti_list = [[[80000000, 80001024]]]
+        elif gti_kind == "multiple":
+            gti_list = [[[80000000, 80000512]], [[80000513, 80001024]]]
+
+        evs = list(reader.apply_gti_lists(gti_list, root_file_name=root_file_name))
+
+        # Check that the number of event lists is the same as the number of GTI lists we input
+        assert len(evs) == len(gti_list)
+
+        # If the root_file_name is not None, read the event lists and delete the file(s)
+        if root_file_name is not None:
+            ev_str = evs
+            evs = [EventList.read(ev, fmt=DEFAULT_FORMAT) for ev in ev_str]
+            for ev in ev_str:
+                os.unlink(ev)
+
+        for i, ev in enumerate(evs):
+            # Check that the gtis of the output event lists are the same we input
+            assert np.allclose(ev.gti, gti_list[i])
+
+    def test_read_apply_gti_lists_ignore_empty(self):
+        reader = FITSTimeseriesReader(self.fname, output_class=EventList)
+        gti_list = [[], [[80000000, 80000512]], [[80000513, 80001024]]]
+        evs = list(reader.apply_gti_lists(gti_list))
+        assert np.allclose(evs[0].gti, gti_list[1])
+        assert np.allclose(evs[1].gti, gti_list[2])
+
+    def test_read_fits_timeseries_by_nsamples(self):
+        reader = FITSTimeseriesReader(self.fname, output_class=EventList)
+        # Full slice
+        outfnames = list(reader.split_by_number_of_samples(500, root_file_name="test"))
+        assert len(outfnames) == 2
+        ev0 = EventList.read(outfnames[0], fmt=DEFAULT_FORMAT)
+        ev1 = EventList.read(outfnames[1], fmt=DEFAULT_FORMAT)
+        assert np.all(ev0.time < 80000512.5)
+        assert np.all(ev1.time > 80000512.5)
+        for fname in outfnames:
+            os.unlink(fname)
+
+    def test_read_fits_timeseries_by_time_intv(self):
+        reader = FITSTimeseriesReader(self.fname, output_class=EventList)
+        # Full slice
+        outfnames = list(
+            reader.filter_at_time_intervals([80000100, 80001100], root_file_name="test")
+        )
+        assert len(outfnames) == 1
+        ev0 = EventList.read(outfnames[0], fmt=DEFAULT_FORMAT)
+        assert np.all((ev0.time > 80000100) & (ev0.time < 80001100))
+        assert np.all((ev0.gti >= 80000100) & (ev0.gti < 80001100))
+        for fname in outfnames:
+            os.unlink(fname)
+
+    def test_read_fits_timeseries_by_nsamples_generator(self):
+        reader = FITSTimeseriesReader(self.fname, output_class=EventList)
+        # Full slice
+        ev0, ev1 = list(reader.split_by_number_of_samples(500))
+
+        assert np.all(ev0.time < 80000512.5)
+        assert np.all(ev1.time > 80000512.5)
+
+    def test_read_fits_timeseries_by_time_intv_generator(self):
+        reader = FITSTimeseriesReader(self.fname, output_class=EventList)
+        # Full slice
+        evs = list(reader.filter_at_time_intervals([80000100, 80001100]))
+        assert len(evs) == 1
+        ev0 = evs[0]
+        assert np.all((ev0.time > 80000100) & (ev0.time < 80001100))
+        assert np.all((ev0.gti >= 80000100) & (ev0.gti < 80001100))
