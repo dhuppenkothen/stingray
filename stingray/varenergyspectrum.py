@@ -314,8 +314,8 @@ class VarEnergySpectrum(StingrayObject, metaclass=ABCMeta):
             The frequency mask.
         """
         if freq is None:
-            n_bin = np.rint(self.segment_size / self.bin_time)
-            freq = fftfreq(int(n_bin), self.bin_time)
+            n_bin =int(self.segment_size / self.bin_time)
+            freq = fftfreq(n_bin, self.bin_time)
             freq = freq[freq > 0]
         good = (freq >= self.freq_interval[0]) & (freq < self.freq_interval[1])
         return good
