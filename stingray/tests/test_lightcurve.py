@@ -1129,6 +1129,8 @@ class TestLightcurve(object):
 
     @pytest.mark.skipif("not _HAS_LIGHTKURVE")
     def test_to_lightkurve(self):
+        warnings.filterwarnings("ignore", message="numpy.core.einsumfunc is deprecated")
+
         time, counts, counts_err = np.arange(3), np.ones(3), np.zeros(3)
         lc = Lightcurve(time, counts, counts_err)
         lk = lc.to_lightkurve()
@@ -1139,6 +1141,7 @@ class TestLightcurve(object):
 
     @pytest.mark.skipif("not _HAS_LIGHTKURVE", reason="Lightkurve not installed")
     def test_from_lightkurve(self):
+        warnings.filterwarnings("ignore", message="numpy.core.einsumfunc is deprecated")
         from lightkurve import LightCurve
 
         time, flux, flux_err = np.arange(3), np.ones(3), np.zeros(3)
