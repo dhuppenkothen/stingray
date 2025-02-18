@@ -18,10 +18,3 @@ except ImportError:
 
 if not _ASTROPY_SETUP_:  # noqa
     import os
-
-    # Create the test function for self test
-    from astropy.tests.runner import TestRunner
-
-    test = TestRunner.make_test_runner_in(os.path.dirname(__file__))
-    test.__test__ = False
-    __all__ += ["test"]
